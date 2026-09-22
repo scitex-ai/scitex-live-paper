@@ -10,8 +10,14 @@ from __future__ import annotations
 
 try:
     from scitex_app._django import ScitexAppConfig  # type: ignore[import-not-found]
-except ImportError:  # pragma: no cover - exercised when scitex-app absent
-    from django.apps import AppConfig as ScitexAppConfig
+except ImportError:
+    try:
+        from django.apps import AppConfig as ScitexAppConfig
+    except ImportError as exc:
+        raise ImportError(
+            "scitex-live-paper's Django surface requires Django — "
+            "install with: pip install 'scitex-live-paper[all]'"
+        ) from exc
 
 
 class LivePaperConfig(ScitexAppConfig):

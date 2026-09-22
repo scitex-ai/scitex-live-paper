@@ -15,16 +15,17 @@ stable across the two implementations.
 
 from __future__ import annotations
 
-import logging
 import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Tuple
 
+import scitex_logging as slogging
+
 from scitex_live_paper import bundle as bundle_module
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 # bundle_path (resolved str) -> (BundleState, last_loaded_at_monotonic, claims_mtime_or_zero)
 _cache: Dict[str, Tuple["BundleState", float, float]] = {}

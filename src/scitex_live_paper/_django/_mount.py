@@ -76,8 +76,14 @@ from __future__ import annotations
 
 from typing import Any, Callable, Tuple
 
-from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotFound
-from django.urls import path
+try:
+    from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotFound
+    from django.urls import path
+except ImportError as exc:
+    raise ImportError(
+        "scitex-live-paper's Django surface requires Django — "
+        "install with: pip install 'scitex-live-paper[all]'"
+    ) from exc
 
 from .._types import (
     BundleAccessDenied,

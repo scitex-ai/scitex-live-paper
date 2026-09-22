@@ -21,22 +21,29 @@ The whole shape mirrors ``scitex_writer._django`` (which mirrors
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any, Callable, Mapping
 
-from django.http import (
-    HttpResponse,
-    HttpResponseBase,
-    HttpResponseNotFound,
-    JsonResponse,
-)
-from django.template.loader import render_to_string
-from django.views.decorators.csrf import csrf_exempt
+import scitex_logging as slogging
+
+try:
+    from django.http import (
+        HttpResponse,
+        HttpResponseBase,
+        HttpResponseNotFound,
+        JsonResponse,
+    )
+    from django.template.loader import render_to_string
+    from django.views.decorators.csrf import csrf_exempt
+except ImportError as exc:
+    raise ImportError(
+        "scitex-live-paper's Django surface requires Django — "
+        "install with: pip install 'scitex-live-paper[all]'"
+    ) from exc
 
 from . import services
 from .handlers import HANDLERS
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 # Surfaces the handlers are allowed to return. ``HttpResponse`` instances
 # pass through untouched; mappings get wrapped in ``JsonResponse``.
@@ -148,7 +155,7 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
             )
         return JsonResponse(payload)
     except Exception as exc:
-        logger.exception("[live-paper] handler %s raised", endpoint)
+        log.exception("[live-paper] handler %s raised", endpoint)
         return JsonResponse({"error": str(exc)}, status=500)
 
 
