@@ -48,11 +48,12 @@ TEMPLATES = [
     },
 ]
 
-# No DATABASES entry on purpose. This skeleton declares no models and no
-# migrations, and never opens a connection, so Django's own empty default
-# is the honest configuration — declaring a database here would announce a
-# dependency the app does not have. A host project that mounts these views
-# supplies its own database settings.
+# No database at all. live-paper has no models of its own and every handler
+# reads the bundle off disk or delegates to scitex-clew, which owns its own
+# store. Django accepts an empty mapping and installs its dummy backend, so
+# any accidental ORM call fails loudly here instead of silently succeeding
+# against a scratch database that nothing else would ever read.
+DATABASES: dict[str, dict[str, str]] = {}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
