@@ -18,6 +18,12 @@ may change without a changelog entry.
 
 ### Added
 
+- `api/dag` endpoint + sidebar claim detail/DAG pane (slice C/D):
+  the viewer sidebar now opens a per-claim detail pane (status,
+  provenance, anchor) with the bundle DAG rendered from the new
+  endpoint via the vendored mermaid bundle (offline-safe, MIT).
+  Missing `dag.mmd` → JSON 404 and the pane says so.
+
 - Ports/events injection lane (CCT 2998, binding): neutral core with
   external renderers. New `scitex_live_paper.ports` package
   (`protocols` figure/snippet/claim-graph, `Registry`,
