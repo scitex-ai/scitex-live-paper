@@ -18,6 +18,13 @@ may change without a changelog entry.
 
 ### Added
 
+- Monday looks-only viewer mock (`docs/demo/monday-mock.html`): a
+  single-file, zero-dependency static page for the Monday demo — styled
+  paper sheet, three claim anchors in the clew palette with pure-CSS
+  hover popups, inline-SVG provenance mini-graphs, and the claims
+  sidebar, all hand-baked from `tests/fixtures/bundle-accepted/`.
+  Looks-only, not product UI; the workspace tile stays Coming Soon.
+
 - Support for clew's `unsourced` claim status (clew 0.8.1,
   `claims.json` schema 1.4 / unified 1.6). `unsourced` is accepted by
   `validate` as a resting claim status, and renders in the **amber
