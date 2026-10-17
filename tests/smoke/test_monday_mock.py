@@ -12,7 +12,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
-MOCK = Path(__file__).resolve().parents[3] / "docs" / "demo" / "monday-mock.html"
+MOCK = Path(__file__).resolve().parents[2] / "docs" / "demo" / "monday-mock.html"
 
 EXPECTED_IDS = (
     "claim_a1b2c3d4e5f6",
