@@ -59,6 +59,16 @@ clew = [
 test = [
     "pytest>=8.0",
 ]
+# PS-221: public extras are closed under `[all]` — `pip install <pkg>[all]`
+# pulls EVERYTHING public. CI installs `.[all,dev]`.
+all = [
+    "scitex-live-paper[clew,django,mcp,test]",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "scitex-live-paper[all]",
+]
 
 [project.scripts]
 scitex-live-paper = "scitex_live_paper._cli:main"
