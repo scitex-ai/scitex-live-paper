@@ -42,6 +42,8 @@ except ImportError as exc:
 
 from . import services
 from .handlers import HANDLERS
+from .handlers.ports import handle_port
+from scitex_live_paper.ports._registry import PortNotFound
 
 log = slogging.getLogger(__name__)
 
@@ -129,7 +131,32 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
     Returns a clean JSON 404 when the endpoint is not registered — this
     keeps the unknown-endpoint contract explicit so the M2 / M3 wiring
     can rely on it.
+
+    ``api/port/<port>/<target>`` bypasses :data:`HANDLERS` and
+    delegates to the injected adapters — unknown ports, missing
+    registries, and unknown targets all 404 via
+    :class:`PortNotFound`.
     """
+    if endpoint == "api/port" or endpoint.startswith("api/port/"):
+        rest = endpoint[len("api/port/"):]
+        parts = rest.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            return JsonResponse(
+                {"error": f"malformed port endpoint: {endpoint}"},
+                status=404,
+            )
+        port, target = parts
+        try:
+            return JsonResponse(handle_port(request, port, target))
+        except PortNotFound as exc:
+            # PortNotFound is a KeyError: str(exc) would add an extra
+            # layer of quotes around the message.
+            message = exc.args[0] if exc.args else str(exc)
+            return JsonResponse({"error": message}, status=404)
+        except Exception as exc:
+            log.exception("[live-paper] port %s raised", endpoint)
+            return JsonResponse({"error": str(exc)}, status=500)
+
     handler: HandlerFn | None = HANDLERS.get(endpoint)
     if handler is None:
         return JsonResponse(
