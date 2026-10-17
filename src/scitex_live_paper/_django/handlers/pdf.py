@@ -18,7 +18,13 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from django.http import FileResponse, HttpResponse, JsonResponse
+try:
+    from django.http import FileResponse, HttpResponse, JsonResponse
+except ImportError as exc:
+    raise ImportError(
+        "scitex-live-paper's Django surface requires Django — "
+        "install with: pip install 'scitex-live-paper[all]'"
+    ) from exc
 
 from ..services import get_request_bundle_state
 

@@ -42,11 +42,12 @@ jobs:
           # The runtime requires list pins `scitex-dev` / `scitex-ui`
           # which are not yet on PyPI; for the test matrix we install
           # the package WITHOUT its declared deps and then layer on
-          # the minimum runtime + test deps the M1 surface actually
-          # needs (loader uses pyyaml; renderer/CLI scaffolding stays
-          # skipped until those modules land in their own PRs).
+          # the minimum runtime + test deps the suite actually needs
+          # (loader uses pyyaml; _django handlers import scitex-logging;
+          # renderer/CLI scaffolding stays skipped until those modules
+          # land in their own PRs).
           python -m pip install --no-deps -e .
-          python -m pip install pytest pyyaml jinja2 click 'django>=4.2'
+          python -m pip install pytest pyyaml jinja2 click 'django>=4.2' 'scitex-logging>=0.1.0'
 
       - name: Show environment
         run: |

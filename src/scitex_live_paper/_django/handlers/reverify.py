@@ -30,15 +30,22 @@ status updates as the response comes back.
 from __future__ import annotations
 
 import json
-import logging
 from importlib import import_module
 from typing import Any, List, Mapping, Optional
 
-from django.http import HttpResponse, JsonResponse
+import scitex_logging as slogging
+
+try:
+    from django.http import HttpResponse, JsonResponse
+except ImportError as exc:
+    raise ImportError(
+        "scitex-live-paper's Django surface requires Django — "
+        "install with: pip install 'scitex-live-paper[all]'"
+    ) from exc
 
 from ..services import get_request_bundle_state
 
-logger = logging.getLogger(__name__)
+log = slogging.getLogger(__name__)
 
 __all__ = ["handle_reverify", "handle_reverify_all"]
 
@@ -158,7 +165,7 @@ def handle_reverify(request) -> HttpResponse:
     try:
         clew = import_module("scitex_clew")
     except ImportError:
-        logger.info(
+        log.info(
             "[re-verify] scitex-clew not installed — degrading claim %s to stale "
             "(install scitex-live-paper[clew] for live re-verify)",
             claim_id,
@@ -177,7 +184,7 @@ def handle_reverify(request) -> HttpResponse:
     if not callable(verify_claim):
         # Defensive: an old/partial clew install without the verify
         # entry point — surface the same shape as the no-install path.
-        logger.warning(
+        log.warning(
             "[re-verify] scitex_clew installed but missing verify_claim()",
         )
         return JsonResponse(
@@ -196,7 +203,7 @@ def handle_reverify(request) -> HttpResponse:
         # host owns checkout + store selection (see module docstring).
         result = verify_claim(claim_id)
     except Exception as exc:
-        logger.exception("[re-verify] clew.verify_claim raised for %s", claim_id)
+        log.exception("[re-verify] clew.verify_claim raised for %s", claim_id)
         return JsonResponse(
             {
                 "ok": False,
@@ -457,7 +464,7 @@ def handle_reverify_all(request) -> HttpResponse:
             if not envelope.get("ok", False):
                 all_ok = False
         except Exception as exc:
-            logger.exception(
+            log.exception(
                 "[re-verify-all] clew.verify_claim raised for %s", claim_id,
             )
             results.append(

@@ -13,12 +13,13 @@ a TCP port. The default runner is ``django.core.management.call_command``
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 from typing import Callable, Optional
 
-logger = logging.getLogger(__name__)
+import scitex_logging as slogging
+
+log = slogging.getLogger(__name__)
 
 _DEFAULT_HOST = "127.0.0.1"
 _DEFAULT_PORT = 8765
@@ -43,7 +44,13 @@ def _default_runner(*args: object, **kwargs: object) -> object:
     # for a coverage hit. `_server.serve` injects a real
     # `_RunnerSpy` in every test (PR #20 surface) so this body only
     # fires from the live `scitex-live-paper serve` CLI.
-    from django.core.management import call_command  # noqa: WPS433  # pragma: no cover
+    try:
+        from django.core.management import call_command  # noqa: WPS433  # pragma: no cover
+    except ImportError as exc:
+        raise ImportError(
+            "the `serve` command requires Django — "
+            "install with: pip install 'scitex-live-paper[all]'"
+        ) from exc
 
     return call_command(*args, **kwargs)  # pragma: no cover
 
@@ -78,10 +85,16 @@ def serve(
     )
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(resolved)
 
-    import django  # noqa: WPS433 — lazy so non-django installs still import this file
+    try:
+        import django  # noqa: WPS433 — lazy so non-django installs still import this file
+    except ImportError as exc:
+        raise ImportError(
+            "the `serve` command requires Django — "
+            "install with: pip install 'scitex-live-paper[all]'"
+        ) from exc
 
     django.setup()
-    logger.info(
+    log.info(
         "[live-paper] serving %s on http://%s:%d/", resolved, host, port,
     )
     (runner or _default_runner)("runserver", f"{host}:{port}", "--noreload")

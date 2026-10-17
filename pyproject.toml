@@ -35,6 +35,7 @@ classifiers = [
 ]
 dependencies = [
     "scitex-dev>=0.11.7",
+    "scitex-logging>=0.1.0",
     "scitex-ui>=0.1.0",
     "click>=8.0",
     "jinja2>=3.1",
@@ -59,8 +60,8 @@ clew = [
 test = [
     "pytest>=8.0",
 ]
-# PS-221: public extras are closed under `[all]` — `pip install <pkg>[all]`
-# pulls EVERYTHING public. CI installs `.[all,dev]`.
+# `pip install scitex-live-paper[all]` must pull EVERYTHING public (PS-221).
+# PS-221: public extras are closed under `[all]` — CI installs `.[all,dev]`.
 all = [
     "scitex-live-paper[clew,django,mcp,test]",
 ]
@@ -92,3 +93,7 @@ include = ["scitex_live_paper*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "smoke: fast CLI happy-path tests (<60s, runs on every PR)",
+    "e2e: end-to-end workflows against real subsystems (runs on every PR)",
+]
