@@ -4,6 +4,7 @@
 
 import { ensureClaimsSidebar } from "./_utils.js";
 import { renderReverifyAllButton } from "./reverify-all.js";
+import { renderClaimDetail } from "./claim-details.js";
 
 export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (!claimsPayload || !Array.isArray(claimsPayload.claims)) return;
@@ -42,6 +43,13 @@ export function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
   li.className = "lp-claim";
   li.dataset.claimId = claim.claim_id;
   li.dataset.status = claim.status || "registered";
+  li.classList.add("lp-claim-selectable");
+  li.addEventListener("click", function (event) {
+    // Buttons (Re-verify) keep their own handlers — row click opens detail.
+    if (event.target.closest("button")) return;
+    const sidebar = li.closest(".live-paper-claims");
+    if (sidebar) renderClaimDetail(sidebar, claim, apiBase);
+  });
 
   const idSpan = document.createElement("span");
   idSpan.className = "lp-claim-id";
