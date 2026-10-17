@@ -20,7 +20,7 @@ Public surface (stable):
 See README.md for the dependency graph and roadmap.
 """
 
-from . import bundle, dag
+from . import bundle, dag, ports
 from ._types import (
     BundleAccessDenied,
     BundleContext,

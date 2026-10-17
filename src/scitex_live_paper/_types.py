@@ -36,6 +36,7 @@ from typing import (
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from .bundle import Bundle
+    from .ports._registry import Registry
 
 __all__ = [
     "PaperStage",
@@ -314,6 +315,11 @@ class BundleContext:
     #: ``scitex-agentic-journal`` at mount time and surfaced through
     #: ``bundle-info`` to the SPA. ``None`` → SPA hides the badge.
     re_review_badge: Optional["ReReviewBadge"] = None
+    #: Injected port adapters for ``api/port/...`` dispatch. Hosts
+    #: hand a populated :class:`ports.Registry` inside the
+    #: resolver-built context — ``mount()`` needs no signature
+    #: change. ``None`` → port endpoints 404 ("no adapters registered").
+    renderers: Optional["Registry"] = None
 
     def __post_init__(self) -> None:
         # ``RendererOptions`` carries renderer-display knobs; default to

@@ -18,6 +18,17 @@ may change without a changelog entry.
 
 ### Added
 
+- Ports/events injection lane (CCT 2998, binding): neutral core with
+  external renderers. New `scitex_live_paper.ports` package
+  (`protocols` figure/snippet/claim-graph, `Registry`,
+  `EventBus`/`Event`, fragment envelopes with mandatory provenance,
+  entry-point `discover`, bundled `FigzFigureAdapter` default);
+  `api/port/<port>/<target>` dispatch with JSON-404 semantics;
+  `port-events.js` DOM bus (`live-paper:*` custom events + popup
+  renderer); contract doc at `docs/dev/ports-events-contract.md`.
+  Hosts inject via resolver-built `BundleContext(renderers=...)`;
+  the core never imports a renderer.
+
 - Monday looks-only viewer mock (`docs/demo/monday-mock.html`): a
   single-file, zero-dependency static page for the Monday demo — styled
   paper sheet, three claim anchors in the clew palette with pure-CSS
