@@ -77,4 +77,6 @@ jobs:
     uses: scitex-ai/.github/.github/workflows/rtd-sphinx-build.yml@8c646081e9f1352077d3d8674052cce7ec75a1b7
     with:
       runs_on: ${{ vars.CI_RUNS_ON || '["ubuntu-latest"]' }}
-      required: false # no sphinx docs ship in this repo (no conf.py); explicit opt-out
+      # This repo ships no sphinx docs (docs/ holds notes/assets only, no
+      # conf.py). `required: false` is the sanctioned explicit opt-out.
+      required: false

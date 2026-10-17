@@ -64,9 +64,13 @@ test = [
 all = [
     "scitex-live-paper[clew,django,mcp,test]",
 ]
+# `dev` toolchain extra — the org pytest-matrix reusable installs
+# `.[all,dev]`; without a `dev` extra the chain falls back to a bare
+# `-e .` and pytest is missing (exit 4). Mirrors the org leaf convention.
 dev = [
-    "pytest>=8.0",
+    "pytest-asyncio",
     "pytest-cov>=4.0",
+    "pytest-xdist>=3.0.0",
     "scitex-live-paper[all]",
 ]
 
