@@ -193,7 +193,7 @@ def handle_reverify(request) -> HttpResponse:
     try:
         # clew takes a SINGLE positional arg and verifies against the
         # current on-disk state. pinned_commit is metadata only — the
-        # host owns checkout + SCITEX_CLEW_DB_PATH (see module docstring).
+        # host owns checkout + store selection (see module docstring).
         result = verify_claim(claim_id)
     except Exception as exc:
         logger.exception("[re-verify] clew.verify_claim raised for %s", claim_id)
@@ -307,7 +307,7 @@ def handle_reverify_all(request) -> HttpResponse:
     live-paper verifies each claim against the CURRENT on-disk state of
     clew's project. To re-verify against a specific commit, the
     host/deployment is responsible for checking out ``pinned_commit``
-    and pointing clew's DB via ``SCITEX_CLEW_DB_PATH`` before serving.
+    and pointing clew at the right store via ``SCITEX_STORE_DSN`` before serving.
     This handler never mutates the working tree — ``pinned_commit`` is
     accepted and echoed back as ``verified_against`` metadata only, and
     is NOT passed to ``verify_claim``.
