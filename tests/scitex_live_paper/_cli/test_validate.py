@@ -15,7 +15,7 @@ from click.testing import CliRunner
 
 from scitex_live_paper._cli import cli
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
+FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 BUNDLE_MIN = FIXTURES / "bundle-min"
 BUNDLE_ACCEPTED = FIXTURES / "bundle-accepted"
 

@@ -20,6 +20,11 @@ Public surface (stable):
 See README.md for the dependency graph and roadmap.
 """
 
+from __future__ import annotations
+
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from . import bundle, dag, ports
 from ._types import (
     BundleAccessDenied,
@@ -57,7 +62,10 @@ def __getattr__(name):
         return _import_mount_resolver()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-__version__ = "0.1.0"
+try:
+    __version__ = _dist_version("scitex-live-paper")
+except PackageNotFoundError:  # source tree without an installed dist
+    __version__ = "0.0.0+local"
 
 # Hub-publisher surface — single source of truth for how live-paper
 # represents itself to scitex-hub's plugin registry. Mirrors the
