@@ -31,14 +31,29 @@ FIXTURE_BUNDLE = (
 
 
 @pytest.fixture
-def bundle_env(monkeypatch):
-    """Pin ``SCITEX_LIVE_PAPER_BUNDLE`` to the in-tree fixture and clear cache."""
+def bundle_env():
+    """Pin ``SCITEX_LIVE_PAPER_BUNDLE`` to the in-tree fixture and clear cache.
+
+    Saves/restores ``os.environ`` explicitly (no-mocks doctrine: no
+    ``monkeypatch`` fixture) with teardown that runs even when the test
+    fails, so one test's pin never leaks into the next.
+    """
     from scitex_live_paper._django import services
 
-    monkeypatch.setenv("SCITEX_LIVE_PAPER_BUNDLE", str(FIXTURE_BUNDLE))
+    # Arrange
+    previous = os.environ.get("SCITEX_LIVE_PAPER_BUNDLE")
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(FIXTURE_BUNDLE)
     services.clear_cache()
-    yield FIXTURE_BUNDLE
-    services.clear_cache()
+    try:
+        # Act
+        yield FIXTURE_BUNDLE
+    finally:
+        # Teardown (assert-neutral): restore prior env + clear cache
+        if previous is not None:
+            os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = previous
+        else:
+            os.environ.pop("SCITEX_LIVE_PAPER_BUNDLE", None)
+        services.clear_cache()
 
 
 @pytest.fixture

@@ -64,41 +64,57 @@ def _make_bundle(
 
 
 def test_claims_wrapper_with_non_list_claims_key_raises(tmp_path):
-    # arrange — wrapper form `{"claims": ...}` but with the value
     # being a string rather than a list. Real-world cause: operator
     # typo where they wrote `claims: "data"` in a hand-edited file.
+    # Arrange
+    # Act
     bundle_path = _make_bundle(
         tmp_path,
         claims_json='{"schema": "scitex-clew.claims/v1", "claims": "should-be-a-list"}',
     )
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match=r"'claims' key must hold a list"):
         bundle_module.load(bundle_path)
 
 
 def test_claims_wrapper_with_non_string_schema_raises(tmp_path):
-    # arrange — schema field present but not a string
+    # Arrange
+    # Act
     bundle_path = _make_bundle(
         tmp_path,
         claims_json='{"schema": 42, "claims": []}',
     )
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match=r"'schema' must be a string"):
         bundle_module.load(bundle_path)
 
 
-def test_claims_wrapper_with_null_schema_is_accepted(tmp_path):
-    # arrange — explicit JSON null is documented as "absent"; verify
+def test_claims_wrapper_with_null_schema_is_accepted__assert_loaded_schema_version_is(tmp_path):
     # the `is None` branch (no raise; schema_version stays None)
+    # Arrange
     bundle_path = _make_bundle(
         tmp_path,
         claims_json='{"schema": null, "claims": []}',
     )
-    # act
+    # Act
     loaded = bundle_module.load(bundle_path)
-    # assert
+    # Assert
     assert loaded.schema_version is None
+
+
+def test_claims_wrapper_with_null_schema_is_accepted__assert_loaded_claims(tmp_path):
+    # the `is None` branch (no raise; schema_version stays None)
+    # Arrange
+    bundle_path = _make_bundle(
+        tmp_path,
+        claims_json='{"schema": null, "claims": []}',
+    )
+    # Act
+    loaded = bundle_module.load(bundle_path)
+    # Assert
     assert loaded.claims == []
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -129,12 +145,13 @@ def test_provenance_yaml_comments_only_returns_empty_dict(tmp_path):
 
 
 def test_provenance_yaml_non_mapping_top_level_raises(tmp_path):
-    # arrange — a bare list is not a provenance document
+    # Arrange
+    # Act
     bundle_path = _make_bundle(
         tmp_path,
         provenance_yaml="- one\n- two\n",
     )
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match=r"top level must be a mapping"):
         bundle_module.load(bundle_path)
 
@@ -158,11 +175,11 @@ def test_state_yaml_comments_only_falls_back_to_default(tmp_path):
     assert loaded.paper_state.stage == "preprint"
 
 
-def test_state_yaml_unquoted_iso_timestamp_coerced_to_string(tmp_path):
-    # arrange — `accepted_at: 2026-06-01T10:00:00Z` without quotes
+def test_state_yaml_unquoted_iso_timestamp_coerced_to_string__assert_isinstance_loaded_paper_s(tmp_path):
     # parses to a `datetime.datetime` under PyYAML's implicit
     # timestamp tag. Loader must coerce back to an ISO string so the
     # operator-visible PaperState.accepted_at stays a plain str.
+    # Arrange
     bundle_path = _make_bundle(
         tmp_path,
         state_yaml=(
@@ -171,11 +188,31 @@ def test_state_yaml_unquoted_iso_timestamp_coerced_to_string(tmp_path):
             "accepted_at: 2026-06-01T10:00:00\n"  # unquoted — auto-parsed
         ),
     )
-    # act
+    # Act
     loaded = bundle_module.load(bundle_path)
-    # assert — datetime got isoformat()'d
+    # Assert
     assert isinstance(loaded.paper_state.accepted_at, str)
+
+
+def test_state_yaml_unquoted_iso_timestamp_coerced_to_string__assert_loaded_paper_state_accept(tmp_path):
+    # parses to a `datetime.datetime` under PyYAML's implicit
+    # timestamp tag. Loader must coerce back to an ISO string so the
+    # operator-visible PaperState.accepted_at stays a plain str.
+    # Arrange
+    bundle_path = _make_bundle(
+        tmp_path,
+        state_yaml=(
+            "stage: accepted\n"
+            "journal: Nature\n"
+            "accepted_at: 2026-06-01T10:00:00\n"  # unquoted — auto-parsed
+        ),
+    )
+    # Act
+    loaded = bundle_module.load(bundle_path)
+    # Assert
     assert loaded.paper_state.accepted_at.startswith("2026-06-01T10:00:00")
+
+
 
 
 def test_state_yaml_unquoted_date_coerced_to_string(tmp_path):

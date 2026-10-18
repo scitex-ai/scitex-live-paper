@@ -105,7 +105,10 @@ def no_pinned_bundle(env_snapshot) -> Iterator[None]:
 
 
 def test_doi_landing_pattern_is_registered():
+    # Arrange
     names = [p.name for p in urlpatterns if p.name]
+    # Act
+    # Assert
     assert "doi_landing" in names
 
 
@@ -125,36 +128,90 @@ def test_doi_landing_uses_path_converter_for_slash_bearing_suffix():
     pytest.fail("doi_landing pattern not found")
 
 
-def test_doi_landing_pattern_appears_before_catch_all():
+def test_doi_landing_pattern_appears_before_catch_all__assert_doi_idx_is_not_none():
     # ORDER MATTERS — the `<path:endpoint>` catch-all would otherwise
     # swallow `/doi/<doi>/` hits and dispatch them to `api_dispatch`
     # (which 404s as an unknown endpoint).
+    # Arrange
     doi_idx = None
     catch_all_idx = None
+    # Act
     for i, p in enumerate(urlpatterns):
         if p.name == "doi_landing":
             doi_idx = i
         if p.name == "api_dispatch":
             catch_all_idx = i
+    # Assert
     assert doi_idx is not None
+
+
+def test_doi_landing_pattern_appears_before_catch_all__assert_catch_all_idx_is_not_none():
+    # ORDER MATTERS — the `<path:endpoint>` catch-all would otherwise
+    # swallow `/doi/<doi>/` hits and dispatch them to `api_dispatch`
+    # (which 404s as an unknown endpoint).
+    # Arrange
+    doi_idx = None
+    catch_all_idx = None
+    # Act
+    for i, p in enumerate(urlpatterns):
+        if p.name == "doi_landing":
+            doi_idx = i
+        if p.name == "api_dispatch":
+            catch_all_idx = i
+    # Assert
     assert catch_all_idx is not None
+
+
+def test_doi_landing_pattern_appears_before_catch_all__assert_doi_idx_catch_all_idx_doi():
+    # ORDER MATTERS — the `<path:endpoint>` catch-all would otherwise
+    # swallow `/doi/<doi>/` hits and dispatch them to `api_dispatch`
+    # (which 404s as an unknown endpoint).
+    # Arrange
+    doi_idx = None
+    catch_all_idx = None
+    # Act
+    for i, p in enumerate(urlpatterns):
+        if p.name == "doi_landing":
+            doi_idx = i
+        if p.name == "api_dispatch":
+            catch_all_idx = i
+    # Assert
     assert doi_idx < catch_all_idx, (
         "doi_landing must precede api_dispatch in urlpatterns "
         "(else DOI hits fall through to the catch-all)"
     )
 
 
+
+
 def test_reverse_yields_canonical_doi_url():
+    # Arrange
+    # Act
     url = reverse("live_paper:doi_landing", kwargs={"doi": "10.7554/eLife.99999"})
+    # Assert
     assert url.endswith("/doi/10.7554/eLife.99999/")
 
 
-def test_resolve_routes_slash_bearing_doi_to_doi_landing():
+def test_resolve_routes_slash_bearing_doi_to_doi_landing__assert_match_url_name_doi_landin():
     # Django's resolver MUST hand us the doi_landing view (not the
     # api_dispatch catch-all) for a slash-bearing DOI.
+    # Arrange
+    # Act
     match = resolve("/doi/10.1000/foo.bar/v2/")
+    # Assert
     assert match.url_name == "doi_landing"
+
+
+def test_resolve_routes_slash_bearing_doi_to_doi_landing__assert_match_kwargs_doi_10_1000():
+    # Django's resolver MUST hand us the doi_landing view (not the
+    # api_dispatch catch-all) for a slash-bearing DOI.
+    # Arrange
+    # Act
+    match = resolve("/doi/10.1000/foo.bar/v2/")
+    # Assert
     assert match.kwargs["doi"] == "10.1000/foo.bar/v2"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -162,31 +219,59 @@ def test_resolve_routes_slash_bearing_doi_to_doi_landing():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_doi_landing_renders_viewer_when_doi_matches(rf, pinned_accepted_bundle):
+def test_doi_landing_renders_viewer_when_doi_matches__assert_response_status_code_200(rf, pinned_accepted_bundle):
+    # Arrange
+    request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    # Act
+    response = views.doi_landing(request, doi=ACCEPTED_DOI)
+    # Assert
+    assert response.status_code == 200
+
+
+def test_doi_landing_renders_viewer_when_doi_matches__assert_live_paper_root_in_body(rf, pinned_accepted_bundle):
+    # Arrange
     request = rf.get(f"/doi/{ACCEPTED_DOI}/")
     response = views.doi_landing(request, doi=ACCEPTED_DOI)
-
-    assert response.status_code == 200
-    # Same template the viewer_page renders — sanity-check we got the
-    # SPA shell, not a stub response.
+    # Act
     body = response.content.decode("utf-8")
+    # Assert
     assert "live-paper-root" in body
 
 
-def test_doi_landing_match_renders_byte_identical_to_viewer_page(
+
+
+def test_doi_landing_match_renders_byte_identical_to_viewer_page__assert_matched_status_code_plain(
     rf, pinned_accepted_bundle,
 ):
     # Pin: the DOI URL is a pure alternate entry — when it matches,
     # the response body is the SAME as a `/` hit. No DOI chrome added,
     # no template variant, nothing.
+    # Arrange
     match_request = rf.get(f"/doi/{ACCEPTED_DOI}/")
     matched = views.doi_landing(match_request, doi=ACCEPTED_DOI)
-
     plain_request = rf.get("/")
+    # Act
     plain = views.viewer_page(plain_request)
-
+    # Assert
     assert matched.status_code == plain.status_code == 200
+
+
+def test_doi_landing_match_renders_byte_identical_to_viewer_page__assert_matched_content_plain_con(
+    rf, pinned_accepted_bundle,
+):
+    # Pin: the DOI URL is a pure alternate entry — when it matches,
+    # the response body is the SAME as a `/` hit. No DOI chrome added,
+    # no template variant, nothing.
+    # Arrange
+    match_request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    matched = views.doi_landing(match_request, doi=ACCEPTED_DOI)
+    plain_request = rf.get("/")
+    # Act
+    plain = views.viewer_page(plain_request)
+    # Assert
     assert matched.content == plain.content
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -194,43 +279,98 @@ def test_doi_landing_match_renders_byte_identical_to_viewer_page(
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_doi_landing_returns_404_when_doi_does_not_match(rf, pinned_accepted_bundle):
+def test_doi_landing_returns_404_when_doi_does_not_match__assert_response_status_code_404(rf, pinned_accepted_bundle):
+    # Arrange
     request = rf.get("/doi/10.0000/wrong/")
+    # Act
     response = views.doi_landing(request, doi="10.0000/wrong")
-
+    # Assert
     assert response.status_code == 404
+
+
+def test_doi_landing_returns_404_when_doi_does_not_match__assert_b_10_0000_wrong_in_respon(rf, pinned_accepted_bundle):
+    # Arrange
+    request = rf.get("/doi/10.0000/wrong/")
+    # Act
+    response = views.doi_landing(request, doi="10.0000/wrong")
+    # Assert
     assert b"10.0000/wrong" in response.content
 
 
-def test_doi_landing_returns_404_when_pinned_bundle_has_no_doi(rf, pinned_min_bundle):
+
+
+def test_doi_landing_returns_404_when_pinned_bundle_has_no_doi__assert_response_status_code_404_2(rf, pinned_min_bundle):
     # bundle-min has no state.yaml DOI (default PaperState → doi=None).
     # Any DOI request must 404 — None != "any string".
+    # Arrange
     request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    # Act
     response = views.doi_landing(request, doi=ACCEPTED_DOI)
-
+    # Assert
     assert response.status_code == 404
+
+
+def test_doi_landing_returns_404_when_pinned_bundle_has_no_doi__assert_accepted_doi_encode_in_re(rf, pinned_min_bundle):
+    # bundle-min has no state.yaml DOI (default PaperState → doi=None).
+    # Any DOI request must 404 — None != "any string".
+    # Arrange
+    request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    # Act
+    response = views.doi_landing(request, doi=ACCEPTED_DOI)
+    # Assert
     assert ACCEPTED_DOI.encode() in response.content
 
 
-def test_doi_landing_returns_404_when_no_bundle_pinned(rf, no_pinned_bundle):
+
+
+def test_doi_landing_returns_404_when_no_bundle_pinned__assert_response_status_code_404_3(rf, no_pinned_bundle):
     # Graceful — same 404 answer as a DOI mismatch (don't leak whether
     # ANY bundle is configured vs whether THIS DOI matches).
+    # Arrange
     request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    # Act
     response = views.doi_landing(request, doi=ACCEPTED_DOI)
-
+    # Assert
     assert response.status_code == 404
+
+
+def test_doi_landing_returns_404_when_no_bundle_pinned__assert_accepted_doi_encode_in_re_2(rf, no_pinned_bundle):
+    # Graceful — same 404 answer as a DOI mismatch (don't leak whether
+    # ANY bundle is configured vs whether THIS DOI matches).
+    # Arrange
+    request = rf.get(f"/doi/{ACCEPTED_DOI}/")
+    # Act
+    response = views.doi_landing(request, doi=ACCEPTED_DOI)
+    # Assert
     assert ACCEPTED_DOI.encode() in response.content
 
 
-def test_doi_landing_404_body_does_not_leak_bundle_paths(rf, pinned_accepted_bundle):
+
+
+def test_doi_landing_404_body_does_not_leak_bundle_paths__assert_str_bundle_accepted_not_i(rf, pinned_accepted_bundle):
     # The 404 body should name the requested DOI but NOT include the
     # on-disk bundle path (operator-friendly + no info-leak).
+    # Arrange
     request = rf.get("/doi/10.0000/wrong/")
     response = views.doi_landing(request, doi="10.0000/wrong")
-
+    # Act
     body = response.content.decode("utf-8")
+    # Assert
     assert str(BUNDLE_ACCEPTED) not in body
+
+
+def test_doi_landing_404_body_does_not_leak_bundle_paths__assert_tmp_not_in_body(rf, pinned_accepted_bundle):
+    # The 404 body should name the requested DOI but NOT include the
+    # on-disk bundle path (operator-friendly + no info-leak).
+    # Arrange
+    request = rf.get("/doi/10.0000/wrong/")
+    response = views.doi_landing(request, doi="10.0000/wrong")
+    # Act
+    body = response.content.decode("utf-8")
+    # Assert
     assert "/tmp/" not in body
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -238,18 +378,44 @@ def test_doi_landing_404_body_does_not_leak_bundle_paths(rf, pinned_accepted_bun
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_doi_with_dots_routes_correctly():
+def test_doi_with_dots_routes_correctly__assert_match_url_name_doi_landin_2():
+    # Arrange
+    # Act
     match = resolve("/doi/10.7554/eLife.99999/")
+    # Assert
     assert match.url_name == "doi_landing"
+
+
+def test_doi_with_dots_routes_correctly__assert_match_kwargs_doi_10_7554():
+    # Arrange
+    # Act
+    match = resolve("/doi/10.7554/eLife.99999/")
+    # Assert
     assert match.kwargs["doi"] == "10.7554/eLife.99999"
 
 
-def test_doi_with_multiple_slashes_routes_correctly():
+
+
+def test_doi_with_multiple_slashes_routes_correctly__assert_match_url_name_doi_landin_3():
     # Some DOIs have very long, slash-heavy suffixes (multi-segment
     # versions, sub-records). `path:` converter handles them all.
+    # Arrange
+    # Act
     match = resolve("/doi/10.1000/seg.a/seg.b/seg.c/")
+    # Assert
     assert match.url_name == "doi_landing"
+
+
+def test_doi_with_multiple_slashes_routes_correctly__assert_match_kwargs_doi_10_1000_2():
+    # Some DOIs have very long, slash-heavy suffixes (multi-segment
+    # versions, sub-records). `path:` converter handles them all.
+    # Arrange
+    # Act
+    match = resolve("/doi/10.1000/seg.a/seg.b/seg.c/")
+    # Assert
     assert match.kwargs["doi"] == "10.1000/seg.a/seg.b/seg.c"
+
+
 
 
 def test_doi_match_is_case_sensitive(rf, pinned_accepted_bundle):
@@ -258,8 +424,11 @@ def test_doi_match_is_case_sensitive(rf, pinned_accepted_bundle):
     # sensitive) comparison — operator can refine if they want
     # case-folding later. Pin: a different-case DOI is treated as
     # mismatch today.
+    # Arrange
     mismatch_request = rf.get("/doi/10.7554/ELIFE.99999/")
+    # Act
     mismatch = views.doi_landing(mismatch_request, doi="10.7554/ELIFE.99999")
+    # Assert
     assert mismatch.status_code == 404
 
 
@@ -274,11 +443,12 @@ def test_mount_patterns_do_not_include_doi_landing():
     # own DOI route + resolver under their mount prefix if they want
     # one. This test pins the absence so a future mount() change that
     # adds it has to come through a deliberate spec.
+    # Arrange
     from scitex_live_paper import BundleContext, BundleSource, mount
-
     def stub_resolver(request, **kw):
         return BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
-
+    # Act
     patterns, _ = mount(stub_resolver)
     names = [p.name for p in patterns if p.name]
+    # Assert
     assert "doi_landing" not in names

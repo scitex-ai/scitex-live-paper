@@ -33,13 +33,15 @@ BUNDLE_MIN = FIXTURES / "bundle-min"
 def test_module_exposes_render_viewer_callable():
     # Arrange
     target = viewer_module
-    # Act / Assert
+    # Act
+    # Assert
     assert callable(getattr(target, "render_viewer", None))
 
 
 def test_module_exposes_pdfjs_version_string():
-    # Arrange / Act
+    # Arrange
     version = viewer_module.PDFJS_VERSION
+    # Act
     # Assert
     assert isinstance(version, str) and version
 
@@ -47,8 +49,8 @@ def test_module_exposes_pdfjs_version_string():
 def test_renderer_subpackage_reexports_render_viewer():
     # Arrange
     from scitex_live_paper import _renderer as renderer_pkg
-
-    # Act / Assert
+    # Act
+    # Assert
     assert callable(getattr(renderer_pkg, "render_viewer", None))
 
 
@@ -57,7 +59,7 @@ def test_renderer_subpackage_reexports_render_viewer():
 # ---------------------------------------------------------------------------
 
 
-def test_render_viewer_writes_viewer_html_in_out_dir(tmp_path: Path):
+def test_render_viewer_writes_viewer_html_in_out_dir__assert_isinstance_artifacts_view(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -65,11 +67,31 @@ def test_render_viewer_writes_viewer_html_in_out_dir(tmp_path: Path):
     artifacts = render_viewer(loaded, out)
     # Assert
     assert isinstance(artifacts, ViewerArtifacts)
+
+
+def test_render_viewer_writes_viewer_html_in_out_dir__assert_artifacts_viewer_html_out(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.viewer_html == out / "viewer.html"
+
+
+def test_render_viewer_writes_viewer_html_in_out_dir__assert_artifacts_viewer_html_is(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.viewer_html.is_file()
 
 
-def test_render_viewer_copies_manuscript_pdf_alongside(tmp_path: Path):
+
+
+def test_render_viewer_copies_manuscript_pdf_alongside__assert_artifacts_manuscript_pdf(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -77,10 +99,21 @@ def test_render_viewer_copies_manuscript_pdf_alongside(tmp_path: Path):
     artifacts = render_viewer(loaded, out)
     # Assert
     assert artifacts.manuscript_pdf == out / "manuscript.pdf"
+
+
+def test_render_viewer_copies_manuscript_pdf_alongside__assert_artifacts_manuscript_pdf_2(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.manuscript_pdf.is_file()
 
 
-def test_render_viewer_copies_claims_json_alongside(tmp_path: Path):
+
+
+def test_render_viewer_copies_claims_json_alongside__assert_artifacts_claims_json_out(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -88,23 +121,63 @@ def test_render_viewer_copies_claims_json_alongside(tmp_path: Path):
     artifacts = render_viewer(loaded, out)
     # Assert
     assert artifacts.claims_json == out / "claims.json"
-    assert artifacts.claims_json.is_file()
 
 
-def test_render_viewer_vendors_pdfjs_main_and_worker(tmp_path: Path):
+def test_render_viewer_copies_claims_json_alongside__assert_artifacts_claims_json_is(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     # Act
     artifacts = render_viewer(loaded, out)
-    # Assert: both required PDF.js artefacts land under assets/pdfjs/
+    # Assert
+    assert artifacts.claims_json.is_file()
+
+
+
+
+def test_render_viewer_vendors_pdfjs_main_and_worker__assert_artifacts_pdfjs_main_out(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.pdfjs_main == out / "assets" / "pdfjs" / "pdf.min.mjs"
+
+
+def test_render_viewer_vendors_pdfjs_main_and_worker__assert_artifacts_pdfjs_worker_ou(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.pdfjs_worker == out / "assets" / "pdfjs" / "pdf.worker.min.mjs"
+
+
+def test_render_viewer_vendors_pdfjs_main_and_worker__assert_artifacts_pdfjs_main_is_f(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.pdfjs_main.is_file()
+
+
+def test_render_viewer_vendors_pdfjs_main_and_worker__assert_artifacts_pdfjs_worker_is(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.pdfjs_worker.is_file()
 
 
-def test_render_viewer_vendors_css_and_js_assets(tmp_path: Path):
+
+
+def test_render_viewer_vendors_css_and_js_assets__assert_artifacts_css_out_assets(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -112,9 +185,38 @@ def test_render_viewer_vendors_css_and_js_assets(tmp_path: Path):
     artifacts = render_viewer(loaded, out)
     # Assert
     assert artifacts.css == out / "assets" / "viewer.css"
+
+
+def test_render_viewer_vendors_css_and_js_assets__assert_artifacts_js_out_assets_v(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.js == out / "assets" / "viewer.js"
+
+
+def test_render_viewer_vendors_css_and_js_assets__assert_artifacts_css_is_file(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.css.is_file()
+
+
+def test_render_viewer_vendors_css_and_js_assets__assert_artifacts_js_is_file(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_viewer(loaded, out)
+    # Assert
     assert artifacts.js.is_file()
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -144,28 +246,52 @@ def test_viewer_html_references_local_claims_json(tmp_path: Path):
     assert 'data-claims-url="claims.json"' in html
 
 
-def test_viewer_html_references_vendored_pdfjs_paths(tmp_path: Path):
+def test_viewer_html_references_vendored_pdfjs_paths__assert_data_pdfjs_url_assets_pdf(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
-    # Act
     artifacts = render_viewer(loaded, out)
+    # Act
     html = artifacts.viewer_html.read_text(encoding="utf-8")
-    # Assert: PDF.js paths must be relative (no CDN) so file:// works
+    # Assert
     assert 'data-pdfjs-url="assets/pdfjs/pdf.min.mjs"' in html
+
+
+def test_viewer_html_references_vendored_pdfjs_paths__assert_data_pdfjs_worker_url_ass(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_viewer(loaded, out)
+    # Act
+    html = artifacts.viewer_html.read_text(encoding="utf-8")
+    # Assert
     assert 'data-pdfjs-worker-url="assets/pdfjs/pdf.worker.min.mjs"' in html
 
 
-def test_viewer_html_loads_local_css_and_js(tmp_path: Path):
+
+
+def test_viewer_html_loads_local_css_and_js__assert_href_assets_viewer_css_in(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
-    # Act
     artifacts = render_viewer(loaded, out)
+    # Act
     html = artifacts.viewer_html.read_text(encoding="utf-8")
     # Assert
     assert 'href="assets/viewer.css"' in html
+
+
+def test_viewer_html_loads_local_css_and_js__assert_src_assets_viewer_js_in_h(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_viewer(loaded, out)
+    # Act
+    html = artifacts.viewer_html.read_text(encoding="utf-8")
+    # Assert
     assert 'src="assets/viewer.js"' in html
+
+
 
 
 def test_viewer_html_embeds_pdfjs_version_in_footer(tmp_path: Path):
@@ -218,20 +344,50 @@ def test_viewer_js_dispatches_live_paper_claim_event(tmp_path: Path):
     assert "live-paper:claim" in js
 
 
-def test_viewer_js_maps_clew_status_to_css_classes(tmp_path: Path):
+def test_viewer_js_maps_clew_status_to_css_classes__assert_lp_status_verified_in_js(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
-    # Act
     artifacts = render_viewer(loaded, out)
+    # Act
     js = artifacts.js.read_text(encoding="utf-8")
-    # Assert: the clew claim palette v1.3 statuses must be represented
-    # in the JS lookup table (registered/not_found fall through to the
-    # default grey overlay).
+    # Assert
     assert "lp-status-verified" in js
+
+
+def test_viewer_js_maps_clew_status_to_css_classes__assert_lp_status_suspect_in_js(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_viewer(loaded, out)
+    # Act
+    js = artifacts.js.read_text(encoding="utf-8")
+    # Assert
     assert "lp-status-suspect" in js
+
+
+def test_viewer_js_maps_clew_status_to_css_classes__assert_lp_status_mismatch_in_js(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_viewer(loaded, out)
+    # Act
+    js = artifacts.js.read_text(encoding="utf-8")
+    # Assert
     assert "lp-status-mismatch" in js
+
+
+def test_viewer_js_maps_clew_status_to_css_classes__assert_lp_status_missing_in_js(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_viewer(loaded, out)
+    # Act
+    js = artifacts.js.read_text(encoding="utf-8")
+    # Assert
     assert "lp-status-missing" in js
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -252,13 +408,13 @@ def test_render_viewer_overwrites_existing_output_idempotently(tmp_path: Path):
 
 
 def test_render_viewer_rejects_tex_only_bundle(tmp_path: Path):
-    # Arrange: build a bundle whose manuscript is .tex (no .pdf)
+    # Arrange
     bundle_dir = tmp_path / "b"
     bundle_dir.mkdir()
     (bundle_dir / "manuscript.tex").write_text(r"\documentclass{article}")
     (bundle_dir / "claims.json").write_text("[]")
+    # Act
     loaded = bundle_module.load(bundle_dir)
-    # Act / Assert: M1 viewer cannot render .tex — it needs an upstream
-    # LaTeX → PDF step. Surface that boundary clearly.
+    # Assert
     with pytest.raises(ValueError, match="PDF manuscript"):
         render_viewer(loaded, tmp_path / "site")

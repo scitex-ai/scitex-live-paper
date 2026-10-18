@@ -133,11 +133,10 @@ def test_dag_provenance_session_non_dict_value_is_skipped(tmp_path):
     assert isinstance(result, dict)
 
 
-def test_dag_provenance_file_meta_non_dict_is_skipped(tmp_path):
-    # arrange — sessions[<sid>].files[<path>] is a string, not a dict
+def test_dag_provenance_file_meta_non_dict_is_skipped__assert_scripts_02_py_not_in_resu(tmp_path):
+    # Arrange
     from scitex_live_paper._renderer.dag import _collect_source_hashes
     from scitex_live_paper import bundle as bundle_module
-
     bundle_path = _make_bundle_with_provenance(
         tmp_path,
         provenance_yaml=(
@@ -150,12 +149,34 @@ def test_dag_provenance_file_meta_non_dict_is_skipped(tmp_path):
         ),
     )
     loaded = bundle_module.load(bundle_path)
-    # act — must not raise
+    # Act
     result = _collect_source_hashes(loaded)
-    # assert — the well-formed file landed in the map; the malformed
-    # one was skipped (not present, not raised)
+    # Assert
     assert "scripts/02.py" not in result
+
+
+def test_dag_provenance_file_meta_non_dict_is_skipped__assert_result_get_scripts_03_py(tmp_path):
+    # Arrange
+    from scitex_live_paper._renderer.dag import _collect_source_hashes
+    from scitex_live_paper import bundle as bundle_module
+    bundle_path = _make_bundle_with_provenance(
+        tmp_path,
+        provenance_yaml=(
+            "sessions:\n"
+            "  sess_001:\n"
+            "    files:\n"
+            "      scripts/02.py: not-a-dict\n"
+            "      scripts/03.py:\n"
+            "        hash: deadbeef\n"
+        ),
+    )
+    loaded = bundle_module.load(bundle_path)
+    # Act
+    result = _collect_source_hashes(loaded)
+    # Assert
     assert result.get("scripts/03.py") == "deadbeef"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -209,14 +230,12 @@ def env_snapshot() -> Iterator[None]:
             os.environ[k] = v
 
 
-def test_bulk_reverify_400_when_bundle_has_no_claims(tmp_path, env_snapshot):
-    # arrange — build a real bundle whose claims list is empty.
+def test_bulk_reverify_400_when_bundle_has_no_claims__assert_response_status_code_400(tmp_path, env_snapshot):
     # state.yaml gives us a pinned_commit so we get past that check;
     # the "no claims" branch is what we want to trigger.
+    # Arrange
     from django.test import Client
-
     from scitex_live_paper._django import services
-
     bundle = tmp_path / "empty-bundle"
     bundle.mkdir()
     (bundle / "claims.json").write_text(
@@ -230,20 +249,50 @@ def test_bulk_reverify_400_when_bundle_has_no_claims(tmp_path, env_snapshot):
         'stage: accepted\npinned_commit: "abc123"\n',
         encoding="utf-8",
     )
-
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(bundle)
     services.clear_cache()
-
-    # act
+    # Act
     response = Client().post(
         "/api/claims/verify",
         data="",
         content_type="application/json",
     )
-    # assert
+    # Assert
     assert response.status_code == 400
+
+
+def test_bulk_reverify_400_when_bundle_has_no_claims__assert_no_claims_to_verify_in_bo(tmp_path, env_snapshot):
+    # state.yaml gives us a pinned_commit so we get past that check;
+    # the "no claims" branch is what we want to trigger.
+    # Arrange
+    from django.test import Client
+    from scitex_live_paper._django import services
+    bundle = tmp_path / "empty-bundle"
+    bundle.mkdir()
+    (bundle / "claims.json").write_text(
+        '{"schema": "scitex-clew.claims/v1", "claims": []}',
+        encoding="utf-8",
+    )
+    for name in ("dag.mmd", "manuscript.pdf"):
+        (bundle / name).write_bytes((BUNDLE_MIN / name).read_bytes())
+    (bundle / "figz").mkdir()
+    (bundle / "state.yaml").write_text(
+        'stage: accepted\npinned_commit: "abc123"\n',
+        encoding="utf-8",
+    )
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(bundle)
+    services.clear_cache()
+    response = Client().post(
+        "/api/claims/verify",
+        data="",
+        content_type="application/json",
+    )
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert "no claims to verify" in body["error"]
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -301,17 +350,15 @@ def test_bulk_reverify_partial_clew_per_result_skew_reason(
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_api_pdf_404_when_bundle_manuscript_path_is_none(env_snapshot):
-    # arrange — inject a Bundle with manuscript_path=None via
+def test_api_pdf_404_when_bundle_manuscript_path_is_none__assert_response_status_code_404(env_snapshot):
     # mount(resolver=...). bundle.load() rejects no-manuscript
     # directories, but a host that hand-builds a Bundle (e.g. writer's
     # in-memory editor mid-compile) might pass None deliberately.
+    # Arrange
     from django.test import RequestFactory
-
     from scitex_live_paper import (
         Bundle, BundleContext, BundleSource, PaperState, mount,
     )
-
     custom = Bundle(
         root=Path("/tmp"),
         claims=[],
@@ -321,17 +368,44 @@ def test_api_pdf_404_when_bundle_manuscript_path_is_none(env_snapshot):
         figz_dir=Path("/tmp/figz"),
         paper_state=PaperState(),
     )
-
     def resolver(request, **kw):
         return BundleContext(source=BundleSource.from_bundle(custom))
-
     patterns, _ = mount(resolver)
     dispatch = next(p.callback for p in patterns if p.name == "api_dispatch")
-
     rf = RequestFactory()
-    # act
+    # Act
     response = dispatch(rf.get("/api/pdf"), endpoint="api/pdf")
-    # assert
+    # Assert
     assert response.status_code == 404
+
+
+def test_api_pdf_404_when_bundle_manuscript_path_is_none__assert_manuscript_pdf_not_found(env_snapshot):
+    # mount(resolver=...). bundle.load() rejects no-manuscript
+    # directories, but a host that hand-builds a Bundle (e.g. writer's
+    # in-memory editor mid-compile) might pass None deliberately.
+    # Arrange
+    from django.test import RequestFactory
+    from scitex_live_paper import (
+        Bundle, BundleContext, BundleSource, PaperState, mount,
+    )
+    custom = Bundle(
+        root=Path("/tmp"),
+        claims=[],
+        dag="",
+        provenance={},
+        manuscript_path=None,  # type: ignore[arg-type]
+        figz_dir=Path("/tmp/figz"),
+        paper_state=PaperState(),
+    )
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_bundle(custom))
+    patterns, _ = mount(resolver)
+    dispatch = next(p.callback for p in patterns if p.name == "api_dispatch")
+    rf = RequestFactory()
+    response = dispatch(rf.get("/api/pdf"), endpoint="api/pdf")
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert "manuscript.pdf not found" in body["error"]
+
+

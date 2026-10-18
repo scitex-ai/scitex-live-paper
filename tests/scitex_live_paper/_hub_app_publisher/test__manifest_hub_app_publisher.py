@@ -22,18 +22,45 @@ import pytest
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_top_level_reexports_hub_app_manifest():
+def test_top_level_reexports_hub_app_manifest__assert_hasattr_lp_hub_app_manife():
+    # Arrange
+    # Act
     import scitex_live_paper as lp
-
+    # Assert
     assert hasattr(lp, "HUB_APP_MANIFEST")
+
+
+def test_top_level_reexports_hub_app_manifest__assert_hasattr_lp_hub_app_name():
+    # Arrange
+    # Act
+    import scitex_live_paper as lp
+    # Assert
     assert hasattr(lp, "HUB_APP_NAME")
+
+
+def test_top_level_reexports_hub_app_manifest__assert_hasattr_lp_hub_app_versio():
+    # Arrange
+    # Act
+    import scitex_live_paper as lp
+    # Assert
     assert hasattr(lp, "HUB_APP_VERSION")
+
+
+def test_top_level_reexports_hub_app_manifest__assert_hasattr_lp_derive_wrapper():
+    # Arrange
+    # Act
+    import scitex_live_paper as lp
+    # Assert
     assert hasattr(lp, "derive_wrapper_manifest")
 
 
-def test_hub_publisher_symbols_in_all():
-    import scitex_live_paper as lp
 
+
+def test_hub_publisher_symbols_in_all():
+    # Arrange
+    import scitex_live_paper as lp
+    # Act
+    # Assert
     for name in (
         "HUB_APP_MANIFEST",
         "HUB_APP_NAME",
@@ -49,14 +76,16 @@ def test_hub_publisher_symbols_in_all():
 
 
 def test_manifest_is_mapping():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
+    # Assert
     assert isinstance(HUB_APP_MANIFEST, Mapping)
 
 
 def test_manifest_has_all_required_keys():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
     required = {
         "name",
         "version",
@@ -69,72 +98,116 @@ def test_manifest_has_all_required_keys():
         "upstream",
         "permissions",
     }
+    # Act
     missing = required - set(HUB_APP_MANIFEST.keys())
+    # Assert
     assert not missing, f"manifest missing keys: {missing}"
 
 
 def test_manifest_name_is_pip_distribution_name():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
+    # Assert
     assert HUB_APP_MANIFEST["name"] == "scitex-live-paper"
 
 
 def test_manifest_version_syncs_with_package_version():
+    # Arrange
     import scitex_live_paper
-
+    # Act
+    # Assert
     assert scitex_live_paper.HUB_APP_MANIFEST["version"] == scitex_live_paper.__version__
 
 
 def test_manifest_category_is_app():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
+    # Assert
     assert HUB_APP_MANIFEST["category"] == "app"
 
 
 def test_manifest_python_requires_matches_pyproject():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
-    # Pinned via the constant — if pyproject's requires-python ever
-    # diverges, bump this too.
+    # Act
+    # Assert
     assert HUB_APP_MANIFEST["python_requires"] == ">=3.10"
 
 
 def test_manifest_entry_points_apps_targets_wrapper_urls():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
     eps = HUB_APP_MANIFEST["entry_points"]
+    # Act
+    # Assert
     assert eps["scitex_hub.apps"] == "scitex_live_paper_hub_app.urls:urlpatterns"
 
 
 def test_manifest_entry_points_app_config_targets_upstream_appconfig():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
     eps = HUB_APP_MANIFEST["entry_points"]
+    # Act
+    # Assert
     assert eps["scitex_hub.app_config"] == "scitex_live_paper._django.apps:LivePaperConfig"
 
 
-def test_manifest_requires_lists_pep508_strings():
+def test_manifest_requires_lists_pep508_strings__assert_any_scitex_live_paper_in():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
     reqs = HUB_APP_MANIFEST["requires"]
+    # Assert
     assert any("scitex-live-paper" in r for r in reqs)
+
+
+def test_manifest_requires_lists_pep508_strings__assert_any_django_in_r_for_r_in():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST
+    # Act
+    reqs = HUB_APP_MANIFEST["requires"]
+    # Assert
     assert any("django" in r for r in reqs)
+
+
+def test_manifest_requires_lists_pep508_strings__assert_any_scitex_clew_in_r_for():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST
+    # Act
+    reqs = HUB_APP_MANIFEST["requires"]
+    # Assert
     assert any("scitex-clew" in r for r in reqs)
 
 
-def test_manifest_upstream_points_at_pip_package():
-    from scitex_live_paper import HUB_APP_MANIFEST
 
+
+def test_manifest_upstream_points_at_pip_package__assert_upstream_package_scitex_l():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST
+    # Act
     upstream = HUB_APP_MANIFEST["upstream"]
+    # Assert
     assert upstream["package"] == "scitex-live-paper"
+
+
+def test_manifest_upstream_points_at_pip_package__assert_upstream_module_scitex_li():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST
+    # Act
+    upstream = HUB_APP_MANIFEST["upstream"]
+    # Assert
     assert upstream["module"] == "scitex_live_paper"
 
 
-def test_manifest_permissions_starts_empty():
-    from scitex_live_paper import HUB_APP_MANIFEST
 
-    # Documented choice — no permissions invented without enforcement
-    # points; hub adds `bundle.read` etc. when the surface lands.
+
+def test_manifest_permissions_starts_empty():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST
+    # Act
+    # Assert
     assert list(HUB_APP_MANIFEST["permissions"]) == []
 
 
@@ -144,15 +217,19 @@ def test_manifest_permissions_starts_empty():
 
 
 def test_manifest_top_level_is_read_only():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
+    # Assert
     with pytest.raises(TypeError):
         HUB_APP_MANIFEST["name"] = "evil"  # type: ignore[index]
 
 
 def test_manifest_entry_points_is_read_only():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST
-
+    # Act
+    # Assert
     with pytest.raises(TypeError):
         HUB_APP_MANIFEST["entry_points"]["scitex_hub.apps"] = "evil"  # type: ignore[index]
 
@@ -163,75 +240,124 @@ def test_manifest_entry_points_is_read_only():
 
 
 def test_derive_returns_plain_dict():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
-
+    # Act
+    # Assert
     assert isinstance(derive_wrapper_manifest(), dict)
 
 
 def test_derive_schema_version_defaults_to_2_0_0():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
-
+    # Act
+    # Assert
     assert derive_wrapper_manifest()["schema_version"] == "2.0.0"
 
 
 def test_derive_schema_version_overridable():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
-
+    # Act
+    # Assert
     assert derive_wrapper_manifest(schema_version="2.1.0")["schema_version"] == "2.1.0"
 
 
-def test_derive_carries_name_and_version_from_manifest():
+def test_derive_carries_name_and_version_from_manifest__assert_out_name_hub_app_manifest():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
-
+    # Act
     out = derive_wrapper_manifest()
+    # Assert
     assert out["name"] == HUB_APP_MANIFEST["name"]
+
+
+def test_derive_carries_name_and_version_from_manifest__assert_out_version_hub_app_manif():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert out["version"] == HUB_APP_MANIFEST["version"]
 
 
-def test_derive_label_defaults_to_display_name():
-    from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
 
+
+def test_derive_label_defaults_to_display_name():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
+    # Act
+    # Assert
     assert derive_wrapper_manifest()["label"] == HUB_APP_MANIFEST["display_name"]
 
 
 def test_derive_label_override_wins():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
-
+    # Act
+    # Assert
     assert derive_wrapper_manifest(label="Live Paper")["label"] == "Live Paper"
 
 
-def test_derive_subtitle_defaults_to_first_sentence():
+def test_derive_subtitle_defaults_to_first_sentence__assert_out_subtitle():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
-
     description = HUB_APP_MANIFEST["description"]
+    # Act
     out = derive_wrapper_manifest()
-    # First sentence ends with the first period — must be a prefix of description
+    # Assert
     assert out["subtitle"]
+
+
+def test_derive_subtitle_defaults_to_first_sentence__assert_description_startswith_ou():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
+    description = HUB_APP_MANIFEST["description"]
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert description.startswith(out["subtitle"])
 
 
-def test_derive_subtitle_override_wins():
-    from scitex_live_paper import derive_wrapper_manifest
 
+
+def test_derive_subtitle_override_wins():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
+    # Assert
     assert (
         derive_wrapper_manifest(subtitle="Mounted under apps/live-paper/")["subtitle"]
         == "Mounted under apps/live-paper/"
     )
 
 
-def test_derive_about_and_description_are_full_text():
+def test_derive_about_and_description_are_full_text__assert_out_about_hub_app_manifes():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
-
+    # Act
     out = derive_wrapper_manifest()
+    # Assert
     assert out["about"] == HUB_APP_MANIFEST["description"]
+
+
+def test_derive_about_and_description_are_full_text__assert_out_description_hub_app_m():
+    # Arrange
+    from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert out["description"] == HUB_APP_MANIFEST["description"]
 
 
-def test_derive_dependencies_python_prepends_python_requires():
-    from scitex_live_paper import derive_wrapper_manifest
 
+
+def test_derive_dependencies_python_prepends_python_requires():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
     deps = derive_wrapper_manifest()["dependencies"]["python"]
-    # First entry encodes the Python interpreter requirement
+    # Assert
     assert deps[0] == "python>=3.10"
 
 
@@ -251,29 +377,48 @@ def test_derive_dependencies_python_strips_pep508_specifiers():
 
 
 def test_derive_privileges_mirrors_permissions():
+    # Arrange
     from scitex_live_paper import HUB_APP_MANIFEST, derive_wrapper_manifest
-
+    # Act
     out = derive_wrapper_manifest()
+    # Assert
     assert out["privileges"] == list(HUB_APP_MANIFEST["permissions"])
 
 
-def test_first_sentence_helper_handles_empty_string():
+def test_first_sentence_helper_handles_empty_string__assert_first_sentence():
     # Direct unit-style test on the private helper to cover the
     # early-return branch (line 121 of _derive_wrapper_manifest.py).
+    # Arrange
+    # Act
     from scitex_live_paper._hub_app_publisher._derive_wrapper_manifest import (
         _first_sentence,
     )
-
+    # Assert
     assert _first_sentence("") == ""
+
+
+def test_first_sentence_helper_handles_empty_string__assert_first_sentence_2():
+    # Direct unit-style test on the private helper to cover the
+    # early-return branch (line 121 of _derive_wrapper_manifest.py).
+    # Arrange
+    # Act
+    from scitex_live_paper._hub_app_publisher._derive_wrapper_manifest import (
+        _first_sentence,
+    )
+    # Assert
     assert _first_sentence("   ") == ""
+
+
 
 
 def test_first_sentence_helper_falls_back_when_no_terminator():
     # No `.` / `!` / `?` — return the trimmed full text (line 124).
+    # Arrange
     from scitex_live_paper._hub_app_publisher._derive_wrapper_manifest import (
         _first_sentence,
     )
-
+    # Act
+    # Assert
     assert _first_sentence("a label with no terminator") == "a label with no terminator"
 
 
@@ -282,24 +427,57 @@ def test_strip_pep508_versions_helper_skips_unparseable_entry():
     # `continue` branch (line 142). Operator-typo input that doesn't
     # start with an alphanumeric distribution name should be skipped
     # rather than landing as a garbage chip.
+    # Arrange
     from scitex_live_paper._hub_app_publisher._derive_wrapper_manifest import (
         _strip_pep508_versions,
     )
-
-    # ">=0.1.0" has no leading distribution name → skipped
+    # Act
+    # Assert
     assert _strip_pep508_versions((">=0.1.0", "scitex-clew>=0.1.0")) == ["scitex-clew"]
 
 
-def test_derive_drops_category_upstream_entry_points_python_requires():
+def test_derive_drops_category_upstream_entry_points_python_requires__assert_category_not_in_out():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
-
+    # Act
     out = derive_wrapper_manifest()
-    # Per the hub-side reconciliation: these are publishing-layer
-    # internals + the workspace UI doesn't surface them.
+    # Assert
     assert "category" not in out
+
+
+def test_derive_drops_category_upstream_entry_points_python_requires__assert_upstream_not_in_out():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert "upstream" not in out
+
+
+def test_derive_drops_category_upstream_entry_points_python_requires__assert_entry_points_not_in_out():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert "entry_points" not in out
+
+
+def test_derive_drops_category_upstream_entry_points_python_requires__assert_python_requires_not_in_ou():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert "python_requires" not in out
-    # `permissions` (old key) shouldn't appear either — v2.0.0
-    # renamed to `privileges`.
+
+
+def test_derive_drops_category_upstream_entry_points_python_requires__assert_permissions_not_in_out():
+    # Arrange
+    from scitex_live_paper import derive_wrapper_manifest
+    # Act
+    out = derive_wrapper_manifest()
+    # Assert
     assert "permissions" not in out
+
+

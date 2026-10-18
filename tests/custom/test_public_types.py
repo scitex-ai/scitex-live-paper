@@ -42,21 +42,37 @@ FIXTURE_BUNDLE = (
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_top_level_reexports_bundle_model():
-    # arrange / act
+def test_top_level_reexports_bundle_model__assert_lp_bundle_is_bundle():
+    # Arrange
+    # Act
     import scitex_live_paper as lp
-
-    # assert — the bundle/Claim model is part of the public surface
+    # Assert
     assert lp.Bundle is Bundle
+
+
+def test_top_level_reexports_bundle_model__assert_lp_claim_is_claim():
+    # Arrange
+    # Act
+    import scitex_live_paper as lp
+    # Assert
     assert lp.Claim is Claim
+
+
+def test_top_level_reexports_bundle_model__assert_lp_bundleerror_is_bundlee():
+    # Arrange
+    # Act
+    import scitex_live_paper as lp
+    # Assert
     assert lp.BundleError is BundleError
 
 
-def test_top_level_reexports_render_time_types():
-    # arrange / act
-    import scitex_live_paper as lp
 
-    # assert — every type the design proposal pinned is importable
+
+def test_top_level_reexports_render_time_types():
+    # Arrange
+    import scitex_live_paper as lp
+    # Act
+    # Assert
     for name in (
         "BundleContext",
         "BundleResolver",
@@ -70,16 +86,16 @@ def test_top_level_reexports_render_time_types():
 
 
 def test_all_lists_every_public_type():
-    # arrange
+    # Arrange
     import scitex_live_paper as lp
-
-    # act / assert — anything host apps may import is in __all__
     must_export = {
         "Bundle", "BundleError", "Claim",
         "BundleContext", "BundleResolver", "BundleSource",
         "PaperStage", "PaperState",
         "RendererOptions", "RendererTheme",
     }
+    # Act
+    # Assert
     assert must_export <= set(lp.__all__)
 
 
@@ -89,24 +105,27 @@ def test_all_lists_every_public_type():
 
 
 def test_paper_state_default_is_preprint():
-    # arrange / act
+    # Arrange
+    # Act
     state = PaperState()
-    # assert — operator-friendly default per the design report
+    # Assert
     assert state.stage == "preprint"
 
 
 def test_paper_state_is_frozen():
-    # arrange
+    # Arrange
+    # Act
     state = PaperState()
-    # act / assert — host apps must not mutate state we hand back to them
+    # Assert
     with pytest.raises(Exception):
         state.stage = "accepted"  # type: ignore[misc]
 
 
 def test_paper_stage_literal_lists_all_five_stages():
-    # arrange / act
+    # Arrange
+    # Act
     stages = set(get_args(PaperStage))
-    # assert — the design pinned exactly these five
+    # Assert
     assert stages == {"draft", "preprint", "in_review", "accepted", "published"}
 
 
@@ -121,9 +140,10 @@ def test_paper_stage_literal_lists_all_five_stages():
     ],
 )
 def test_header_label_default_per_stage(stage, expected):
-    # arrange / act
+    # Arrange
+    # Act
     label = PaperState(stage=stage).header_label()
-    # assert
+    # Assert
     assert label == expected
 
 
@@ -158,26 +178,54 @@ def test_header_label_published_with_journal_and_doi():
     assert label == "Nature Comm · DOI: 10.1038/s41467-2026-99999"
 
 
-def test_show_verification_badge_off_until_accepted():
-    # arrange
+def test_show_verification_badge_off_for_draft_stages():
+    # Arrange
     off_stages = ("draft", "preprint", "in_review")
+    # Act
+    badges = [PaperState(stage=stage).show_verification_badge for stage in off_stages]
+    # Assert — one assertion: no pre-accepted stage shows the badge
+    assert badges == [False, False, False]
+
+
+def test_show_verification_badge_on_for_accepted_stages():
+    # Arrange
     on_stages = ("accepted", "published")
-    # act / assert
-    for stage in off_stages:
-        assert PaperState(stage=stage).show_verification_badge is False
-    for stage in on_stages:
-        assert PaperState(stage=stage).show_verification_badge is True
+    # Act
+    badges = [PaperState(stage=stage).show_verification_badge for stage in on_stages]
+    # Assert — one assertion: accepted+ stages show the badge
+    assert badges == [True, True]
 
 
-def test_re_verify_requires_accepted_plus_pinned_commit():
-    # arrange — accepted without a pinned commit means we cannot re-verify
+def test_re_verify_requires_accepted_plus_pinned_commit__assert_accepted_no_commit_re_ver():
+    # Arrange
     accepted_no_commit = PaperState(stage="accepted")
     accepted_with_commit = PaperState(stage="accepted", pinned_commit="abc123")
+    # Act
     preprint_with_commit = PaperState(stage="preprint", pinned_commit="abc123")
-    # act / assert
+    # Assert
     assert accepted_no_commit.re_verify_enabled is False
+
+
+def test_re_verify_requires_accepted_plus_pinned_commit__assert_accepted_with_commit_re_v():
+    # Arrange
+    accepted_no_commit = PaperState(stage="accepted")
+    accepted_with_commit = PaperState(stage="accepted", pinned_commit="abc123")
+    # Act
+    preprint_with_commit = PaperState(stage="preprint", pinned_commit="abc123")
+    # Assert
     assert accepted_with_commit.re_verify_enabled is True
+
+
+def test_re_verify_requires_accepted_plus_pinned_commit__assert_preprint_with_commit_re_v():
+    # Arrange
+    accepted_no_commit = PaperState(stage="accepted")
+    accepted_with_commit = PaperState(stage="accepted", pinned_commit="abc123")
+    # Act
+    preprint_with_commit = PaperState(stage="preprint", pinned_commit="abc123")
+    # Assert
     assert preprint_with_commit.re_verify_enabled is False
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -185,46 +233,86 @@ def test_re_verify_requires_accepted_plus_pinned_commit():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bundle_source_from_directory_resolves_path(tmp_path):
-    # arrange
+def test_bundle_source_from_directory_resolves_path__assert_source_directory_tmp_path(tmp_path):
+    # Arrange
     rel = tmp_path / "."
-    # act
+    # Act
     source = BundleSource.from_directory(rel)
-    # assert — resolved, absolute, no trailing /. component
+    # Assert
     assert source.directory == tmp_path.resolve()
+
+
+def test_bundle_source_from_directory_resolves_path__assert_source_kind_directory(tmp_path):
+    # Arrange
+    rel = tmp_path / "."
+    # Act
+    source = BundleSource.from_directory(rel)
+    # Assert
     assert source.kind == "directory"
 
 
-def test_bundle_source_from_bundle_keeps_instance():
-    # arrange
+
+
+def test_bundle_source_from_bundle_keeps_instance__assert_source_bundle_is_real_bun():
+    # Arrange
     real_bundle = bundle_module.load(FIXTURE_BUNDLE)
-    # act
+    # Act
     source = BundleSource.from_bundle(real_bundle)
-    # assert
+    # Assert
     assert source.bundle is real_bundle
+
+
+def test_bundle_source_from_bundle_keeps_instance__assert_source_kind_bundle():
+    # Arrange
+    real_bundle = bundle_module.load(FIXTURE_BUNDLE)
+    # Act
+    source = BundleSource.from_bundle(real_bundle)
+    # Assert
     assert source.kind == "bundle"
 
 
-def test_bundle_source_from_resolver_stores_callable():
-    # arrange
+
+
+def test_bundle_source_from_resolver_stores_callable__assert_source_resolver_is_resolv():
+    # Arrange
     def resolver() -> Bundle:
         return bundle_module.load(FIXTURE_BUNDLE)
-
-    # act
+    # Act
     source = BundleSource.from_resolver(resolver)
-    # assert
+    # Assert
     assert source.resolver is resolver
+
+
+def test_bundle_source_from_resolver_stores_callable__assert_source_kind_resolver():
+    # Arrange
+    def resolver() -> Bundle:
+        return bundle_module.load(FIXTURE_BUNDLE)
+    # Act
+    source = BundleSource.from_resolver(resolver)
+    # Assert
     assert source.kind == "resolver"
 
 
-def test_bundle_source_load_from_directory_calls_real_loader():
-    # arrange
+
+
+def test_bundle_source_load_from_directory_calls_real_loader__assert_len_bundle_claims_3():
+    # Arrange
     source = BundleSource.from_directory(FIXTURE_BUNDLE)
-    # act — real loader, real fixture
+    # Act
     bundle = source.load()
-    # assert — bundle-min ships three claims
+    # Assert
     assert len(bundle.claims) == 3
+
+
+def test_bundle_source_load_from_directory_calls_real_loader__assert_bundle_schema_version_sci():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    # Act
+    bundle = source.load()
+    # Assert
     assert bundle.schema_version == "scitex-clew.claims/v1"
+
+
 
 
 def test_bundle_source_load_from_bundle_returns_same_instance():
@@ -237,47 +325,58 @@ def test_bundle_source_load_from_bundle_returns_same_instance():
     assert loaded is pre_loaded
 
 
-def test_bundle_source_load_from_resolver_invokes_callable():
-    # arrange
+def test_bundle_source_load_from_resolver_invokes_callable__assert_len_calls_1():
+    # Arrange
     calls: list[int] = []
-
     def resolver() -> Bundle:
         calls.append(1)
         return bundle_module.load(FIXTURE_BUNDLE)
-
     source = BundleSource.from_resolver(resolver)
-
-    # act
+    # Act
     bundle = source.load()
-
-    # assert
+    # Assert
     assert len(calls) == 1
+
+
+def test_bundle_source_load_from_resolver_invokes_callable__assert_isinstance_bundle_bundle():
+    # Arrange
+    calls: list[int] = []
+    def resolver() -> Bundle:
+        calls.append(1)
+        return bundle_module.load(FIXTURE_BUNDLE)
+    source = BundleSource.from_resolver(resolver)
+    # Act
+    bundle = source.load()
+    # Assert
     assert isinstance(bundle, Bundle)
 
 
+
+
 def test_bundle_source_load_empty_raises_value_error():
-    # arrange — direct __init__ bypasses the constructors; load() must fail loud
+    # Arrange
+    # Act
     source = BundleSource()
-    # act / assert
+    # Assert
     with pytest.raises(ValueError, match="no populated slot"):
         source.load()
 
 
 def test_bundle_source_kind_empty_for_unpopulated():
-    # arrange
+    # Arrange
+    # Act
     source = BundleSource()
-    # act / assert
+    # Assert
     assert source.kind == "empty"
 
 
 def test_bundle_resolver_alias_is_callable_type():
-    # arrange / act
+    # Arrange
+    # Act
     def resolver() -> Bundle:
         return bundle_module.load(FIXTURE_BUNDLE)
-
-    # assert — BundleResolver is a Callable alias; the type system accepts our resolver
-    # (the meaningful check is runtime — the alias is importable + usable)
     typed: BundleResolver = resolver
+    # Assert
     assert typed is resolver
 
 
@@ -304,15 +403,33 @@ def test_bundle_context_defaults_api_base_to_slash_api():
     assert ctx.api_base == "/api/"
 
 
-def test_bundle_context_defaults_options_to_empty_renderer_options():
-    # arrange
+def test_bundle_context_defaults_options_to_empty_renderer_options__assert_isinstance_ctx_options_re():
+    # Arrange
     source = BundleSource.from_directory(FIXTURE_BUNDLE)
-    # act
+    # Act
     ctx = BundleContext(source=source)
-    # assert — __post_init__ supplies a real RendererOptions, not None
+    # Assert
     assert isinstance(ctx.options, RendererOptions)
+
+
+def test_bundle_context_defaults_options_to_empty_renderer_options__assert_ctx_options_title_is_none():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    # Act
+    ctx = BundleContext(source=source)
+    # Assert
     assert ctx.options.title is None
+
+
+def test_bundle_context_defaults_options_to_empty_renderer_options__assert_ctx_options_embed_mode_is():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    # Act
+    ctx = BundleContext(source=source)
+    # Assert
     assert ctx.options.embed_mode is False
+
+
 
 
 def test_bundle_context_load_bundle_delegates_to_source():
@@ -326,34 +443,66 @@ def test_bundle_context_load_bundle_delegates_to_source():
 
 
 def test_bundle_context_is_frozen():
-    # arrange
+    # Arrange
+    # Act
     ctx = BundleContext(source=BundleSource.from_directory(FIXTURE_BUNDLE))
-    # act / assert
+    # Assert
     with pytest.raises(Exception):
         ctx.api_base = "/other/"  # type: ignore[misc]
 
 
-def test_bundle_context_carries_paper_state_through():
-    # arrange
+def test_bundle_context_carries_paper_state_through__assert_ctx_paper_state_journal_e():
+    # Arrange
     source = BundleSource.from_directory(FIXTURE_BUNDLE)
     state = PaperState(stage="accepted", journal="eLife", pinned_commit="abc")
-    # act
+    # Act
     ctx = BundleContext(source=source, paper_state=state)
-    # assert
+    # Assert
     assert ctx.paper_state.journal == "eLife"
+
+
+def test_bundle_context_carries_paper_state_through__assert_ctx_paper_state_re_verify():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    state = PaperState(stage="accepted", journal="eLife", pinned_commit="abc")
+    # Act
+    ctx = BundleContext(source=source, paper_state=state)
+    # Assert
     assert ctx.paper_state.re_verify_enabled is True
 
 
-def test_bundle_context_carries_options_through():
-    # arrange
+
+
+def test_bundle_context_carries_options_through__assert_ctx_options_title_my_pape():
+    # Arrange
     source = BundleSource.from_directory(FIXTURE_BUNDLE)
     opts = RendererOptions(title="My Paper", embed_mode=True, theme="dark")
-    # act
+    # Act
     ctx = BundleContext(source=source, options=opts)
-    # assert
+    # Assert
     assert ctx.options.title == "My Paper"
+
+
+def test_bundle_context_carries_options_through__assert_ctx_options_embed_mode_is_2():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    opts = RendererOptions(title="My Paper", embed_mode=True, theme="dark")
+    # Act
+    ctx = BundleContext(source=source, options=opts)
+    # Assert
     assert ctx.options.embed_mode is True
+
+
+def test_bundle_context_carries_options_through__assert_ctx_options_theme_dark():
+    # Arrange
+    source = BundleSource.from_directory(FIXTURE_BUNDLE)
+    opts = RendererOptions(title="My Paper", embed_mode=True, theme="dark")
+    # Act
+    ctx = BundleContext(source=source, options=opts)
+    # Assert
     assert ctx.options.theme == "dark"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -361,28 +510,54 @@ def test_bundle_context_carries_options_through():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_renderer_options_defaults_match_design():
-    # arrange / act
+def test_renderer_options_defaults_match_design__assert_opts_title_is_none():
+    # Arrange
+    # Act
     opts = RendererOptions()
-    # assert
+    # Assert
     assert opts.title is None
+
+
+def test_renderer_options_defaults_match_design__assert_opts_embed_mode_is_false():
+    # Arrange
+    # Act
+    opts = RendererOptions()
+    # Assert
     assert opts.embed_mode is False
+
+
+def test_renderer_options_defaults_match_design__assert_opts_theme_auto():
+    # Arrange
+    # Act
+    opts = RendererOptions()
+    # Assert
     assert opts.theme == "auto"
+
+
+def test_renderer_options_defaults_match_design__assert_opts_extra():
+    # Arrange
+    # Act
+    opts = RendererOptions()
+    # Assert
     assert opts.extra == {}
 
 
+
+
 def test_renderer_options_is_frozen():
-    # arrange
+    # Arrange
+    # Act
     opts = RendererOptions()
-    # act / assert
+    # Assert
     with pytest.raises(Exception):
         opts.title = "X"  # type: ignore[misc]
 
 
 def test_renderer_theme_literal_lists_auto_light_dark():
-    # arrange / act
+    # Arrange
+    # Act
     themes = set(get_args(RendererTheme))
-    # assert
+    # Assert
     assert themes == {"auto", "light", "dark"}
 
 

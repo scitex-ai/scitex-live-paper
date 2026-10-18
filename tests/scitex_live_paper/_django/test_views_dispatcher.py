@@ -66,44 +66,92 @@ def rf() -> RequestFactory:
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_dispatcher_passes_through_httpresponse_unchanged(handlers_snapshot, rf):
-    # arrange — a handler that returns its own HttpResponse (e.g. a
+def test_dispatcher_passes_through_httpresponse_unchanged__assert_response_is_sentinel(handlers_snapshot, rf):
     # future download endpoint streaming bytes).
+    # Arrange
     sentinel = HttpResponse(b"raw-bytes", status=202, content_type="application/x-binary")
-
     def streaming_handler(request):
         return sentinel
-
     handlers_snapshot["api/raw-bytes"] = streaming_handler
     request = rf.get("/api/raw-bytes")
-
-    # act
+    # Act
     response = views.api_dispatch(request, "api/raw-bytes")
-
-    # assert — same object (not re-wrapped), status preserved, body preserved
+    # Assert
     assert response is sentinel
+
+
+def test_dispatcher_passes_through_httpresponse_unchanged__assert_response_status_code_202(handlers_snapshot, rf):
+    # future download endpoint streaming bytes).
+    # Arrange
+    sentinel = HttpResponse(b"raw-bytes", status=202, content_type="application/x-binary")
+    def streaming_handler(request):
+        return sentinel
+    handlers_snapshot["api/raw-bytes"] = streaming_handler
+    request = rf.get("/api/raw-bytes")
+    # Act
+    response = views.api_dispatch(request, "api/raw-bytes")
+    # Assert
     assert response.status_code == 202
+
+
+def test_dispatcher_passes_through_httpresponse_unchanged__assert_response_content_b_raw_by(handlers_snapshot, rf):
+    # future download endpoint streaming bytes).
+    # Arrange
+    sentinel = HttpResponse(b"raw-bytes", status=202, content_type="application/x-binary")
+    def streaming_handler(request):
+        return sentinel
+    handlers_snapshot["api/raw-bytes"] = streaming_handler
+    request = rf.get("/api/raw-bytes")
+    # Act
+    response = views.api_dispatch(request, "api/raw-bytes")
+    # Assert
     assert response.content == b"raw-bytes"
 
 
-def test_dispatcher_passes_through_subclass_of_httpresponse(handlers_snapshot, rf):
-    # arrange — JsonResponse IS an HttpResponse subclass; a handler that
+
+
+def test_dispatcher_passes_through_subclass_of_httpresponse__assert_response_is_custom(handlers_snapshot, rf):
     # builds its own (e.g. to set custom headers) must not be re-wrapped.
+    # Arrange
     custom = JsonResponse({"custom": True}, status=201)
     custom["X-Live-Paper-Custom"] = "yes"
-
     def custom_handler(request):
         return custom
-
     handlers_snapshot["api/custom"] = custom_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/custom"), "api/custom")
-
-    # assert
+    # Assert
     assert response is custom
+
+
+def test_dispatcher_passes_through_subclass_of_httpresponse__assert_response_status_code_201(handlers_snapshot, rf):
+    # builds its own (e.g. to set custom headers) must not be re-wrapped.
+    # Arrange
+    custom = JsonResponse({"custom": True}, status=201)
+    custom["X-Live-Paper-Custom"] = "yes"
+    def custom_handler(request):
+        return custom
+    handlers_snapshot["api/custom"] = custom_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/custom"), "api/custom")
+    # Assert
     assert response.status_code == 201
+
+
+def test_dispatcher_passes_through_subclass_of_httpresponse__assert_response_x_live_paper_cus(handlers_snapshot, rf):
+    # builds its own (e.g. to set custom headers) must not be re-wrapped.
+    # Arrange
+    custom = JsonResponse({"custom": True}, status=201)
+    custom["X-Live-Paper-Custom"] = "yes"
+    def custom_handler(request):
+        return custom
+    handlers_snapshot["api/custom"] = custom_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/custom"), "api/custom")
+    # Assert
     assert response["X-Live-Paper-Custom"] == "yes"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -140,19 +188,28 @@ def test_dispatcher_500_body_carries_exception_message(handlers_snapshot, rf):
     assert payload == {"error": "clew did not respond"}
 
 
-def test_dispatcher_500_for_typeerror_handler(handlers_snapshot, rf):
-    # arrange — non-RuntimeError to confirm the except is `Exception`
+def test_dispatcher_500_for_typeerror_handler__assert_response_status_code_500(handlers_snapshot, rf):
+    # Arrange
     def bad_handler(request):
         raise TypeError("explicit type mismatch")
-
     handlers_snapshot["api/typeerror"] = bad_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/typeerror"), "api/typeerror")
-
-    # assert
+    # Assert
     assert response.status_code == 500
+
+
+def test_dispatcher_500_for_typeerror_handler__assert_json_loads_response_conte(handlers_snapshot, rf):
+    # Arrange
+    def bad_handler(request):
+        raise TypeError("explicit type mismatch")
+    handlers_snapshot["api/typeerror"] = bad_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/typeerror"), "api/typeerror")
+    # Assert
     assert json.loads(response.content)["error"] == "explicit type mismatch"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -161,20 +218,39 @@ def test_dispatcher_500_for_typeerror_handler(handlers_snapshot, rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_dispatcher_wraps_mapping_in_json_response(handlers_snapshot, rf):
-    # arrange
+def test_dispatcher_wraps_mapping_in_json_response__assert_response_status_code_200(handlers_snapshot, rf):
+    # Arrange
     def mapping_handler(request):
         return {"hello": "world", "count": 3}
-
     handlers_snapshot["api/echo"] = mapping_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/echo"), "api/echo")
-
-    # assert
+    # Assert
     assert response.status_code == 200
+
+
+def test_dispatcher_wraps_mapping_in_json_response__assert_json_loads_response_conte_2(handlers_snapshot, rf):
+    # Arrange
+    def mapping_handler(request):
+        return {"hello": "world", "count": 3}
+    handlers_snapshot["api/echo"] = mapping_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/echo"), "api/echo")
+    # Assert
     assert json.loads(response.content) == {"hello": "world", "count": 3}
+
+
+def test_dispatcher_wraps_mapping_in_json_response__assert_response_content_type_sta(handlers_snapshot, rf):
+    # Arrange
+    def mapping_handler(request):
+        return {"hello": "world", "count": 3}
+    handlers_snapshot["api/echo"] = mapping_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/echo"), "api/echo")
+    # Assert
     assert response["Content-Type"].startswith("application/json")
+
+
 
 
 # NOTE: a handler returning a non-dict, non-HttpResponse payload (e.g.
@@ -193,17 +269,26 @@ def test_dispatcher_wraps_mapping_in_json_response(handlers_snapshot, rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_dispatcher_returns_404_for_unknown_endpoint(handlers_snapshot, rf):
-    # arrange — note: api/unknown is NOT registered (snapshot is the
+def test_dispatcher_returns_404_for_unknown_endpoint__assert_response_status_code_404(handlers_snapshot, rf):
     # production registry, no test handler added).
+    # Arrange
     request = rf.get("/api/unknown-endpoint")
-
-    # act
+    # Act
     response = views.api_dispatch(request, "api/unknown-endpoint")
-
-    # assert
+    # Assert
     assert response.status_code == 404
+
+
+def test_dispatcher_returns_404_for_unknown_endpoint__assert_json_loads_response_conte_3(handlers_snapshot, rf):
+    # production registry, no test handler added).
+    # Arrange
+    request = rf.get("/api/unknown-endpoint")
+    # Act
+    response = views.api_dispatch(request, "api/unknown-endpoint")
+    # Assert
     assert json.loads(response.content) == {"error": "unknown endpoint: api/unknown-endpoint"}
+
+
 
 
 # ──────────────────────────────────────────────────────────────────

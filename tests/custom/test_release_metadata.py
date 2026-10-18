@@ -37,37 +37,58 @@ def _changelog_text() -> str:
 
 
 def test_pyproject_version_matches_package_version():
+    # Arrange
+    # Act
+    # Assert
     assert _pyproject_version() == _package_version()
 
 
 def test_pyproject_version_appears_in_changelog():
+    # Arrange
+    # Act
+    # Assert
     assert f"## [{_pyproject_version()}]" in _changelog_text()
 
 
 def test_pyproject_version_is_not_pre_release():
+    # Arrange
+    # Act
     version = _pyproject_version()
+    # Assert
     assert not re.search(r"-(alpha|beta|rc|dev)", version), (
         f"version {version!r} still carries a pre-release suffix"
     )
 
 
 def test_pyproject_version_follows_semver():
+    # Arrange
+    # Act
     version = _pyproject_version()
+    # Assert
     assert re.fullmatch(r"\d+\.\d+\.\d+", version), (
         f"version {version!r} doesn't match SemVer X.Y.Z"
     )
 
 
 def test_changelog_has_unreleased_section():
+    # Arrange
+    # Act
+    # Assert
     assert "## [Unreleased]" in _changelog_text()
 
 
 def test_changelog_documents_public_surface_policy():
+    # Arrange
+    # Act
+    # Assert
     assert "documented public surface" in _changelog_text()
 
 
 def test_changelog_lists_every_documented_subsystem():
+    # Arrange
+    # Act
     text = _changelog_text()
+    # Assert
     for needle in (
         "M1",
         "Reusable component",
@@ -83,4 +104,7 @@ def test_changelog_lists_every_documented_subsystem():
 
 
 def test_changelog_carries_alpha_section_for_history():
+    # Arrange
+    # Act
+    # Assert
     assert "## [0.1.0-alpha]" in _changelog_text()

@@ -55,35 +55,44 @@ def _viewer_css() -> str:
 
 
 def test_viewer_js_calls_get_text_content():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — `page.getTextContent()` is the PDF.js entry for text
-    # extraction; no other API gives us text-layer input.
+    # Assert
     assert "getTextContent" in text
 
 
 def test_viewer_js_has_render_text_layer_helper():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — internal helper that owns the text-layer DOM
+    # Assert
     assert "_renderTextLayer" in text
 
 
-def test_viewer_js_probes_textlayer_class_with_fallback():
-    # arrange / act
+def test_viewer_js_probes_textlayer_class_with_fallback__assert_pdfjs_textlayer_in_text():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — modern PDF.js (5.x) exposes a `TextLayer` class; older
-    # builds expose `renderTextLayer()`. Viewer probes both so we work
-    # across PDF.js versions without forcing a bundle update.
+    # Assert
     assert "pdfjs.TextLayer" in text
+
+
+def test_viewer_js_probes_textlayer_class_with_fallback__assert_pdfjs_rendertextlayer_in():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
     assert "pdfjs.renderTextLayer" in text
 
 
+
+
 def test_viewer_js_passes_textContentSource_to_textlayer():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — both APIs take `textContentSource` per PDF.js 5.x
-    # rename of the old `textContent` parameter.
+    # Assert
     assert "textContentSource" in text
 
 
@@ -93,40 +102,42 @@ def test_viewer_js_passes_textContentSource_to_textlayer():
 
 
 def test_viewer_js_calls_get_annotations():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert
+    # Assert
     assert "getAnnotations" in text
 
 
 def test_viewer_js_has_render_annotation_layer_helper():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert
+    # Assert
     assert "_renderAnnotationLayer" in text
 
 
 def test_viewer_js_uses_annotation_layer_class_when_available():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — uses the official class; degrades gracefully when absent
+    # Assert
     assert "pdfjs.AnnotationLayer" in text
 
 
 def test_viewer_js_annotation_layer_opens_external_links_in_blank():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — externalLinkTarget=2 is PDF.js's BLANK constant; we set
-    # it so a click on a PDF-internal link opens a new tab instead of
-    # navigating the host iframe away from the live paper.
+    # Assert
     assert "externalLinkTarget" in text
 
 
 def test_viewer_js_skips_annotation_layer_when_empty():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — pages with no annotations don't append an empty
-    # `<div class="annotationLayer">` (kept DOM clean for embed hosts).
+    # Assert
     assert "annotations || annotations.length === 0" in text \
         or "annotations.length === 0" in text
 
@@ -138,18 +149,18 @@ def test_viewer_js_skips_annotation_layer_when_empty():
 
 
 def test_viewer_js_wraps_each_page_in_relative_div():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — overlays use `position:absolute` referenced against the
-    # page wrapper's `position:relative`; without the wrapper the
-    # overlays would float against the document root.
+    # Assert
     assert 'pageWrap.style.position = "relative"' in text
 
 
 def test_viewer_js_tags_page_wrap_with_data_page_number():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_js()
-    # assert — exposes the page number to host JS / E2E tests
+    # Assert
     assert "pageWrap.dataset.pageNumber" in text
 
 
@@ -158,37 +169,55 @@ def test_viewer_js_tags_page_wrap_with_data_page_number():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_viewer_css_styles_text_layer():
-    # arrange / act
+def test_viewer_css_styles_text_layer__assert_textlayer_in_text():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # assert — invisible glyph spans require explicit positioning +
-    # `color: transparent` + a low opacity to align with the canvas.
+    # Assert
     assert ".textLayer" in text
+
+
+def test_viewer_css_styles_text_layer__assert_position_absolute_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "position: absolute" in text
 
 
+
+
 def test_viewer_css_styles_text_selection_color():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_css()
-    # assert — the ::selection rule gives the browser-native selection
-    # / find highlight a brand colour instead of the OS default.
+    # Assert
     assert "::selection" in text
 
 
-def test_viewer_css_styles_annotation_layer_with_pointer_events_none():
-    # arrange / act
+def test_viewer_css_styles_annotation_layer_with_pointer_events_none__assert_annotationlayer_in_text():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # assert — annotationLayer host has pointer-events:none; child
-    # `section` elements get pointer-events:auto so only the actual
-    # link rects are clickable.
+    # Assert
     assert ".annotationLayer" in text
+
+
+def test_viewer_css_styles_annotation_layer_with_pointer_events_none__assert_pointer_events_none_in_te():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "pointer-events: none" in text
 
 
+
+
 def test_viewer_css_styles_link_annotation_anchor():
-    # arrange / act
+    # Arrange
+    # Act
     text = _viewer_css()
-    # assert
+    # Assert
     assert "linkAnnotation" in text
 
 
@@ -198,23 +227,41 @@ def test_viewer_css_styles_link_annotation_anchor():
 
 
 def test_viewer_js_still_defines_pdfviewer_class():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "class PDFViewer" in text
 
 
 def test_viewer_js_still_calls_api_pdf_endpoint():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert '"pdf?doc_type="' in text
 
 
-def test_viewer_js_still_uses_vendored_pdfjs():
+def test_viewer_js_uses_vendored_pdfjs_bundle():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "pdf.min.mjs" in text
+
+
+def test_viewer_js_still_uses_vendored_pdfjs():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert — one assertion per loop iteration: no CDN host survives
     for marker in ("cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com"):
         assert marker not in text
 
 
 def test_viewer_js_still_exposes_window_pdfviewer_global():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # Hosts that adopt drive the viewer programmatically via this global
+    # Assert
     assert "window.LivePaperPDFViewer" in text

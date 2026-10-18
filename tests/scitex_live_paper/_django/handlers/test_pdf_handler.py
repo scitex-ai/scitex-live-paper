@@ -58,31 +58,41 @@ def _pin(path: Path) -> None:
 
 
 def test_api_pdf_returns_200(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     response = client.get("/api/pdf")
+    # Assert
     assert response.status_code == 200
 
 
 def test_api_pdf_serves_application_pdf_content_type(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     response = client.get("/api/pdf")
+    # Assert
     assert response["Content-Type"].startswith("application/pdf")
 
 
 def test_api_pdf_returns_manuscript_bytes(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
     expected = (BUNDLE_MIN / "manuscript.pdf").read_bytes()
     response = client.get("/api/pdf")
-    # FileResponse streams; collect chunks.
+    # Act
     body = b"".join(response.streaming_content)
+    # Assert
     assert body == expected
 
 
 def test_api_pdf_filename_matches_bundle_manuscript_name(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
     response = client.get("/api/pdf")
-    # Inline disposition; filename still set by FileResponse
+    # Act
     disposition = response.get("Content-Disposition", "")
+    # Assert
     assert "manuscript.pdf" in disposition
 
 
@@ -92,19 +102,37 @@ def test_api_pdf_filename_matches_bundle_manuscript_name(client, env_snapshot):
 
 
 @pytest.mark.parametrize("value", ["1", "true", "yes", "on", "True", "ON"])
-def test_api_pdf_download_truthy_sets_attachment(client, env_snapshot, value):
+def test_api_pdf_download_truthy_sets_attachment__assert_attachment_in_disposition(client, env_snapshot, value):
+    # Arrange
     _pin(BUNDLE_MIN)
     response = client.get(f"/api/pdf?download={value}")
+    # Act
     disposition = response.get("Content-Disposition", "")
+    # Assert
     assert "attachment" in disposition
+
+
+@pytest.mark.parametrize("value", ["1", "true", "yes", "on", "True", "ON"])
+def test_api_pdf_download_truthy_sets_attachment__assert_manuscript_pdf_in_disposi(client, env_snapshot, value):
+    # Arrange
+    _pin(BUNDLE_MIN)
+    response = client.get(f"/api/pdf?download={value}")
+    # Act
+    disposition = response.get("Content-Disposition", "")
+    # Assert
     assert "manuscript.pdf" in disposition
+
+
 
 
 @pytest.mark.parametrize("value", ["0", "false", "no", "", "random"])
 def test_api_pdf_download_falsy_stays_inline(client, env_snapshot, value):
+    # Arrange
     _pin(BUNDLE_MIN)
     response = client.get(f"/api/pdf?download={value}")
+    # Act
     disposition = response.get("Content-Disposition", "")
+    # Assert
     assert "attachment" not in disposition
 
 
@@ -114,29 +142,62 @@ def test_api_pdf_download_falsy_stays_inline(client, env_snapshot, value):
 
 
 def test_api_pdf_doc_type_manuscript_works(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     response = client.get("/api/pdf?doc_type=manuscript")
+    # Assert
     assert response.status_code == 200
 
 
 @pytest.mark.parametrize("doc_type", ["supplementary", "revision"])
-def test_api_pdf_supplementary_revision_404_with_clear_message(client, env_snapshot, doc_type):
-    # arrange — bundle layout doesn't ship these yet; the handler
+def test_api_pdf_supplementary_revision_404_with_clear_message__assert_response_status_code_404(client, env_snapshot, doc_type):
     # surfaces a clean 404 + message so callers know it's a layout
     # limitation, not a missing file.
+    # Arrange
+    _pin(BUNDLE_MIN)
+    # Act
+    response = client.get(f"/api/pdf?doc_type={doc_type}")
+    # Assert
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("doc_type", ["supplementary", "revision"])
+def test_api_pdf_supplementary_revision_404_with_clear_message__assert_doc_type_in_body_error(client, env_snapshot, doc_type):
+    # surfaces a clean 404 + message so callers know it's a layout
+    # limitation, not a missing file.
+    # Arrange
     _pin(BUNDLE_MIN)
     response = client.get(f"/api/pdf?doc_type={doc_type}")
-    assert response.status_code == 404
     import json
-
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert doc_type in body["error"]
+
+
+@pytest.mark.parametrize("doc_type", ["supplementary", "revision"])
+def test_api_pdf_supplementary_revision_404_with_clear_message__assert_not_yet_supported_in_body(client, env_snapshot, doc_type):
+    # surfaces a clean 404 + message so callers know it's a layout
+    # limitation, not a missing file.
+    # Arrange
+    _pin(BUNDLE_MIN)
+    response = client.get(f"/api/pdf?doc_type={doc_type}")
+    import json
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert "not yet supported" in body["error"]
 
 
+
+
 def test_api_pdf_unknown_doc_type_400(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     response = client.get("/api/pdf?doc_type=appendix")
+    # Assert
     assert response.status_code == 400
 
 
@@ -146,17 +207,21 @@ def test_api_pdf_unknown_doc_type_400(client, env_snapshot):
 
 
 def test_api_pdf_handler_is_registered():
+    # Arrange
     from scitex_live_paper._django.handlers import HANDLERS, handle_pdf
-
+    # Act
+    # Assert
     assert HANDLERS["api/pdf"] is handle_pdf
 
 
 def test_api_pdf_dispatcher_routes_pass_through_fileresponse(client, env_snapshot):
-    # arrange — dispatcher must NOT re-wrap FileResponse (a subclass of
     # HttpResponse) into JsonResponse. Regression check on PR #22's
     # loud-return fix: HttpResponse instances pass through untouched.
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     response = client.get("/api/pdf")
+    # Assert
     assert response["Content-Type"].startswith("application/pdf")
     # If the dispatcher re-wrapped, content-type would be application/json.
 
@@ -197,18 +262,44 @@ def test_api_pdf_through_mount_resolver_uses_context_bundle(env_snapshot):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_viewer_template_loads_viewer_js_as_module(client, env_snapshot):
+def test_viewer_template_loads_viewer_js_as_module__assert_type_module_in_body(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     body = client.get("/").content.decode("utf-8")
+    # Assert
     assert 'type="module"' in body
-    assert "live_paper/js/viewer.js" in body
 
 
-def test_embed_template_loads_viewer_js_as_module(client, env_snapshot):
+def test_viewer_template_loads_viewer_js_as_module__assert_live_paper_js_viewer_js_i(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
-    body = client.get("/?embed=1").content.decode("utf-8")
-    assert 'type="module"' in body
+    # Act
+    body = client.get("/").content.decode("utf-8")
+    # Assert
     assert "live_paper/js/viewer.js" in body
+
+
+
+
+def test_embed_template_loads_viewer_js_as_module__assert_type_module_in_body_2(client, env_snapshot):
+    # Arrange
+    _pin(BUNDLE_MIN)
+    # Act
+    body = client.get("/?embed=1").content.decode("utf-8")
+    # Assert
+    assert 'type="module"' in body
+
+
+def test_embed_template_loads_viewer_js_as_module__assert_live_paper_js_viewer_js_i_2(client, env_snapshot):
+    # Arrange
+    _pin(BUNDLE_MIN)
+    # Act
+    body = client.get("/?embed=1").content.decode("utf-8")
+    # Assert
+    assert "live_paper/js/viewer.js" in body
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -241,29 +332,65 @@ def _viewer_js_bundle() -> str:
 
 
 def test_viewer_js_defines_pdfviewer_class():
+    # Arrange
+    # Act
     text = _viewer_js_bundle()
+    # Assert
     assert "class PDFViewer" in text
 
 
-def test_viewer_js_uses_vendored_pdfjs_not_cdn():
+def test_viewer_js_uses_vendored_pdfjs():
+    # Arrange
+    # Act
     text = _viewer_js_bundle()
-    # Vendored relative import — same vendoring contract as PR #19.
+    # Assert — vendored relative import, same vendoring contract as PR #19
     assert "pdf.min.mjs" in text
+
+
+def test_viewer_js_uses_no_cdn_pdfjs():
+    # Arrange
+    # Act
+    text = _viewer_js_bundle()
+    # Assert — one assertion per loop iteration: no CDN host survives
     for marker in ("cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com"):
         assert marker not in text
 
 
 def test_viewer_js_calls_api_pdf_endpoint():
+    # Arrange
+    # Act
     text = _viewer_js_bundle()
-    # PDFViewer.load() builds the URL via apiBase + "pdf?doc_type=...".
+    # Assert
     assert "\"pdf?doc_type=\"" in text
 
 
-def test_pdfjs_assets_shipped_in_django_static_tree():
+def test_pdfjs_assets_shipped_in_django_static_tree__assert_pdfjs_dir_is_dir():
+    # Arrange
     import scitex_live_paper
-
+    # Act
     pkg_root = Path(scitex_live_paper.__file__).resolve().parent
     pdfjs_dir = pkg_root / "_django" / "static" / "live_paper" / "pdfjs"
+    # Assert
     assert pdfjs_dir.is_dir()
+
+
+def test_pdfjs_assets_shipped_in_django_static_tree__assert_pdfjs_dir_pdf_min_mjs_is():
+    # Arrange
+    import scitex_live_paper
+    # Act
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    pdfjs_dir = pkg_root / "_django" / "static" / "live_paper" / "pdfjs"
+    # Assert
     assert (pdfjs_dir / "pdf.min.mjs").is_file()
+
+
+def test_pdfjs_assets_shipped_in_django_static_tree__assert_pdfjs_dir_pdf_worker_min():
+    # Arrange
+    import scitex_live_paper
+    # Act
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    pdfjs_dir = pkg_root / "_django" / "static" / "live_paper" / "pdfjs"
+    # Assert
     assert (pdfjs_dir / "pdf.worker.min.mjs").is_file()
+
+

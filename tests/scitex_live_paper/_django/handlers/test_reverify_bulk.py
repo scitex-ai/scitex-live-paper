@@ -100,67 +100,115 @@ def fake_scitex_clew() -> Iterator[types.ModuleType]:
 
 
 def test_bulk_get_returns_405(client, env_snapshot):
+    # Arrange
+    # Act
     _pin(BUNDLE_ACCEPTED)
+    # Assert
     assert client.get("/api/claims/verify").status_code == 405
 
 
-def test_bulk_empty_body_defaults_to_all_claims(client, env_snapshot, fake_scitex_clew):
+def test_bulk_empty_body_defaults_to_all_claims__assert_response_status_code_200(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post(
         "/api/claims/verify",
         data="",
         content_type="application/json",
     )
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert response.status_code == 200
-    # bundle-accepted ships 3 claims
+
+
+def test_bulk_empty_body_defaults_to_all_claims__assert_body_count_3(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data="",
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["count"] == 3
+
+
+def test_bulk_empty_body_defaults_to_all_claims__assert_len_body_results_3(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data="",
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert len(body["results"]) == 3
 
 
+
+
 def test_bulk_no_body_at_all_defaults_to_all_claims(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post("/api/claims/verify", data=None, content_type="application/json")
+    # Assert
     assert response.status_code == 200
 
 
 def test_bulk_non_object_body_returns_400(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post(
         "/api/claims/verify",
         data=json.dumps([1, 2]),
         content_type="application/json",
     )
+    # Assert
     assert response.status_code == 400
 
 
 def test_bulk_claim_ids_not_a_list_returns_400(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({"claim_ids": "claim_a"}),
         content_type="application/json",
     )
+    # Assert
     assert response.status_code == 400
 
 
 def test_bulk_claim_ids_with_non_string_returns_400(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({"claim_ids": ["claim_a", 42]}),
         content_type="application/json",
     )
+    # Assert
     assert response.status_code == 400
 
 
 def test_bulk_claim_ids_with_empty_string_returns_400(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({"claim_ids": ["claim_a", "  "]}),
         content_type="application/json",
     )
+    # Assert
     assert response.status_code == 400
 
 
@@ -170,55 +218,113 @@ def test_bulk_claim_ids_with_empty_string_returns_400(client, env_snapshot, fake
 
 
 def test_bulk_no_pinned_commit_anywhere_returns_400(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_MIN)  # no state.yaml → no pinned_commit
+    # Act
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({}),
         content_type="application/json",
     )
+    # Assert
     assert response.status_code == 400
 
 
-def test_bulk_body_pinned_commit_wins_over_bundle(client, env_snapshot, fake_scitex_clew):
+def test_bulk_body_pinned_commit_wins_over_bundle__assert_body_verified_against_bod(client, env_snapshot, fake_scitex_clew):
     # pinned_commit is METADATA only (clew is git-agnostic); assert on the
     # response echo, and that the fake was called with just the claim_id.
+    # Arrange
     captured: list[str] = []
-
     def recorder(claim_id_or_location):
         captured.append(claim_id_or_location)
         return {"claim": {"status": "verified"}}
-
     fake_scitex_clew.verify_claim = recorder
     _pin(BUNDLE_ACCEPTED)
-
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({"pinned_commit": "body-commit"}),
         content_type="application/json",
     )
-
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert body["verified_against"] == "body-commit"
-    # the fake was called once per claim with the claim_id positionally
-    assert len(captured) == 3
-    assert all(isinstance(c, str) and c for c in captured)
 
 
-def test_bulk_falls_back_to_bundle_paper_state_commit(client, env_snapshot, fake_scitex_clew):
+def test_bulk_body_pinned_commit_wins_over_bundle__assert_len_captured_3(client, env_snapshot, fake_scitex_clew):
+    # pinned_commit is METADATA only (clew is git-agnostic); assert on the
+    # response echo, and that the fake was called with just the claim_id.
+    # Arrange
     captured: list[str] = []
-
     def recorder(claim_id_or_location):
         captured.append(claim_id_or_location)
         return {"claim": {"status": "verified"}}
-
     fake_scitex_clew.verify_claim = recorder
     _pin(BUNDLE_ACCEPTED)
-
-    response = client.post("/api/claims/verify", data="", content_type="application/json")
-
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"pinned_commit": "body-commit"}),
+        content_type="application/json",
+    )
+    # Act
     body = json.loads(response.content)
-    assert body["verified_against"] == "deadbeefcafef00d12345678"
+    # Assert
     assert len(captured) == 3
+
+
+def test_bulk_body_pinned_commit_wins_over_bundle__assert_all_isinstance_c_str_and(client, env_snapshot, fake_scitex_clew):
+    # pinned_commit is METADATA only (clew is git-agnostic); assert on the
+    # response echo, and that the fake was called with just the claim_id.
+    # Arrange
+    captured: list[str] = []
+    def recorder(claim_id_or_location):
+        captured.append(claim_id_or_location)
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"pinned_commit": "body-commit"}),
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    # Assert
+    assert all(isinstance(c, str) and c for c in captured)
+
+
+
+
+def test_bulk_falls_back_to_bundle_paper_state_commit__assert_body_verified_against_dea(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    captured: list[str] = []
+    def recorder(claim_id_or_location):
+        captured.append(claim_id_or_location)
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    # Assert
+    assert body["verified_against"] == "deadbeefcafef00d12345678"
+
+
+def test_bulk_falls_back_to_bundle_paper_state_commit__assert_len_captured_3_2(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    captured: list[str] = []
+    def recorder(claim_id_or_location):
+        captured.append(claim_id_or_location)
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    # Assert
+    assert len(captured) == 3
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -226,7 +332,8 @@ def test_bulk_falls_back_to_bundle_paper_state_commit(client, env_snapshot, fake
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bulk_filter_verifies_only_requested_ids(client, env_snapshot, fake_scitex_clew):
+def test_bulk_filter_verifies_only_requested_ids__assert_len_verified_1(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post(
         "/api/claims/verify",
@@ -234,27 +341,89 @@ def test_bulk_filter_verifies_only_requested_ids(client, env_snapshot, fake_scit
         content_type="application/json",
     )
     body = json.loads(response.content)
-    # Single claim verified
+    # Act
     verified = [r for r in body["results"] if r.get("ok") is True]
+    # Assert
     assert len(verified) == 1
+
+
+def test_bulk_filter_verifies_only_requested_ids__assert_verified_0_claim_id_claim(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"claim_ids": ["claim_a1b2c3d4e5f6"]}),
+        content_type="application/json",
+    )
+    body = json.loads(response.content)
+    # Act
+    verified = [r for r in body["results"] if r.get("ok") is True]
+    # Assert
     assert verified[0]["claim_id"] == "claim_a1b2c3d4e5f6"
 
 
-def test_bulk_unknown_filter_id_returns_per_result_failure(client, env_snapshot, fake_scitex_clew):
+
+
+def test_bulk_unknown_filter_id_returns_per_result_failure__assert_by_id_claim_a1b2c3d4e5f6(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post(
         "/api/claims/verify",
         data=json.dumps({"claim_ids": ["claim_a1b2c3d4e5f6", "claim_does_not_exist"]}),
         content_type="application/json",
     )
+    # Act
     body = json.loads(response.content)
-    # One verified result + one missing entry
     by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_a1b2c3d4e5f6"]["ok"] is True
+
+
+def test_bulk_unknown_filter_id_returns_per_result_failure__assert_by_id_claim_does_not_exis(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"claim_ids": ["claim_a1b2c3d4e5f6", "claim_does_not_exist"]}),
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_does_not_exist"]["ok"] is False
+
+
+def test_bulk_unknown_filter_id_returns_per_result_failure__assert_not_found_in_bundle_in_by(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"claim_ids": ["claim_a1b2c3d4e5f6", "claim_does_not_exist"]}),
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert "not found in bundle" in by_id["claim_does_not_exist"]["reason"]
-    # Top-level ok = False because one entry failed
+
+
+def test_bulk_unknown_filter_id_returns_per_result_failure__assert_body_ok_is_false(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post(
+        "/api/claims/verify",
+        data=json.dumps({"claim_ids": ["claim_a1b2c3d4e5f6", "claim_does_not_exist"]}),
+        content_type="application/json",
+    )
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert body["ok"] is False
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -276,46 +445,139 @@ def test_bulk_without_clew_returns_per_result_fallback(client, env_snapshot, no_
         assert "scitex-clew not installed" in result["reason"]
 
 
-def test_bulk_happy_path_returns_top_level_ok_true(client, env_snapshot, fake_scitex_clew):
+def test_bulk_happy_path_returns_top_level_ok_true__assert_body_ok_is_true(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert body["ok"] is True
+
+
+def test_bulk_happy_path_returns_top_level_ok_true__assert_all_r_ok_is_true_for_r_in(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert all(r["ok"] is True for r in body["results"])
 
 
+
+
 def test_bulk_happy_path_carries_verified_against(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert body["verified_against"] == "deadbeefcafef00d12345678"
 
 
-def test_bulk_clew_raises_one_does_not_500_the_sweep(client, env_snapshot, fake_scitex_clew):
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_response_status_code_200_2(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     def picky(claim_id_or_location):
         if claim_id_or_location == "claim_f6e5d4c3b2a1":
             raise RuntimeError("simulated clew failure")
         return {"claim": {"status": "verified"}}
-
     fake_scitex_clew.verify_claim = picky
     _pin(BUNDLE_ACCEPTED)
-
     response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
     body = json.loads(response.content)
-
+    # Assert
     assert response.status_code == 200  # NOT 500
+
+
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_body_ok_is_false_2(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    def picky(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            raise RuntimeError("simulated clew failure")
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = picky
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["ok"] is False
+
+
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_by_id_claim_f6e5d4c3b2a1(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    def picky(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            raise RuntimeError("simulated clew failure")
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = picky
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
     by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_f6e5d4c3b2a1"]["ok"] is False
+
+
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_simulated_clew_failure_in(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    def picky(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            raise RuntimeError("simulated clew failure")
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = picky
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert "simulated clew failure" in by_id["claim_f6e5d4c3b2a1"]["error"]
+
+
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_by_id_claim_a1b2c3d4e5f6_2(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    def picky(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            raise RuntimeError("simulated clew failure")
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = picky
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_a1b2c3d4e5f6"]["ok"] is True
+
+
+def test_bulk_clew_raises_one_does_not_500_the_sweep__assert_by_id_claim_999888777666(client, env_snapshot, fake_scitex_clew):
+    # Arrange
+    def picky(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            raise RuntimeError("simulated clew failure")
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = picky
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_999888777666"]["ok"] is True
 
 
-def test_bulk_not_found_result_flips_sweep_to_incomplete(client, env_snapshot, fake_scitex_clew):
+
+
+def test_bulk_not_found_result_flips_sweep_to_incomplete__assert_response_status_code_200_3(client, env_snapshot, fake_scitex_clew):
     # clew resolves the claim but reports not_found (flat shape, no "claim"
     # key) for one claim → that per-result is ok=False, and the overall
     # sweep ok flips to False even though no exception was raised.
+    # Arrange
     def recorder(claim_id_or_location):
         if claim_id_or_location == "claim_f6e5d4c3b2a1":
             return {
@@ -323,19 +585,102 @@ def test_bulk_not_found_result_flips_sweep_to_incomplete(client, env_snapshot, f
                 "message": f"No claim found for '{claim_id_or_location}'",
             }
         return {"claim": {"status": "verified"}}
-
     fake_scitex_clew.verify_claim = recorder
     _pin(BUNDLE_ACCEPTED)
-
     response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
     body = json.loads(response.content)
-
+    # Assert
     assert response.status_code == 200
+
+
+def test_bulk_not_found_result_flips_sweep_to_incomplete__assert_body_ok_is_false_3(client, env_snapshot, fake_scitex_clew):
+    # clew resolves the claim but reports not_found (flat shape, no "claim"
+    # key) for one claim → that per-result is ok=False, and the overall
+    # sweep ok flips to False even though no exception was raised.
+    # Arrange
+    def recorder(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            return {
+                "status": "not_found",
+                "message": f"No claim found for '{claim_id_or_location}'",
+            }
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["ok"] is False
+
+
+def test_bulk_not_found_result_flips_sweep_to_incomplete__assert_by_id_claim_f6e5d4c3b2a1_2(client, env_snapshot, fake_scitex_clew):
+    # clew resolves the claim but reports not_found (flat shape, no "claim"
+    # key) for one claim → that per-result is ok=False, and the overall
+    # sweep ok flips to False even though no exception was raised.
+    # Arrange
+    def recorder(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            return {
+                "status": "not_found",
+                "message": f"No claim found for '{claim_id_or_location}'",
+            }
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
     by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_f6e5d4c3b2a1"]["ok"] is False
+
+
+def test_bulk_not_found_result_flips_sweep_to_incomplete__assert_by_id_claim_f6e5d4c3b2a1_3(client, env_snapshot, fake_scitex_clew):
+    # clew resolves the claim but reports not_found (flat shape, no "claim"
+    # key) for one claim → that per-result is ok=False, and the overall
+    # sweep ok flips to False even though no exception was raised.
+    # Arrange
+    def recorder(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            return {
+                "status": "not_found",
+                "message": f"No claim found for '{claim_id_or_location}'",
+            }
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_f6e5d4c3b2a1"]["status"] == "not_found"
+
+
+def test_bulk_not_found_result_flips_sweep_to_incomplete__assert_by_id_claim_a1b2c3d4e5f6_3(client, env_snapshot, fake_scitex_clew):
+    # clew resolves the claim but reports not_found (flat shape, no "claim"
+    # key) for one claim → that per-result is ok=False, and the overall
+    # sweep ok flips to False even though no exception was raised.
+    # Arrange
+    def recorder(claim_id_or_location):
+        if claim_id_or_location == "claim_f6e5d4c3b2a1":
+            return {
+                "status": "not_found",
+                "message": f"No claim found for '{claim_id_or_location}'",
+            }
+        return {"claim": {"status": "verified"}}
+    fake_scitex_clew.verify_claim = recorder
+    _pin(BUNDLE_ACCEPTED)
+    response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
+    body = json.loads(response.content)
+    by_id = {r["claim_id"]: r for r in body["results"]}
+    # Assert
     assert by_id["claim_a1b2c3d4e5f6"]["ok"] is True
+
+
 
 
 def test_bulk_per_result_envelope_carries_nested_status_and_details(
@@ -356,9 +701,12 @@ def test_bulk_per_result_envelope_carries_nested_status_and_details(
 
 
 def test_bulk_count_matches_results_length(client, env_snapshot, fake_scitex_clew):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post("/api/claims/verify", data="", content_type="application/json")
+    # Act
     body = json.loads(response.content)
+    # Assert
     assert body["count"] == len(body["results"])
 
 
@@ -368,8 +716,10 @@ def test_bulk_count_matches_results_length(client, env_snapshot, fake_scitex_cle
 
 
 def test_handlers_registry_includes_api_claims_verify():
+    # Arrange
     from scitex_live_paper._django.handlers import HANDLERS, handle_reverify_all
-
+    # Act
+    # Assert
     assert HANDLERS["api/claims/verify"] is handle_reverify_all
 
 
@@ -404,29 +754,60 @@ def _module_file(name: str) -> Path:
 
 
 def test_module_files_all_exist():
+    # Arrange
+    # Act
+    # Assert
     for name in ("viewer.js", "pdf-viewer.js", "claims-sidebar.js", "reverify-all.js", "_utils.js"):
         assert _module_file(name).is_file(), f"missing module: {name}"
 
 
-def test_viewer_js_imports_from_split_modules():
+def test_viewer_js_imports_from_split_modules__assert_from_utils_js_in_text():
+    # Arrange
+    # Act
     text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert 'from "./_utils.js"' in text
+
+
+def test_viewer_js_imports_from_split_modules__assert_from_pdf_viewer_js_in_tex():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert 'from "./pdf-viewer.js"' in text
+
+
+def test_viewer_js_imports_from_split_modules__assert_from_claims_sidebar_js_in():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert 'from "./claims-sidebar.js"' in text
 
 
+
+
 def test_pdf_viewer_exports_pdfviewer_class():
+    # Arrange
+    # Act
     text = _module_file("pdf-viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert "export class PDFViewer" in text
 
 
 def test_claims_sidebar_exports_render_claims_sidebar():
+    # Arrange
+    # Act
     text = _module_file("claims-sidebar.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function renderClaimsSidebar" in text
 
 
 def test_reverify_all_exports_render_button():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function renderReverifyAllButton" in text
 
 
@@ -436,34 +817,48 @@ def test_reverify_all_exports_render_button():
 
 
 def test_reverify_all_button_posts_to_claims_verify():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
+    # Assert
     assert 'apiBase + "claims/verify"' in text
 
 
 def test_reverify_all_button_flips_rows_to_verifying_first():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
-    # Immediate feedback before the network round-trip
+    # Assert
     assert '"verifying"' in text
 
 
 def test_reverify_all_walks_results_per_claim():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
-    # Walks the response's per-claim envelopes
+    # Assert
     assert "payload.results" in text
 
 
 def test_reverify_all_handles_fallback_envelope():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
+    # Assert
     assert "result.fallback === true" in text
 
 
 def test_reverify_all_handles_network_error():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
+    # Assert
     assert "network error" in text
 
 
 def test_reverify_all_re_enables_per_claim_buttons_in_finally():
+    # Arrange
+    # Act
     text = _module_file("reverify-all.js").read_text(encoding="utf-8")
-    # On finally, re-enable per-claim buttons so the operator can retry
-    # individual rows
+    # Assert
     assert "b.disabled = false" in text

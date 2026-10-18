@@ -67,13 +67,16 @@ def env_snapshot() -> Iterator[None]:
 
 
 def test_mount_is_importable_from_top_level_package():
-    # arrange / act / assert
+    # Arrange
+    # Act
+    # Assert
     assert callable(lp.mount)
 
 
 def test_mount_is_in_all():
-    # arrange
-    # act / assert
+    # Arrange
+    # Act
+    # Assert
     assert "mount" in lp.__all__
 
 
@@ -82,20 +85,48 @@ def test_mount_is_in_all():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_mount_returns_two_tuple_for_include():
-    # arrange
+def test_mount_returns_two_tuple_for_include__assert_isinstance_result_tuple():
+    # Arrange
     def resolver(request, **kw):
         return BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
-
-    # act
+    # Act
     result = mount(resolver)
-
-    # assert — Django's include() accepts (patterns, app_namespace)
+    # Assert
     assert isinstance(result, tuple)
+
+
+def test_mount_returns_two_tuple_for_include__assert_len_result_2():
+    # Arrange
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
+    # Act
+    result = mount(resolver)
+    # Assert
     assert len(result) == 2
+
+
+def test_mount_returns_two_tuple_for_include__assert_isinstance_patterns_list():
+    # Arrange
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
+    # Act
+    result = mount(resolver)
     patterns, app_namespace = result
+    # Assert
     assert isinstance(patterns, list)
+
+
+def test_mount_returns_two_tuple_for_include__assert_app_namespace_live_paper():
+    # Arrange
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
+    # Act
+    result = mount(resolver)
+    patterns, app_namespace = result
+    # Assert
     assert app_namespace == "live_paper"
+
+
 
 
 def test_mount_returns_viewer_page_and_api_dispatch_patterns():
@@ -116,28 +147,57 @@ def test_mount_returns_viewer_page_and_api_dispatch_patterns():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_resolver_runs_per_request_and_sets_live_paper_context(rf):
-    # arrange
+def test_resolver_runs_per_request_and_sets_live_paper_context__assert_response_status_code_200(rf):
+    # Arrange
     captured: dict = {}
     context = BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
-
     def resolver(request, **url_kwargs):
         captured["request"] = request
         captured["kwargs"] = url_kwargs
         return context
-
     patterns, _ = mount(resolver)
     viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
-
     request = rf.get("/")
-
-    # act
+    # Act
     response = viewer_view(request)
-
-    # assert — resolver got the request, context landed on request
+    # Assert
     assert response.status_code == 200
+
+
+def test_resolver_runs_per_request_and_sets_live_paper_context__assert_captured_request_is_reque(rf):
+    # Arrange
+    captured: dict = {}
+    context = BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
+    def resolver(request, **url_kwargs):
+        captured["request"] = request
+        captured["kwargs"] = url_kwargs
+        return context
+    patterns, _ = mount(resolver)
+    viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
+    request = rf.get("/")
+    # Act
+    response = viewer_view(request)
+    # Assert
     assert captured["request"] is request
+
+
+def test_resolver_runs_per_request_and_sets_live_paper_context__assert_getattr_request_live_pape(rf):
+    # Arrange
+    captured: dict = {}
+    context = BundleContext(source=BundleSource.from_directory(BUNDLE_MIN))
+    def resolver(request, **url_kwargs):
+        captured["request"] = request
+        captured["kwargs"] = url_kwargs
+        return context
+    patterns, _ = mount(resolver)
+    viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
+    request = rf.get("/")
+    # Act
+    response = viewer_view(request)
+    # Assert
     assert getattr(request, "live_paper_context") is context
+
+
 
 
 def test_resolver_receives_url_kwargs(rf):
@@ -181,90 +241,158 @@ def test_api_dispatch_wrapper_passes_endpoint_to_resolver(rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bundle_info_reads_from_resolver_context(rf, env_snapshot):
-    # arrange — env env var deliberately points at preprint, resolver
+def test_bundle_info_reads_from_resolver_context__assert_response_status_code_200_2(rf, env_snapshot):
     # points at accepted; resolver must win.
+    # Arrange
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_MIN)
     services.clear_cache()
-
     def resolver(request, **kw):
         return BundleContext(
             source=BundleSource.from_directory(BUNDLE_ACCEPTED),
         )
-
     patterns, _ = mount(resolver)
     dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
-
-    # act
     response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Act
     body = json.loads(response.content)
-
-    # assert — accepted bundle's paper_state surfaced
+    # Assert
     assert response.status_code == 200
+
+
+def test_bundle_info_reads_from_resolver_context__assert_body_paper_state_stage_ac(rf, env_snapshot):
+    # points at accepted; resolver must win.
+    # Arrange
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_MIN)
+    services.clear_cache()
+    def resolver(request, **kw):
+        return BundleContext(
+            source=BundleSource.from_directory(BUNDLE_ACCEPTED),
+        )
+    patterns, _ = mount(resolver)
+    dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
+    response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["paper_state"]["stage"] == "accepted"
+
+
+def test_bundle_info_reads_from_resolver_context__assert_body_paper_state_journal(rf, env_snapshot):
+    # points at accepted; resolver must win.
+    # Arrange
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_MIN)
+    services.clear_cache()
+    def resolver(request, **kw):
+        return BundleContext(
+            source=BundleSource.from_directory(BUNDLE_ACCEPTED),
+        )
+    patterns, _ = mount(resolver)
+    dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
+    response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["paper_state"]["journal"] == "eLife"
 
 
-def test_bundle_info_falls_back_to_env_when_no_context(env_snapshot):
-    # arrange — no mount(), env pinning is the only source
+
+
+def test_bundle_info_falls_back_to_env_when_no_context__assert_response_status_code_200_3(env_snapshot):
+    # Arrange
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_ACCEPTED)
     services.clear_cache()
-
     client = Client()
-
-    # act
     response = client.get("/api/bundle-info")
+    # Act
     body = json.loads(response.content)
-
-    # assert — accepted bundle from env still flows through
+    # Assert
     assert response.status_code == 200
+
+
+def test_bundle_info_falls_back_to_env_when_no_context__assert_body_paper_state_stage_ac_2(env_snapshot):
+    # Arrange
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_ACCEPTED)
+    services.clear_cache()
+    client = Client()
+    response = client.get("/api/bundle-info")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["paper_state"]["stage"] == "accepted"
 
 
-def test_bundle_info_uses_from_bundle_source(rf):
-    # arrange — hosts that already have an in-memory Bundle (writer's editor)
+
+
+def test_bundle_info_uses_from_bundle_source__assert_body_paper_state_stage_ac_3(rf):
     # hand it in via BundleSource.from_bundle.
+    # Arrange
     from scitex_live_paper import bundle as bundle_module
-
     pre_loaded = bundle_module.load(BUNDLE_ACCEPTED)
-
     def resolver(request, **kw):
         return BundleContext(source=BundleSource.from_bundle(pre_loaded))
-
     patterns, _ = mount(resolver)
     dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
-
-    # act
     response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Act
     body = json.loads(response.content)
-
-    # assert
+    # Assert
     assert body["paper_state"]["stage"] == "accepted"
+
+
+def test_bundle_info_uses_from_bundle_source__assert_body_paper_state_doi_10_7(rf):
+    # hand it in via BundleSource.from_bundle.
+    # Arrange
+    from scitex_live_paper import bundle as bundle_module
+    pre_loaded = bundle_module.load(BUNDLE_ACCEPTED)
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_bundle(pre_loaded))
+    patterns, _ = mount(resolver)
+    dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
+    response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Act
+    body = json.loads(response.content)
+    # Assert
     assert body["paper_state"]["doi"] == "10.7554/eLife.99999"
 
 
-def test_bundle_info_uses_from_resolver_callable(rf):
-    # arrange — DB / S3 / multi-tenant lookup idiom
-    calls: list[int] = []
 
+
+def test_bundle_info_uses_from_resolver_callable__assert_response_status_code_200_4(rf):
+    # Arrange
+    calls: list[int] = []
     def lazy_load():
         from scitex_live_paper import bundle as bundle_module
 
         calls.append(1)
         return bundle_module.load(BUNDLE_MIN)
-
     def resolver(request, **kw):
         return BundleContext(source=BundleSource.from_resolver(lazy_load))
-
     patterns, _ = mount(resolver)
     dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
-
-    # act
+    # Act
     response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
-
-    # assert — resolver-callable was invoked
+    # Assert
     assert response.status_code == 200
+
+
+def test_bundle_info_uses_from_resolver_callable__assert_len_calls_1(rf):
+    # Arrange
+    calls: list[int] = []
+    def lazy_load():
+        from scitex_live_paper import bundle as bundle_module
+
+        calls.append(1)
+        return bundle_module.load(BUNDLE_MIN)
+    def resolver(request, **kw):
+        return BundleContext(source=BundleSource.from_resolver(lazy_load))
+    patterns, _ = mount(resolver)
+    dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
+    # Act
+    response = dispatch_view(rf.get("/api/bundle-info"), endpoint="api/bundle-info")
+    # Assert
     assert len(calls) == 1
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -272,50 +400,77 @@ def test_bundle_info_uses_from_resolver_callable(rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_viewer_page_with_context_api_base_overrides_default(rf):
-    # arrange — host mounts under `/apps/live-paper/<id>/` so api_base
+def test_viewer_page_with_context_api_base_overrides_default__assert_data_api_base_apps_live_p(rf):
     # should become `/apps/live-paper/<id>/api/`
+    # Arrange
     def resolver(request, **kw):
         return BundleContext(
             source=BundleSource.from_directory(BUNDLE_MIN),
             api_base="/apps/live-paper/abc/api/",
         )
-
     patterns, _ = mount(resolver)
     viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
-
-    # act
+    # Act
     body = viewer_view(rf.get("/")).content.decode("utf-8")
-
-    # assert — SPA fetches the host-mounted prefix, not /api/
+    # Assert
     assert 'data-api-base="/apps/live-paper/abc/api/"' in body
+
+
+def test_viewer_page_with_context_api_base_overrides_default__assert_data_api_base_api_not_in(rf):
+    # should become `/apps/live-paper/<id>/api/`
+    # Arrange
+    def resolver(request, **kw):
+        return BundleContext(
+            source=BundleSource.from_directory(BUNDLE_MIN),
+            api_base="/apps/live-paper/abc/api/",
+        )
+    patterns, _ = mount(resolver)
+    viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
+    # Act
+    body = viewer_view(rf.get("/")).content.decode("utf-8")
+    # Assert
     assert 'data-api-base="/api/"' not in body
 
 
-def test_viewer_page_with_context_embed_mode_true_uses_embed_shell(rf):
-    # arrange — host sets embed_mode without a query string
+
+
+def test_viewer_page_with_context_embed_mode_true_uses_embed_shell__assert_data_embed_mode_1_in_body(rf):
+    # Arrange
     def resolver(request, **kw):
         return BundleContext(
             source=BundleSource.from_directory(BUNDLE_MIN),
             options=RendererOptions(embed_mode=True),
         )
-
     patterns, _ = mount(resolver)
     viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
-
-    # act
+    # Act
     body = viewer_view(rf.get("/")).content.decode("utf-8")
-
-    # assert — embed shell selected; no standalone header
+    # Assert
     assert 'data-embed-mode="1"' in body
+
+
+def test_viewer_page_with_context_embed_mode_true_uses_embed_shell__assert_header_not_in_body(rf):
+    # Arrange
+    def resolver(request, **kw):
+        return BundleContext(
+            source=BundleSource.from_directory(BUNDLE_MIN),
+            options=RendererOptions(embed_mode=True),
+        )
+    patterns, _ = mount(resolver)
+    viewer_view = next(p.callback for p in patterns if p.name == "viewer_page")
+    # Act
+    body = viewer_view(rf.get("/")).content.decode("utf-8")
+    # Assert
     assert "<header" not in body
 
 
-def test_viewer_page_query_string_still_wins_even_without_context(rf):
-    # arrange — pre-mount (no resolver) regression: ?embed=1 still flips
-    body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
 
-    # assert
+
+def test_viewer_page_query_string_still_wins_even_without_context(rf):
+    # Arrange
+    # Act
+    body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
     assert 'data-embed-mode="1"' in body
 
 
@@ -338,14 +493,30 @@ def test_viewer_page_query_string_overrides_context_options_false(rf):
     assert 'data-embed-mode="1"' in body
 
 
-def test_viewer_page_default_without_context_unchanged(rf):
-    # arrange — regression: no context → default shell + /api/ base
+def test_viewer_page_default_without_context_unchanged__assert_data_api_base_api_in_body(rf):
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/")).content.decode("utf-8")
-
-    # assert
+    # Assert
     assert 'data-api-base="/api/"' in body
+
+
+def test_viewer_page_default_without_context_unchanged__assert_header_in_body(rf):
+    # Arrange
+    # Act
+    body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Assert
     assert "<header" in body
+
+
+def test_viewer_page_default_without_context_unchanged__assert_data_embed_mode_not_in_bo(rf):
+    # Arrange
+    # Act
+    body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Assert
     assert 'data-embed-mode' not in body
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -354,16 +525,13 @@ def test_viewer_page_default_without_context_unchanged(rf):
 
 
 def test_resolver_raising_inside_api_dispatch_propagates(rf):
-    # arrange
+    # Arrange
     def angry_resolver(request, **kw):
         raise RuntimeError("clew lookup failed")
-
     patterns, _ = mount(angry_resolver)
+    # Act
     dispatch_view = next(p.callback for p in patterns if p.name == "api_dispatch")
-
-    # act / assert — the resolver runs BEFORE the dispatcher's try/except;
-    # so it propagates. Hosts can wrap with their own middleware to
-    # surface a controlled error response.
+    # Assert
     with pytest.raises(RuntimeError, match="clew lookup failed"):
         dispatch_view(rf.get("/api/ping"), endpoint="api/ping")
 
@@ -373,19 +541,30 @@ def test_resolver_raising_inside_api_dispatch_propagates(rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_get_request_bundle_state_uses_context_source(rf):
-    # arrange
+def test_get_request_bundle_state_uses_context_source__assert_state_bundle_paper_state(rf):
+    # Arrange
     request = rf.get("/")
     request.live_paper_context = BundleContext(
         source=BundleSource.from_directory(BUNDLE_ACCEPTED),
     )
-
-    # act
+    # Act
     state = services.get_request_bundle_state(request)
-
-    # assert
+    # Assert
     assert state.bundle.paper_state.stage == "accepted"
+
+
+def test_get_request_bundle_state_uses_context_source__assert_state_bundle_paper_state_2(rf):
+    # Arrange
+    request = rf.get("/")
+    request.live_paper_context = BundleContext(
+        source=BundleSource.from_directory(BUNDLE_ACCEPTED),
+    )
+    # Act
+    state = services.get_request_bundle_state(request)
+    # Assert
     assert state.bundle.paper_state.journal == "eLife"
+
+
 
 
 def test_get_request_bundle_state_falls_back_to_env_without_context(rf, env_snapshot):

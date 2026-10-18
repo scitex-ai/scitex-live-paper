@@ -36,14 +36,24 @@ def test_load_returns_bundle_instance_for_minimal_fixture():
     assert isinstance(result, Bundle)
 
 
-def test_load_resolves_manuscript_pdf_when_present():
+def test_load_resolves_manuscript_pdf_when_present__assert_result_manuscript_path_na():
     # Arrange
     path = BUNDLE_MIN
     # Act
     result = load(path)
     # Assert
     assert result.manuscript_path.name == "manuscript.pdf"
+
+
+def test_load_resolves_manuscript_pdf_when_present__assert_result_manuscript_path_is():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    result = load(path)
+    # Assert
     assert result.manuscript_path.is_file()
+
+
 
 
 def test_load_carries_schema_version_from_claims_json():
@@ -64,26 +74,62 @@ def test_load_returns_all_claims_from_fixture():
     assert len(result.claims) == 3
 
 
-def test_load_typed_claim_fields_are_populated():
+def test_load_typed_claim_fields_are_populated__assert_first_claim_id_claim_a1b2():
     # Arrange
     path = BUNDLE_MIN
     # Act
     first = load(path).claims[0]
     # Assert
     assert first.claim_id == "claim_a1b2c3d4e5f6"
-    assert first.claim_type == "figure"
-    assert first.status == "verified"
-    assert first.source_hash == "deadbeefcafef00d"
 
 
-def test_load_unknown_claim_fields_flow_through_to_extras():
+def test_load_typed_claim_fields_are_populated__assert_first_claim_type_figure():
     # Arrange
     path = BUNDLE_MIN
     # Act
     first = load(path).claims[0]
-    # Assert: 'anchor' is renderer metadata not in the typed slots; must survive in extras
+    # Assert
+    assert first.claim_type == "figure"
+
+
+def test_load_typed_claim_fields_are_populated__assert_first_status_verified():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    first = load(path).claims[0]
+    # Assert
+    assert first.status == "verified"
+
+
+def test_load_typed_claim_fields_are_populated__assert_first_source_hash_deadbee():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    first = load(path).claims[0]
+    # Assert
+    assert first.source_hash == "deadbeefcafef00d"
+
+
+
+
+def test_load_unknown_claim_fields_flow_through_to_extras__assert_anchor_in_first_extras():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    first = load(path).claims[0]
+    # Assert
     assert "anchor" in first.extras
+
+
+def test_load_unknown_claim_fields_flow_through_to_extras__assert_first_extras_anchor_page():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    first = load(path).claims[0]
+    # Assert
     assert first.extras["anchor"]["page"] == 3
+
+
 
 
 def test_load_reads_dag_as_mermaid_string():
@@ -95,14 +141,24 @@ def test_load_reads_dag_as_mermaid_string():
     assert result.dag.startswith("graph LR")
 
 
-def test_load_parses_provenance_yaml_into_mapping():
+def test_load_parses_provenance_yaml_into_mapping__assert_result_provenance_schema():
     # Arrange
     path = BUNDLE_MIN
     # Act
     result = load(path)
     # Assert
     assert result.provenance["schema"] == "scitex-clew.provenance/v1"
+
+
+def test_load_parses_provenance_yaml_into_mapping__assert_sess_001_in_result_proven():
+    # Arrange
+    path = BUNDLE_MIN
+    # Act
+    result = load(path)
+    # Assert
     assert "sess_001" in result.provenance["sessions"]
+
+
 
 
 def test_load_returns_figz_dir_path_even_if_empty():
@@ -119,14 +175,24 @@ def test_load_returns_figz_dir_path_even_if_empty():
 # ---------------------------------------------------------------------------
 
 
-def test_load_accepts_bare_list_at_top_level_of_claims_json(tmp_path: Path):
-    # Arrange: build a bundle whose claims.json is a bare list (no wrapper)
+def test_load_accepts_bare_list_at_top_level_of_claims_json__assert_len_result_claims_1(tmp_path: Path):
+    # Arrange
     bundle_dir = _make_minimal_bundle(tmp_path, claims_payload=_one_claim_list())
     # Act
     result = load(bundle_dir)
     # Assert
     assert len(result.claims) == 1
+
+
+def test_load_accepts_bare_list_at_top_level_of_claims_json__assert_result_schema_version_is(tmp_path: Path):
+    # Arrange
+    bundle_dir = _make_minimal_bundle(tmp_path, claims_payload=_one_claim_list())
+    # Act
+    result = load(bundle_dir)
+    # Assert
     assert result.schema_version is None
+
+
 
 
 def test_load_preserves_forward_compatible_unknown_top_level_keys(tmp_path: Path):
@@ -180,17 +246,19 @@ def test_load_accepts_tex_manuscript_when_pdf_missing(tmp_path: Path):
 def test_load_raises_when_path_is_not_a_directory(tmp_path: Path):
     # Arrange
     not_a_dir = tmp_path / "nope"
-    # Act / Assert
+    # Act
+    # Assert
     with pytest.raises(BundleError, match="not a directory"):
         load(not_a_dir)
 
 
 def test_load_raises_when_manuscript_missing(tmp_path: Path):
-    # Arrange: bundle directory with claims.json but no manuscript
+    # Arrange
     bundle_dir = tmp_path / "b"
     bundle_dir.mkdir()
+    # Act
     (bundle_dir / "claims.json").write_text(json.dumps(_one_claim_list()))
-    # Act / Assert
+    # Assert
     with pytest.raises(BundleError, match="no manuscript"):
         load(bundle_dir)
 
@@ -199,8 +267,9 @@ def test_load_raises_when_claims_json_missing(tmp_path: Path):
     # Arrange
     bundle_dir = tmp_path / "b"
     bundle_dir.mkdir()
+    # Act
     (bundle_dir / "manuscript.pdf").write_text("%PDF-1.4\n")
-    # Act / Assert
+    # Assert
     with pytest.raises(BundleError, match="claims.json not found"):
         load(bundle_dir)
 
@@ -210,28 +279,31 @@ def test_load_raises_on_invalid_json(tmp_path: Path):
     bundle_dir = tmp_path / "b"
     bundle_dir.mkdir()
     (bundle_dir / "manuscript.pdf").write_text("%PDF-1.4\n")
+    # Act
     (bundle_dir / "claims.json").write_text("{not json")
-    # Act / Assert
+    # Assert
     with pytest.raises(BundleError, match="not valid JSON"):
         load(bundle_dir)
 
 
 def test_load_raises_on_unexpected_claims_top_level_shape(tmp_path: Path):
-    # Arrange: claims.json with no list and no 'claims' key
+    # Arrange
     bundle_dir = tmp_path / "b"
     bundle_dir.mkdir()
     (bundle_dir / "manuscript.pdf").write_text("%PDF-1.4\n")
+    # Act
     (bundle_dir / "claims.json").write_text(json.dumps({"schema": "x"}))
-    # Act / Assert
+    # Assert
     with pytest.raises(BundleError, match="top level"):
         load(bundle_dir)
 
 
 def test_load_raises_when_required_claim_field_missing(tmp_path: Path):
-    # Arrange: a claim missing 'claim_id'
+    # Arrange
     bad_claim = {"file_path": "main.tex", "claim_type": "figure"}
+    # Act
     bundle_dir = _make_minimal_bundle(tmp_path, claims_payload=[bad_claim])
-    # Act / Assert
+    # Assert
     with pytest.raises(BundleError, match="claim_id"):
         load(bundle_dir)
 
@@ -241,7 +313,7 @@ def test_load_raises_when_required_claim_field_missing(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_claim_from_dict_round_trips_required_fields():
+def test_claim_from_dict_round_trips_required_fields__assert_claim_claim_id_claim_x():
     # Arrange
     payload = {
         "claim_id": "claim_x",
@@ -252,13 +324,28 @@ def test_claim_from_dict_round_trips_required_fields():
     claim = Claim.from_dict(payload)
     # Assert
     assert claim.claim_id == "claim_x"
+
+
+def test_claim_from_dict_round_trips_required_fields__assert_claim_extras():
+    # Arrange
+    payload = {
+        "claim_id": "claim_x",
+        "file_path": "main.tex",
+        "claim_type": "figure",
+    }
+    # Act
+    claim = Claim.from_dict(payload)
+    # Assert
     assert claim.extras == {}
+
+
 
 
 def test_claim_from_dict_raises_on_non_mapping_input():
     # Arrange
     payload = ["claim_x", "main.tex", "figure"]
-    # Act / Assert
+    # Act
+    # Assert
     with pytest.raises(BundleError, match="mapping"):
         Claim.from_dict(payload)  # type: ignore[arg-type]
 
@@ -268,18 +355,24 @@ def test_claim_from_dict_normalizes_legacy_partial_to_suspect():
     # semantic state). clew's own read path normalizes legacy rows; a
     # pre-0.7.0 claims.json is a snapshot, so ingest applies the same
     # normalization (confirmed with the clew owner).
+    # Arrange
     payload = {
         "claim_id": "claim_legacy",
         "file_path": "main.tex",
         "claim_type": "value",
         "status": "partial",
     }
+    # Act
     claim = Claim.from_dict(payload)
+    # Assert
     assert claim.status == "suspect"
 
 
 def test_claim_from_dict_passes_v13_statuses_through_unchanged():
     # The v1.3 vocabulary itself must NOT be rewritten by the normalizer.
+    # Arrange
+    # Act
+    # Assert
     for status in ("verified", "suspect", "mismatch", "missing", "registered"):
         claim = Claim.from_dict(
             {

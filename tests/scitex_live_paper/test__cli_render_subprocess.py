@@ -39,21 +39,48 @@ def _run_cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_module_runnable_help_exits_zero():
-    # arrange / act
+def test_module_runnable_help_exits_zero__assert_result_returncode_0_resul():
+    # Arrange
+    # Act
     result = _run_cli("--help")
-    # assert
+    # Assert
     assert result.returncode == 0, result.stderr
+
+
+def test_module_runnable_help_exits_zero__assert_scitex_live_paper_in_resu():
+    # Arrange
+    # Act
+    result = _run_cli("--help")
+    # Assert
     assert "scitex-live-paper" in result.stdout.lower()
 
 
-def test_module_runnable_render_help_exits_zero():
-    # arrange / act
+
+
+def test_module_runnable_render_help_exits_zero__assert_result_returncode_0_resul_2():
+    # Arrange
+    # Act
     result = _run_cli("render", "--help")
-    # assert
+    # Assert
     assert result.returncode == 0, result.stderr
+
+
+def test_module_runnable_render_help_exits_zero__assert_bundle_path_in_result_std():
+    # Arrange
+    # Act
+    result = _run_cli("render", "--help")
+    # Assert
     assert "BUNDLE_PATH" in result.stdout
+
+
+def test_module_runnable_render_help_exits_zero__assert_out_in_result_stdout():
+    # Arrange
+    # Act
+    result = _run_cli("render", "--help")
+    # Assert
     assert "--out" in result.stdout
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -108,42 +135,68 @@ def test_render_subprocess_copies_claims_json_unchanged(tmp_path):
     assert copied == original
 
 
-def test_render_subprocess_copies_manuscript_pdf(tmp_path):
-    # arrange
+def test_render_subprocess_copies_manuscript_pdf__assert_out_manuscript_pdf_is_fil(tmp_path):
+    # Arrange
     out = tmp_path / "site"
-
-    # act
+    # Act
     _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
-
-    # assert
+    # Assert
     assert (out / "manuscript.pdf").is_file()
+
+
+def test_render_subprocess_copies_manuscript_pdf__assert_out_manuscript_pdf_stat_s(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert (out / "manuscript.pdf").stat().st_size > 0
 
 
-def test_render_subprocess_vendors_pdfjs_assets(tmp_path):
-    # arrange
+
+
+def test_render_subprocess_vendors_pdfjs_assets__assert_pdfjs_is_dir(tmp_path):
+    # Arrange
     out = tmp_path / "site"
-
-    # act
+    # Act
     _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
-
-    # assert — no CDN; assets live under site/assets/pdfjs/
     pdfjs = out / "assets" / "pdfjs"
+    # Assert
     assert pdfjs.is_dir()
+
+
+def test_render_subprocess_vendors_pdfjs_assets__assert_any_pdfjs_iterdir(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    pdfjs = out / "assets" / "pdfjs"
+    # Assert
     assert any(pdfjs.iterdir())
 
 
-def test_render_subprocess_vendors_mermaid_assets(tmp_path):
-    # arrange
+
+
+def test_render_subprocess_vendors_mermaid_assets__assert_mermaid_is_dir(tmp_path):
+    # Arrange
     out = tmp_path / "site"
-
-    # act
+    # Act
     _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
-
-    # assert
     mermaid = out / "assets" / "mermaid"
+    # Assert
     assert mermaid.is_dir()
+
+
+def test_render_subprocess_vendors_mermaid_assets__assert_any_mermaid_iterdir(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    mermaid = out / "assets" / "mermaid"
+    # Assert
     assert any(mermaid.iterdir())
+
+
 
 
 def test_render_subprocess_pages_contain_no_cdn_references(tmp_path):
@@ -161,32 +214,74 @@ def test_render_subprocess_pages_contain_no_cdn_references(tmp_path):
             assert marker not in text, f"{page} references {marker}"
 
 
-def test_render_subprocess_idempotent_on_second_run(tmp_path):
-    # arrange
+def test_render_subprocess_idempotent_on_second_run__assert_first_returncode_0(tmp_path):
+    # Arrange
     out = tmp_path / "site"
-
-    # act — render twice in the same dir
     first = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Act
     second = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
-
-    # assert — both exit 0; site directory still well-formed
+    # Assert
     assert first.returncode == 0
+
+
+def test_render_subprocess_idempotent_on_second_run__assert_second_returncode_0(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    first = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Act
+    second = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert second.returncode == 0
+
+
+def test_render_subprocess_idempotent_on_second_run__assert_out_index_html_is_file(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    first = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Act
+    second = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert (out / "index.html").is_file()
 
 
-def test_render_subprocess_reports_output_paths_on_stdout(tmp_path):
-    # arrange
+
+
+def test_render_subprocess_reports_output_paths_on_stdout__assert_index_html_in_result_stdo(tmp_path):
+    # Arrange
     out = tmp_path / "site"
-
-    # act
+    # Act
     result = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
-
-    # assert — CLI prints the relative page paths so the user can copy-click
+    # Assert
     assert "index.html" in result.stdout
+
+
+def test_render_subprocess_reports_output_paths_on_stdout__assert_viewer_html_in_result_std(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    result = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert "viewer.html" in result.stdout
+
+
+def test_render_subprocess_reports_output_paths_on_stdout__assert_claims_html_in_result_std(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    result = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert "claims.html" in result.stdout
+
+
+def test_render_subprocess_reports_output_paths_on_stdout__assert_dag_html_in_result_stdout(tmp_path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    result = _run_cli("render", str(FIXTURE_BUNDLE), "--out", str(out))
+    # Assert
     assert "dag.html" in result.stdout
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -218,7 +313,8 @@ def test_render_subprocess_nonzero_exit_for_malformed_bundle(tmp_path):
 
 
 def test_render_subprocess_unknown_subcommand_exits_nonzero():
-    # arrange / act
+    # Arrange
+    # Act
     result = _run_cli("not-a-subcommand")
-    # assert
+    # Assert
     assert result.returncode != 0

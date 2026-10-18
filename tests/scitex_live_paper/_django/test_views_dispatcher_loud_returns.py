@@ -102,80 +102,126 @@ def test_list_return_names_actual_type_in_error_body(handlers_snapshot, rf):
     assert "list" in payload["error"]
 
 
-def test_list_return_mentions_contract_in_error_body(handlers_snapshot, rf):
-    # arrange
+def test_list_return_mentions_contract_in_error_body__assert_mapping_in_payload_error(handlers_snapshot, rf):
+    # Arrange
     def list_handler(request):
         return [1, 2, 3]
-
     handlers_snapshot["api/list"] = list_handler
-
-    # act
     response = views.api_dispatch(rf.get("/api/list"), "api/list")
+    # Act
     payload = json.loads(response.content)
-
-    # assert — error names the allowed return shapes so the fix is obvious
+    # Assert
     assert "Mapping" in payload["error"]
+
+
+def test_list_return_mentions_contract_in_error_body__assert_httpresponse_in_payload_e(handlers_snapshot, rf):
+    # Arrange
+    def list_handler(request):
+        return [1, 2, 3]
+    handlers_snapshot["api/list"] = list_handler
+    response = views.api_dispatch(rf.get("/api/list"), "api/list")
+    # Act
+    payload = json.loads(response.content)
+    # Assert
     assert "HttpResponse" in payload["error"]
 
 
-def test_none_return_surfaces_as_500(handlers_snapshot, rf):
-    # arrange — None is a common "forgot to return" footgun
+
+
+def test_none_return_surfaces_as_500__assert_response_status_code_500(handlers_snapshot, rf):
+    # Arrange
     def none_handler(request):
         return None
-
     handlers_snapshot["api/none"] = none_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/none"), "api/none")
-
-    # assert
+    # Assert
     assert response.status_code == 500
+
+
+def test_none_return_surfaces_as_500__assert_nonetype_in_json_loads_re(handlers_snapshot, rf):
+    # Arrange
+    def none_handler(request):
+        return None
+    handlers_snapshot["api/none"] = none_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/none"), "api/none")
+    # Assert
     assert "NoneType" in json.loads(response.content)["error"]
 
 
-def test_str_return_surfaces_as_500(handlers_snapshot, rf):
-    # arrange
+
+
+def test_str_return_surfaces_as_500__assert_response_status_code_500_2(handlers_snapshot, rf):
+    # Arrange
     def str_handler(request):
         return "raw string body"
-
     handlers_snapshot["api/str"] = str_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/str"), "api/str")
-
-    # assert
+    # Assert
     assert response.status_code == 500
+
+
+def test_str_return_surfaces_as_500__assert_str_in_json_loads_respons(handlers_snapshot, rf):
+    # Arrange
+    def str_handler(request):
+        return "raw string body"
+    handlers_snapshot["api/str"] = str_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/str"), "api/str")
+    # Assert
     assert "str" in json.loads(response.content)["error"]
 
 
-def test_int_return_surfaces_as_500(handlers_snapshot, rf):
-    # arrange
+
+
+def test_int_return_surfaces_as_500__assert_response_status_code_500_3(handlers_snapshot, rf):
+    # Arrange
     def int_handler(request):
         return 42
-
     handlers_snapshot["api/int"] = int_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/int"), "api/int")
-
-    # assert
+    # Assert
     assert response.status_code == 500
+
+
+def test_int_return_surfaces_as_500__assert_int_in_json_loads_respons(handlers_snapshot, rf):
+    # Arrange
+    def int_handler(request):
+        return 42
+    handlers_snapshot["api/int"] = int_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/int"), "api/int")
+    # Assert
     assert "int" in json.loads(response.content)["error"]
 
 
-def test_tuple_return_surfaces_as_500(handlers_snapshot, rf):
-    # arrange — explicitly because tuple is iterable like list but isn't a Mapping
+
+
+def test_tuple_return_surfaces_as_500__assert_response_status_code_500_4(handlers_snapshot, rf):
+    # Arrange
     def tuple_handler(request):
         return (1, 2)
-
     handlers_snapshot["api/tuple"] = tuple_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/tuple"), "api/tuple")
-
-    # assert
+    # Assert
     assert response.status_code == 500
+
+
+def test_tuple_return_surfaces_as_500__assert_tuple_in_json_loads_respo(handlers_snapshot, rf):
+    # Arrange
+    def tuple_handler(request):
+        return (1, 2)
+    handlers_snapshot["api/tuple"] = tuple_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/tuple"), "api/tuple")
+    # Assert
     assert "tuple" in json.loads(response.content)["error"]
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -184,54 +230,83 @@ def test_tuple_return_surfaces_as_500(handlers_snapshot, rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_dict_return_still_wraps_as_jsonresponse_200(handlers_snapshot, rf):
-    # arrange
+def test_dict_return_still_wraps_as_jsonresponse_200__assert_response_status_code_200(handlers_snapshot, rf):
+    # Arrange
     def dict_handler(request):
         return {"hello": "world"}
-
     handlers_snapshot["api/dict"] = dict_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/dict"), "api/dict")
-
-    # assert — wrap still happens; status still 200
+    # Assert
     assert response.status_code == 200
+
+
+def test_dict_return_still_wraps_as_jsonresponse_200__assert_json_loads_response_conte(handlers_snapshot, rf):
+    # Arrange
+    def dict_handler(request):
+        return {"hello": "world"}
+    handlers_snapshot["api/dict"] = dict_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/dict"), "api/dict")
+    # Assert
     assert json.loads(response.content) == {"hello": "world"}
 
 
-def test_custom_mapping_subclass_passes_the_check(handlers_snapshot, rf):
-    # arrange — a dict subclass IS a Mapping; the fix must not regress this.
+
+
+def test_custom_mapping_subclass_passes_the_check__assert_response_status_code_200_2(handlers_snapshot, rf):
+    # Arrange
     class _DictSubclass(dict):
         pass
-
     def mapping_handler(request):
         return _DictSubclass({"sub": True})
-
     handlers_snapshot["api/mapping"] = mapping_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/mapping"), "api/mapping")
-
-    # assert
+    # Assert
     assert response.status_code == 200
+
+
+def test_custom_mapping_subclass_passes_the_check__assert_json_loads_response_conte_2(handlers_snapshot, rf):
+    # Arrange
+    class _DictSubclass(dict):
+        pass
+    def mapping_handler(request):
+        return _DictSubclass({"sub": True})
+    handlers_snapshot["api/mapping"] = mapping_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/mapping"), "api/mapping")
+    # Assert
     assert json.loads(response.content) == {"sub": True}
 
 
-def test_httpresponse_passthrough_still_unwrapped(handlers_snapshot, rf):
-    # arrange — the HttpResponse branch is now also inside the try, but
+
+
+def test_httpresponse_passthrough_still_unwrapped__assert_response_is_sentinel(handlers_snapshot, rf):
     # `return` short-circuits before the Mapping check.
+    # Arrange
     from django.http import HttpResponse
-
     sentinel = HttpResponse(b"raw", status=202)
-
     def http_handler(request):
         return sentinel
-
     handlers_snapshot["api/http"] = http_handler
-
-    # act
+    # Act
     response = views.api_dispatch(rf.get("/api/http"), "api/http")
-
-    # assert — same object, never re-wrapped
+    # Assert
     assert response is sentinel
+
+
+def test_httpresponse_passthrough_still_unwrapped__assert_response_status_code_202(handlers_snapshot, rf):
+    # `return` short-circuits before the Mapping check.
+    # Arrange
+    from django.http import HttpResponse
+    sentinel = HttpResponse(b"raw", status=202)
+    def http_handler(request):
+        return sentinel
+    handlers_snapshot["api/http"] = http_handler
+    # Act
+    response = views.api_dispatch(rf.get("/api/http"), "api/http")
+    # Assert
     assert response.status_code == 202
+
+

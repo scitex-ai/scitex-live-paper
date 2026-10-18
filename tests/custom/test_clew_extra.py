@@ -31,23 +31,30 @@ def _pyproject() -> dict:
 
 
 def test_clew_extra_is_declared_in_pyproject():
+    # Arrange
+    # Act
     extras = _pyproject()["project"]["optional-dependencies"]
+    # Assert
     assert "clew" in extras, "[clew] extra missing from pyproject.toml"
 
 
 def test_clew_extra_pulls_scitex_clew():
+    # Arrange
+    # Act
     extras = _pyproject()["project"]["optional-dependencies"]
     clew_deps = extras["clew"]
-    # Must be a list with at least one requirement that names scitex-clew
+    # Assert
     assert any("scitex-clew" in dep for dep in clew_deps), (
         f"[clew] extra must pull scitex-clew; got {clew_deps!r}"
     )
 
 
 def test_clew_extra_pins_minimum_version():
+    # Arrange
+    # Act
     extras = _pyproject()["project"]["optional-dependencies"]
     clew_deps = extras["clew"]
-    # Operator needs a minimum to avoid silently pulling a pre-0.x build
+    # Assert
     assert any(re.search(r"scitex-clew\s*>=", dep) for dep in clew_deps), (
         f"[clew] extra must pin a minimum version; got {clew_deps!r}"
     )
@@ -55,7 +62,10 @@ def test_clew_extra_pins_minimum_version():
 
 def test_existing_extras_preserved():
     # Regression — adding [clew] must not drop the other extras
+    # Arrange
+    # Act
     extras = _pyproject()["project"]["optional-dependencies"]
+    # Assert
     for required in ("django", "mcp", "test"):
         assert required in extras, f"{required!r} extra disappeared"
 
@@ -68,17 +78,18 @@ def test_existing_extras_preserved():
 def test_clew_extra_visible_in_installed_metadata():
     # Some editable-install paths don't materialise extras into the
     # installed metadata; treat this as advisory rather than blocking.
+    # Arrange
     try:
         meta = metadata("scitex-live-paper")
     except PackageNotFoundError:
         return
     requires_dist = meta.get_all("Requires-Dist") or []
+    # Act
     has_clew_extra = any(
         "extra == 'clew'" in dep or 'extra == "clew"' in dep
         for dep in requires_dist
     )
-    # We only assert when the field is populated at all — editable
-    # installs may strip it.
+    # Assert
     if requires_dist:
         assert has_clew_extra, (
             f"installed metadata has Requires-Dist but no clew extra: {requires_dist!r}"
