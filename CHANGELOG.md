@@ -18,6 +18,13 @@ may change without a changelog entry.
 
 ### Added
 
+- Serve-defaults wiring (contract §5): standalone `serve` injects the
+  bundled figure-port default with no host code. New
+  `LivePaperServeContextMiddleware` (standalone `settings.py` only —
+  hub/hosts untouched) attaches the env-pinned `BundleContext` when a
+  request has none; `handle_port` registers `FigzFigureAdapter`
+  on demand and never overrides an explicit host adapter.
+
 - `api/dag` endpoint + sidebar claim detail/DAG pane (slice C/D):
   the viewer sidebar now opens a per-claim detail pane (status,
   provenance, anchor) with the bundle DAG rendered from the new

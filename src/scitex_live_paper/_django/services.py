@@ -119,20 +119,6 @@ def get_request_bundle_state(
     """
     context = getattr(request, "live_paper_context", None)
     if context is not None:
-        from scitex_live_paper.ports import FigzFigureAdapter, Registry
-
-        registry = getattr(context, "renderers", None)
-        if registry is None or "figure" not in registry.ports:
-            # Standalone + minimal host contexts get the bundled
-            # default figure adapter: the mount() signature stays
-            # unchanged and port calls work out of the box. Hosts that
-            # inject their own "figure" adapter keep it — we never
-            # override an explicit registration.
-            if registry is None:
-                registry = Registry()
-            registry.register("figure", FigzFigureAdapter())
-            # Frozen-dataclass workaround (same pattern as __post_init__).
-            object.__setattr__(context, "renderers", registry)
         bundle = context.source.load()
         # The BundleContext owns the cache lever — we don't cache here.
         # The bundle's resolved root path stands in as ``bundle_path``
