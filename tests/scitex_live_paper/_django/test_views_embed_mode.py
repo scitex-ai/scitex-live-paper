@@ -34,29 +34,51 @@ def rf() -> RequestFactory:
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_viewer_page_default_returns_full_chrome(rf):
-    # arrange
+def test_viewer_page_default_returns_full_chrome__assert_response_status_code_200(rf):
+    # Arrange
     request = rf.get("/")
-    # act
     response = views.viewer_page(request)
+    # Act
     body = response.content.decode("utf-8")
-    # assert — standalone shell carries the header + subtitle
+    # Assert
     assert response.status_code == 200
+
+
+def test_viewer_page_default_returns_full_chrome__assert_header_in_body(rf):
+    # Arrange
+    request = rf.get("/")
+    response = views.viewer_page(request)
+    # Act
+    body = response.content.decode("utf-8")
+    # Assert
     assert "<header" in body
+
+
+def test_viewer_page_default_returns_full_chrome__assert_scitex_clew_in_body(rf):
+    # Arrange
+    request = rf.get("/")
+    response = views.viewer_page(request)
+    # Act
+    body = response.content.decode("utf-8")
+    # Assert
     assert "scitex-clew" in body  # boundary callout in the subtitle
 
 
+
+
 def test_viewer_page_default_omits_embed_data_attribute(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/")).content.decode("utf-8")
-    # assert — only the embed shell carries data-embed-mode
+    # Assert
     assert 'data-embed-mode' not in body
 
 
 def test_viewer_page_default_carries_data_api_base(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/")).content.decode("utf-8")
-    # assert — SPA boot contract preserved
+    # Assert
     assert 'data-api-base="/api/"' in body
 
 
@@ -66,74 +88,93 @@ def test_viewer_page_default_carries_data_api_base(rf):
 
 
 def test_viewer_page_embed_one_returns_200(rf):
-    # arrange / act
+    # Arrange
+    # Act
     response = views.viewer_page(rf.get("/?embed=1"))
-    # assert
+    # Assert
     assert response.status_code == 200
 
 
-def test_viewer_page_embed_one_strips_header(rf):
-    # arrange
+def test_viewer_page_embed_one_strips_header__assert_header_not_in_body(rf):
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — no standalone header chrome
+    # Assert
     assert "<header" not in body
+
+
+def test_viewer_page_embed_one_strips_header__assert_read_only_viewer_for_acce(rf):
+    # Arrange
+    # Act
+    body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
     assert "Read-only viewer for accepted manuscript bundles." not in body
 
 
+
+
 def test_viewer_page_embed_one_strips_subtitle_text(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — boundary callout copy is part of the standalone subtitle, not the embed
+    # Assert
     assert "Claim model owned upstream" not in body
 
 
 def test_viewer_page_embed_one_carries_data_api_base(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — same SPA boot contract
+    # Assert
     assert 'data-api-base="/api/"' in body
 
 
 def test_viewer_page_embed_one_carries_data_embed_mode(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — JS reads this attribute to suppress its own chrome
+    # Assert
     assert 'data-embed-mode="1"' in body
 
 
 def test_viewer_page_embed_one_carries_root_div(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — SPA mount point still present
+    # Assert
     assert 'id="live-paper-root"' in body
 
 
 def test_viewer_page_embed_one_links_same_css(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — same asset, no separate embed stylesheet to maintain
+    # Assert
     assert "live_paper/css/viewer.css" in body
 
 
 def test_viewer_page_embed_one_links_same_js(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert
+    # Assert
     assert "live_paper/js/viewer.js" in body
 
 
 def test_viewer_page_embed_one_is_cdn_free(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — same vendoring contract as the standalone page
+    # Assert
     for marker in ("cdn.jsdelivr.net", "unpkg.com", "cdnjs.cloudflare.com"):
         assert marker not in body
 
 
 def test_viewer_page_embed_one_adds_embed_body_class(rf):
-    # arrange
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert — hosts can use this body class to tune iframe scrollbars / colour
+    # Assert
     assert 'class="live-paper-embed"' in body
 
 
@@ -169,18 +210,29 @@ def test_embed_mode_falsy_or_unknown_values_keep_full_chrome(rf, value):
 
 
 def test_embed_mode_absent_param_keeps_full_chrome(rf):
-    # arrange
+    # Arrange
+    # Act
     request = rf.get("/")
-    # act / assert
+    # Assert
     assert views._is_embed_mode(request) is False
 
 
-def test_embed_mode_other_query_params_dont_trigger(rf):
-    # arrange — unrelated query params must not trigger embed mode
+def test_embed_mode_other_query_params_dont_trigger__assert_header_in_body_2(rf):
+    # Arrange
+    # Act
     body = views.viewer_page(rf.get("/?foo=1&bar=true")).content.decode("utf-8")
-    # assert
+    # Assert
     assert "<header" in body
+
+
+def test_embed_mode_other_query_params_dont_trigger__assert_data_embed_mode_not_in_bo(rf):
+    # Arrange
+    # Act
+    body = views.viewer_page(rf.get("/?foo=1&bar=true")).content.decode("utf-8")
+    # Assert
     assert 'data-embed-mode' not in body
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -188,19 +240,41 @@ def test_embed_mode_other_query_params_dont_trigger(rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_both_shells_share_live_paper_root_id(rf):
-    # arrange — the mount point ID is the contract every host must see
+def test_both_shells_share_live_paper_root_id__assert_id_live_paper_root_in_def(rf):
+    # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert
+    # Assert
     assert 'id="live-paper-root"' in default_body
+
+
+def test_both_shells_share_live_paper_root_id__assert_id_live_paper_root_in_emb(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
     assert 'id="live-paper-root"' in embed_body
 
 
-def test_both_shells_share_bundle_info_pre_id(rf):
-    # arrange — JS writes the bundle-info JSON into this element regardless
+
+
+def test_both_shells_share_bundle_info_pre_id__assert_id_live_paper_bundle_info(rf):
+    # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
-    # assert
+    # Assert
     assert 'id="live-paper-bundle-info"' in default_body
+
+
+def test_both_shells_share_bundle_info_pre_id__assert_id_live_paper_bundle_info_2(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
     assert 'id="live-paper-bundle-info"' in embed_body
+
+

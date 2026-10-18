@@ -76,18 +76,20 @@ class _RunnerSpy:
 
 
 def test_serve_raises_filenotfounderror_for_missing_path(tmp_path):
-    # arrange
+    # Arrange
     missing = tmp_path / "does-not-exist"
-    # act / assert
+    # Act
+    # Assert
     with pytest.raises(FileNotFoundError, match="bundle path is not a directory"):
         server_module.serve(missing)
 
 
 def test_serve_raises_filenotfounderror_for_file_path(tmp_path):
-    # arrange
+    # Arrange
     a_file = tmp_path / "manuscript.pdf"
+    # Act
     a_file.write_text("not-a-dir", encoding="utf-8")
-    # act / assert
+    # Assert
     with pytest.raises(FileNotFoundError, match="bundle path is not a directory"):
         server_module.serve(a_file)
 
@@ -187,16 +189,28 @@ def test_serve_uses_default_host_port_when_omitted(bundle_dir, env_snapshot):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_serve_resolves_relative_path_components(bundle_dir, env_snapshot):
-    # arrange — pass a string with a redundant '.' segment
+def test_serve_resolves_relative_path_components__assert_pinned_str_path_raw_resol(bundle_dir, env_snapshot):
+    # Arrange
     raw = f"{bundle_dir}/."
     spy = _RunnerSpy()
-    # act
+    # Act
     server_module.serve(raw, runner=spy)
-    # assert — the trailing /. is normalised away
     pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
+    # Assert
     assert pinned == str(Path(raw).resolve())
+
+
+def test_serve_resolves_relative_path_components__assert_not_pinned_endswith(bundle_dir, env_snapshot):
+    # Arrange
+    raw = f"{bundle_dir}/."
+    spy = _RunnerSpy()
+    # Act
+    server_module.serve(raw, runner=spy)
+    pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
+    # Assert
     assert not pinned.endswith("/.")
+
+
 
 
 def test_serve_accepts_pathlib_path(bundle_dir, env_snapshot):
@@ -223,16 +237,16 @@ def test_serve_resolves_str_input_same_as_path_input(bundle_dir, env_snapshot):
 
 
 def test_default_runner_is_module_level_callable():
-    # arrange / act
+    # Arrange
     runner = server_module._default_runner
-    # assert
+    # Act
+    # Assert
     assert callable(runner)
 
 
 def test_default_runner_delegates_to_django_call_command():
-    # arrange — import the real django collaborator the wrapper targets
+    # Arrange
     from django.core import management
-
-    # act / assert — the wrapper is a thin pass-through; check by
-    # referencing the same symbol the docstring promises.
+    # Act
+    # Assert
     assert hasattr(management, "call_command")

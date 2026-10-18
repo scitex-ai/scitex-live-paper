@@ -72,6 +72,9 @@ dev = [
     "pytest-asyncio",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0.0",
+    # PS-210: [mcp] tool tests introspect fastmcp; declare it here so a
+    # fresh `pip install -e .[dev]` (without [all]) still runs them.
+    "fastmcp>=2.0",
     "scitex-live-paper[all]",
 ]
 

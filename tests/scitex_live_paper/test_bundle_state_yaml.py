@@ -36,30 +36,65 @@ BUNDLE_ACCEPTED = FIXTURES / "bundle-accepted"  # has state.yaml
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bundle_min_defaults_to_preprint_when_state_yaml_absent():
-    # arrange
+def test_bundle_min_defaults_to_preprint_when_state_yaml_absent__assert_not_bundle_min_state_yaml():
+    # Arrange
+    # Act
+    # Assert
     assert not (BUNDLE_MIN / "state.yaml").exists()  # sanity
-    # act
+
+
+def test_bundle_min_defaults_to_preprint_when_state_yaml_absent__assert_bundle_paper_state_stage():
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_MIN)
-    # assert — absent state.yaml → PaperState() default → stage="preprint"
+    # Assert
     assert bundle.paper_state.stage == "preprint"
 
 
-def test_bundle_min_default_paper_state_has_no_journal_or_doi():
-    # arrange / act
+
+
+def test_bundle_min_default_paper_state_has_no_journal_or_doi__assert_bundle_paper_state_journa():
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_MIN)
-    # assert
+    # Assert
     assert bundle.paper_state.journal is None
+
+
+def test_bundle_min_default_paper_state_has_no_journal_or_doi__assert_bundle_paper_state_doi_is():
+    # Arrange
+    # Act
+    bundle = bundle_module.load(BUNDLE_MIN)
+    # Assert
     assert bundle.paper_state.doi is None
+
+
+def test_bundle_min_default_paper_state_has_no_journal_or_doi__assert_bundle_paper_state_pinned():
+    # Arrange
+    # Act
+    bundle = bundle_module.load(BUNDLE_MIN)
+    # Assert
     assert bundle.paper_state.pinned_commit is None
 
 
-def test_bundle_min_default_paper_state_no_verification_badge():
-    # arrange / act
+
+
+def test_bundle_min_default_paper_state_no_verification_badge__assert_bundle_paper_state_show_v():
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_MIN)
-    # assert — preprint = no badge
+    # Assert
     assert bundle.paper_state.show_verification_badge is False
+
+
+def test_bundle_min_default_paper_state_no_verification_badge__assert_bundle_paper_state_re_ver():
+    # Arrange
+    # Act
+    bundle = bundle_module.load(BUNDLE_MIN)
+    # Assert
     assert bundle.paper_state.re_verify_enabled is False
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -67,54 +102,68 @@ def test_bundle_min_default_paper_state_no_verification_badge():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bundle_accepted_loads_stage_from_state_yaml():
-    # arrange
+def test_bundle_accepted_loads_stage_from_state_yaml__assert_bundle_accepted_state_yam():
+    # Arrange
+    # Act
+    # Assert
     assert (BUNDLE_ACCEPTED / "state.yaml").exists()  # sanity
-    # act
+
+
+def test_bundle_accepted_loads_stage_from_state_yaml__assert_bundle_paper_state_stage_2():
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_ACCEPTED)
-    # assert
+    # Assert
     assert bundle.paper_state.stage == "accepted"
 
 
+
+
 def test_bundle_accepted_loads_journal_from_state_yaml():
-    # arrange / act
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_ACCEPTED)
-    # assert
+    # Assert
     assert bundle.paper_state.journal == "eLife"
 
 
 def test_bundle_accepted_loads_doi_from_state_yaml():
-    # arrange / act
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_ACCEPTED)
-    # assert
+    # Assert
     assert bundle.paper_state.doi == "10.7554/eLife.99999"
 
 
 def test_bundle_accepted_loads_pinned_commit_from_state_yaml():
-    # arrange / act
+    # Arrange
+    # Act
     bundle = bundle_module.load(BUNDLE_ACCEPTED)
-    # assert
+    # Assert
     assert bundle.paper_state.pinned_commit == "deadbeefcafef00d12345678"
 
 
 def test_bundle_accepted_state_drives_verification_badge_visibility():
-    # arrange / act
+    # Arrange
+    # Act
     state = bundle_module.load(BUNDLE_ACCEPTED).paper_state
-    # assert — accepted → badge visible
+    # Assert
     assert state.show_verification_badge is True
 
 
 def test_bundle_accepted_state_enables_re_verify():
-    # arrange / act
+    # Arrange
+    # Act
     state = bundle_module.load(BUNDLE_ACCEPTED).paper_state
-    # assert — accepted + pinned_commit → re-verify enabled
+    # Assert
     assert state.re_verify_enabled is True
 
 
 def test_bundle_accepted_header_label_names_journal():
-    # arrange / act
+    # Arrange
+    # Act
     state = bundle_module.load(BUNDLE_ACCEPTED).paper_state
-    # assert
+    # Assert
     assert state.header_label() == "Accepted by eLife"
 
 
@@ -136,36 +185,40 @@ def _make_bundle_with_state(tmp_path: Path, state_yaml_text: str) -> Path:
 
 
 def test_state_yaml_unknown_stage_raises_bundle_error(tmp_path):
-    # arrange
+    # Arrange
+    # Act
     bundle_path = _make_bundle_with_state(tmp_path, "stage: pre-publication\n")
-    # act / assert — operator typo must fail loud, not silently default
+    # Assert
     with pytest.raises(BundleError, match="unknown stage"):
         bundle_module.load(bundle_path)
 
 
 def test_state_yaml_non_string_stage_raises_bundle_error(tmp_path):
-    # arrange
+    # Arrange
+    # Act
     bundle_path = _make_bundle_with_state(tmp_path, "stage: 42\n")
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match="'stage' must be a string"):
         bundle_module.load(bundle_path)
 
 
 def test_state_yaml_non_mapping_top_level_raises_bundle_error(tmp_path):
-    # arrange — a bare list is not a state document
+    # Arrange
+    # Act
     bundle_path = _make_bundle_with_state(tmp_path, "- accepted\n")
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match="top level must be a mapping"):
         bundle_module.load(bundle_path)
 
 
 def test_state_yaml_non_string_journal_raises_bundle_error(tmp_path):
-    # arrange
+    # Arrange
+    # Act
     bundle_path = _make_bundle_with_state(
         tmp_path,
         "stage: accepted\njournal: 42\n",
     )
-    # act / assert
+    # Assert
     with pytest.raises(BundleError, match="'journal' must be a string"):
         bundle_module.load(bundle_path)
 
@@ -175,15 +228,33 @@ def test_state_yaml_non_string_journal_raises_bundle_error(tmp_path):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_state_yaml_minimal_valid_drops_to_preprint(tmp_path):
-    # arrange
+def test_state_yaml_minimal_valid_drops_to_preprint__assert_state_stage_preprint(tmp_path):
+    # Arrange
     bundle_path = _make_bundle_with_state(tmp_path, "stage: preprint\n")
-    # act
+    # Act
     state = bundle_module.load(bundle_path).paper_state
-    # assert
+    # Assert
     assert state.stage == "preprint"
+
+
+def test_state_yaml_minimal_valid_drops_to_preprint__assert_state_journal_is_none(tmp_path):
+    # Arrange
+    bundle_path = _make_bundle_with_state(tmp_path, "stage: preprint\n")
+    # Act
+    state = bundle_module.load(bundle_path).paper_state
+    # Assert
     assert state.journal is None
+
+
+def test_state_yaml_minimal_valid_drops_to_preprint__assert_state_doi_is_none(tmp_path):
+    # Arrange
+    bundle_path = _make_bundle_with_state(tmp_path, "stage: preprint\n")
+    # Act
+    state = bundle_module.load(bundle_path).paper_state
+    # Assert
     assert state.doi is None
+
+
 
 
 def test_state_yaml_empty_file_falls_back_to_default(tmp_path):
@@ -195,18 +266,42 @@ def test_state_yaml_empty_file_falls_back_to_default(tmp_path):
     assert state.stage == "preprint"
 
 
-def test_state_yaml_with_null_optional_fields_treated_as_absent(tmp_path):
-    # arrange — explicit YAML null is equivalent to leaving the key out
+def test_state_yaml_with_null_optional_fields_treated_as_absent__assert_state_stage_accepted(tmp_path):
+    # Arrange
     bundle_path = _make_bundle_with_state(
         tmp_path,
         "stage: accepted\njournal: null\ndoi: null\n",
     )
-    # act
+    # Act
     state = bundle_module.load(bundle_path).paper_state
-    # assert
+    # Assert
     assert state.stage == "accepted"
+
+
+def test_state_yaml_with_null_optional_fields_treated_as_absent__assert_state_journal_is_none_2(tmp_path):
+    # Arrange
+    bundle_path = _make_bundle_with_state(
+        tmp_path,
+        "stage: accepted\njournal: null\ndoi: null\n",
+    )
+    # Act
+    state = bundle_module.load(bundle_path).paper_state
+    # Assert
     assert state.journal is None
+
+
+def test_state_yaml_with_null_optional_fields_treated_as_absent__assert_state_doi_is_none_2(tmp_path):
+    # Arrange
+    bundle_path = _make_bundle_with_state(
+        tmp_path,
+        "stage: accepted\njournal: null\ndoi: null\n",
+    )
+    # Act
+    state = bundle_module.load(bundle_path).paper_state
+    # Assert
     assert state.doi is None
+
+
 
 
 def test_state_yaml_ignores_unknown_keys(tmp_path):
@@ -244,10 +339,10 @@ def test_state_yaml_accepts_every_valid_stage(tmp_path, stage):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bundle_paper_state_field_defaults_to_preprint_via_factory():
-    # arrange — instantiate Bundle without supplying paper_state
+def test_bundle_paper_state_field_defaults_to_preprint_via_factory__assert_isinstance_bundle_paper_s():
+    # Arrange
     from scitex_live_paper import Bundle
-
+    # Act
     bundle = Bundle(
         root=BUNDLE_MIN,
         claims=[],
@@ -256,16 +351,33 @@ def test_bundle_paper_state_field_defaults_to_preprint_via_factory():
         manuscript_path=BUNDLE_MIN / "manuscript.pdf",
         figz_dir=BUNDLE_MIN / "figz",
     )
-    # act / assert — factory default kicks in
+    # Assert
     assert isinstance(bundle.paper_state, PaperState)
+
+
+def test_bundle_paper_state_field_defaults_to_preprint_via_factory__assert_bundle_paper_state_stage_3():
+    # Arrange
+    from scitex_live_paper import Bundle
+    # Act
+    bundle = Bundle(
+        root=BUNDLE_MIN,
+        claims=[],
+        dag="",
+        provenance={},
+        manuscript_path=BUNDLE_MIN / "manuscript.pdf",
+        figz_dir=BUNDLE_MIN / "figz",
+    )
+    # Assert
     assert bundle.paper_state.stage == "preprint"
 
 
-def test_bundle_paper_state_field_carries_explicit_value():
-    # arrange
-    from scitex_live_paper import Bundle
 
+
+def test_bundle_paper_state_field_carries_explicit_value():
+    # Arrange
+    from scitex_live_paper import Bundle
     explicit = PaperState(stage="published", journal="Nature", doi="10.x")
+    # Act
     bundle = Bundle(
         root=BUNDLE_MIN,
         claims=[],
@@ -275,5 +387,5 @@ def test_bundle_paper_state_field_carries_explicit_value():
         figz_dir=BUNDLE_MIN / "figz",
         paper_state=explicit,
     )
-    # act / assert
+    # Assert
     assert bundle.paper_state is explicit

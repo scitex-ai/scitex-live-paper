@@ -62,69 +62,119 @@ def _pin(path: Path) -> None:
 
 
 def test_api_claims_returns_200(client, env_snapshot):
+    # Arrange
+    # Act
     _pin(BUNDLE_MIN)
+    # Assert
     assert client.get("/api/claims").status_code == 200
 
 
 def test_api_claims_returns_claim_count(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     body = json.loads(client.get("/api/claims").content)
-    # bundle-min ships exactly three claims
+    # Assert
     assert body["claim_count"] == 3
 
 
-def test_api_claims_returns_claims_array_of_correct_length(client, env_snapshot):
+def test_api_claims_returns_claims_array_of_correct_length__assert_isinstance_body_claims_li(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     body = json.loads(client.get("/api/claims").content)
+    # Assert
     assert isinstance(body["claims"], list)
+
+
+def test_api_claims_returns_claims_array_of_correct_length__assert_len_body_claims_3(client, env_snapshot):
+    # Arrange
+    _pin(BUNDLE_MIN)
+    # Act
+    body = json.loads(client.get("/api/claims").content)
+    # Assert
     assert len(body["claims"]) == 3
 
 
-def test_api_claims_carries_re_verify_enabled_false_for_preprint(client, env_snapshot):
+
+
+def test_api_claims_carries_re_verify_enabled_false_for_preprint__assert_body_re_verify_enabled_is(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     body = json.loads(client.get("/api/claims").content)
-    # bundle-min has no state.yaml → preprint default → no badge → no re-verify
+    # Assert
     assert body["re_verify_enabled"] is False
+
+
+def test_api_claims_carries_re_verify_enabled_false_for_preprint__assert_body_pinned_commit_is_non(client, env_snapshot):
+    # Arrange
+    _pin(BUNDLE_MIN)
+    # Act
+    body = json.loads(client.get("/api/claims").content)
+    # Assert
     assert body["pinned_commit"] is None
 
 
-def test_api_claims_carries_re_verify_enabled_true_for_accepted(client, env_snapshot):
+
+
+def test_api_claims_carries_re_verify_enabled_true_for_accepted__assert_body_re_verify_enabled_is_2(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     body = json.loads(client.get("/api/claims").content)
-    # bundle-accepted has stage=accepted + pinned_commit → re_verify True
+    # Assert
     assert body["re_verify_enabled"] is True
+
+
+def test_api_claims_carries_re_verify_enabled_true_for_accepted__assert_body_pinned_commit_deadbe(client, env_snapshot):
+    # Arrange
+    _pin(BUNDLE_ACCEPTED)
+    # Act
+    body = json.loads(client.get("/api/claims").content)
+    # Assert
     assert body["pinned_commit"] == "deadbeefcafef00d12345678"
 
 
+
+
 def test_api_claims_each_claim_has_required_fields(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
+    # Act
     body = json.loads(client.get("/api/claims").content)
     required = {"claim_id", "file_path", "claim_type", "status", "extras"}
+    # Assert
     for claim in body["claims"]:
         missing = required - set(claim.keys())
         assert not missing, f"claim missing fields: {missing}"
 
 
 def test_api_claims_preserves_clew_status_strings(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
     body = json.loads(client.get("/api/claims").content)
+    # Act
     statuses = sorted(c["status"] for c in body["claims"])
-    # bundle-min fixture: registered / suspect / verified (clew v1.3
-    # vocabulary — the fixture mirrors what clew actually emits)
+    # Assert
     assert statuses == ["registered", "suspect", "verified"]
 
 
 def test_api_claims_carries_extras_for_forward_compat(client, env_snapshot):
+    # Arrange
     _pin(BUNDLE_MIN)
     body = json.loads(client.get("/api/claims").content)
-    # bundle-min's claims carry an "anchor" extra field
+    # Act
     found_extras = any(c["extras"] for c in body["claims"])
+    # Assert
     assert found_extras
 
 
 def test_handlers_registry_includes_api_claims():
+    # Arrange
     from scitex_live_paper._django.handlers import HANDLERS, handle_claims
-
+    # Act
+    # Assert
     assert HANDLERS["api/claims"] is handle_claims
 
 
@@ -161,102 +211,162 @@ def _viewer_css() -> str:
 
 
 def test_viewer_js_fetches_api_claims_at_boot():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # The boot path fetches `apiBase + "claims"` after bundle-info
+    # Assert
     assert 'apiBase + "claims"' in text
 
 
 def test_viewer_js_has_render_claims_sidebar():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "renderClaimsSidebar" in text
 
 
 def test_viewer_js_has_render_claim_row():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "renderClaimRow" in text
 
 
 def test_viewer_js_has_reverify_claim_handler():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "reverifyClaim" in text
 
 
 def test_viewer_js_re_verify_visibility_gated_on_re_verify_enabled():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # The button is only appended `if (reVerifyEnabled)` — drafts /
-    # preprints get a row without a button
+    # Assert
     assert "if (reVerifyEnabled)" in text
 
 
-def test_viewer_js_reverify_posts_to_claim_verify():
+def test_viewer_js_reverify_posts_to_claim_verify__assert_apibase_claim_verify_in_t():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # The fetch call POSTs to `apiBase + "claim/verify"` (matches the
-    # handler registered as HANDLERS["api/claim/verify"]).
+    # Assert
     assert 'apiBase + "claim/verify"' in text
+
+
+def test_viewer_js_reverify_posts_to_claim_verify__assert_post_in_text_or_post_in_t():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
     assert '"POST"' in text or "'POST'" in text
 
 
-def test_viewer_js_reverify_sends_json_body_with_claim_id():
+
+
+def test_viewer_js_reverify_sends_json_body_with_claim_id__assert_claim_id_claimid_in_text():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "claim_id: claimId" in text
+
+
+def test_viewer_js_reverify_sends_json_body_with_claim_id__assert_json_stringify_body_in_te():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
     assert "JSON.stringify(body)" in text
 
 
+
+
 def test_viewer_js_reverify_passes_pinned_commit_when_present():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # When the api/claims payload carried a pinned_commit, send it back
-    # in the POST body so the handler doesn't have to fall back to
-    # bundle.paper_state (avoids a race when the operator passed an
-    # override in the response).
+    # Assert
     assert "body.pinned_commit = pinnedCommit" in text
 
 
 def test_viewer_js_reverify_handles_fallback_envelope():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # PR #31's degradation path returns 200 + fallback=true; UI must
-    # render the status (stale by default) without treating it as an
-    # error
+    # Assert
     assert "payload.fallback === true" in text
 
 
-def test_viewer_js_reverify_shows_verifying_state_on_click():
+def test_viewer_js_reverify_shows_verifying_state_on_click__assert_verifying_in_text():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # The button text flips to "Verifying…" + the badge to "verifying"
-    # so the operator sees feedback even on slow networks
+    # Assert
     assert "Verifying" in text
+
+
+def test_viewer_js_reverify_shows_verifying_state_on_click__assert_verifying_in_text_2():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
     assert '"verifying"' in text
 
 
-def test_viewer_js_reverify_writes_status_back_to_data_attribute():
+
+
+def test_viewer_js_reverify_writes_status_back_to_data_attribute__assert_rowel_dataset_status_in_t():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # `rowEl.dataset.status = nextStatus` + the badge's data-status
-    # drive the per-status CSS border + background.
+    # Assert
     assert "rowEl.dataset.status" in text
+
+
+def test_viewer_js_reverify_writes_status_back_to_data_attribute__assert_statusbadge_dataset_statu():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
     assert "statusBadge.dataset.status" in text
 
 
+
+
 def test_viewer_js_reverify_handles_network_error():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # Network failure (offline / DNS) must surface as "error" status,
-    # NOT silently swallow.
+    # Assert
     assert "network error" in text
 
 
 def test_viewer_js_reverify_re_enables_button_in_finally():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # Button stays clickable after an error so the operator can retry
+    # Assert
     assert "btn.disabled = false" in text
 
 
 def test_viewer_js_sidebar_uses_aside_element():
+    # Arrange
+    # Act
     text = _viewer_js()
-    # Semantic HTML — the sidebar is an <aside>, not a div, so AT users
-    # land on it as a complementary region.
+    # Assert
     assert "createElement(\"aside\")" in text
 
 
 def test_viewer_js_sidebar_mount_id_is_live_paper_claims():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert '"live-paper-claims"' in text
 
 
@@ -266,7 +376,10 @@ def test_viewer_js_sidebar_mount_id_is_live_paper_claims():
 
 
 def test_viewer_css_defines_status_colour_custom_properties():
+    # Arrange
+    # Act
     text = _viewer_css()
+    # Assert
     for var in (
         # clew claim-status vocabulary (verify_claim / claims.json)
         "--lp-status-verified",
@@ -286,11 +399,10 @@ def test_viewer_css_defines_status_colour_custom_properties():
 
 
 def test_viewer_css_styles_each_claim_status_via_data_attribute():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # Per-status colours bind via [data-status="..."] so the JS only
-    # has to write `dataset.status` — no class swapping needed. The
-    # claim palette is clew's verify_claim / claims.json vocabulary,
-    # plus the two transient client-side UI states.
+    # Assert
     for status in (
         "verified",
         "suspect",
@@ -304,59 +416,124 @@ def test_viewer_css_styles_each_claim_status_via_data_attribute():
         assert f'.lp-claim[data-status="{status}"]' in text
 
 
-def test_viewer_css_styles_claims_sidebar():
+def test_viewer_css_styles_claims_sidebar__assert_live_paper_claims_in_text():
+    # Arrange
+    # Act
     text = _viewer_css()
+    # Assert
     assert ".live-paper-claims" in text
+
+
+def test_viewer_css_styles_claims_sidebar__assert_lp_claims_list_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert ".lp-claims-list" in text
+
+
+def test_viewer_css_styles_claims_sidebar__assert_lp_claim_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert ".lp-claim" in text
 
 
-def test_viewer_css_styles_reverify_button_disabled_state():
+
+
+def test_viewer_css_styles_reverify_button_disabled_state__assert_lp_claim_reverify_disable():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # Cursor flips to `progress` while in flight so the operator
-    # doesn't double-click
+    # Assert
     assert ".lp-claim-reverify:disabled" in text
+
+
+def test_viewer_css_styles_reverify_button_disabled_state__assert_cursor_progress_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "cursor: progress" in text
 
 
-def test_viewer_css_status_palette_uses_clew_colour_convention():
+
+
+def test_viewer_css_status_palette_uses_clew_colour_convention__assert_2ea043_in_text():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # Green for verified, amber for suspect, red for mismatch, dark red
-    # for missing (own hue per clew palette v1.3), grey for
-    # registered/not_found — matches scitex-clew's claim-status palette
-    # so the in-viewer chips read the same as the static-site claims.html
+    # Assert
     assert "#2ea043" in text  # GitHub-style green
+
+
+def test_viewer_css_status_palette_uses_clew_colour_convention__assert_d29922_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "#d29922" in text  # GitHub-style amber
+
+
+def test_viewer_css_status_palette_uses_clew_colour_convention__assert_f85149_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "#f85149" in text  # GitHub-style red
+
+
+def test_viewer_css_status_palette_uses_clew_colour_convention__assert_a40e26_in_text():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert "#a40e26" in text  # clew v1.3 missing-red (distinct from mismatch)
 
 
-def test_viewer_css_failed_verification_renders_red_not_uncoloured():
+
+
+def test_viewer_css_failed_verification_renders_red_not_uncoloured__assert_re_search_r_lp_claim_data():
+    # Arrange
+    # Act
     text = _viewer_css()
-    # Regression guard: a mismatch/missing claim (a FAILED verification)
-    # must map to a red var, never fall through to the default border.
-    # This was the original bug — the palette used a vocabulary clew
-    # never emits, so failures rendered uncoloured. Per clew palette
-    # v1.3 (clew 0.7.0), missing carries its OWN red, distinct from
-    # mismatch.
-    #
-    # Matched with whitespace-tolerant patterns rather than exact
-    # strings: the repo's CSS formatter reflows one-line rules and drops
-    # column alignment, and this guard is about which VAR each status
-    # resolves to, not how the stylesheet is laid out. The literal form
-    # broke purely on reformatting once already.
+    # Assert
     assert re.search(
         r'\.lp-claim\[data-status="mismatch"\]\s*\{\s*'
         r"border-left-color:\s*var\(--lp-status-mismatch\)\s*;",
         text,
     )
+
+
+def test_viewer_css_failed_verification_renders_red_not_uncoloured__assert_re_search_r_lp_claim_data_2():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert re.search(
         r'\.lp-claim\[data-status="missing"\]\s*\{\s*'
         r"border-left-color:\s*var\(--lp-status-missing\)\s*;",
         text,
     )
+
+
+def test_viewer_css_failed_verification_renders_red_not_uncoloured__assert_re_search_r_lp_status_mis():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert re.search(r"--lp-status-mismatch:\s*#f85149\s*;", text)
+
+
+def test_viewer_css_failed_verification_renders_red_not_uncoloured__assert_re_search_r_lp_status_mis_2():
+    # Arrange
+    # Act
+    text = _viewer_css()
+    # Assert
     assert re.search(r"--lp-status-missing:\s*#a40e26\s*;", text)
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -365,20 +542,32 @@ def test_viewer_css_failed_verification_renders_red_not_uncoloured():
 
 
 def test_viewer_js_still_defines_pdfviewer_class():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "class PDFViewer" in text
 
 
 def test_viewer_js_still_fetches_bundle_info():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert 'apiBase + "bundle-info"' in text
 
 
 def test_viewer_js_still_wires_text_layer():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "_renderTextLayer" in text
 
 
 def test_viewer_js_still_wires_annotation_layer():
+    # Arrange
+    # Act
     text = _viewer_js()
+    # Assert
     assert "_renderAnnotationLayer" in text

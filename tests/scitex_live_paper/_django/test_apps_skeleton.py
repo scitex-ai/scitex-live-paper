@@ -8,6 +8,7 @@ is ``bundle-info``; ``ping`` and the SPA shell work without one.
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -127,15 +128,20 @@ def test_api_bundle_info_resolves_absolute_bundle_path(client, bundle_env):
     assert payload["bundle_path"].endswith("bundle-min")
 
 
-def test_api_bundle_info_without_env_returns_500(client, monkeypatch):
-    # arrange
+def test_api_bundle_info_without_env_returns_500(client):
+    # Arrange
     from scitex_live_paper._django import services
 
-    monkeypatch.delenv("SCITEX_LIVE_PAPER_BUNDLE", raising=False)
+    previous = os.environ.pop("SCITEX_LIVE_PAPER_BUNDLE", None)
     services.clear_cache()
-    # act
-    response = client.get("/api/bundle-info")
-    # assert — services.resolve_bundle_path raises RuntimeError → dispatcher 500
+    try:
+        # Act
+        response = client.get("/api/bundle-info")
+    finally:
+        if previous is not None:
+            os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = previous
+        services.clear_cache()
+    # Assert — services.resolve_bundle_path raises RuntimeError → dispatcher 500
     assert response.status_code == 500
 
 
@@ -155,10 +161,10 @@ def test_handlers_registry_lists_known_endpoints():
 
 
 def test_handlers_registry_values_are_callables():
-    # arrange
+    # Arrange
     from scitex_live_paper._django.handlers import HANDLERS
-
-    # act / assert
+    # Act
+    # Assert
     for endpoint, fn in HANDLERS.items():
         assert callable(fn), f"{endpoint!r} → non-callable"
 
@@ -172,14 +178,24 @@ def test_unknown_endpoint_returns_404(client):
     assert response.status_code == 404
 
 
-def test_unknown_endpoint_returns_json_error_body(client):
-    # arrange
+def test_unknown_endpoint_returns_json_error_body__assert_error_in_payload(client):
+    # Arrange
     url = "/api/does-not-exist"
-    # act
+    # Act
     payload = json.loads(client.get(url).content)
-    # assert
+    # Assert
     assert "error" in payload
+
+
+def test_unknown_endpoint_returns_json_error_body__assert_does_not_exist_in_payload(client):
+    # Arrange
+    url = "/api/does-not-exist"
+    # Act
+    payload = json.loads(client.get(url).content)
+    # Assert
     assert "does-not-exist" in payload["error"]
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -198,14 +214,21 @@ def test_services_cache_reuses_state_within_ttl(bundle_env):
     assert first is second
 
 
-def test_services_resolve_bundle_path_raises_without_env(monkeypatch):
-    # arrange
+def test_services_resolve_bundle_path_raises_without_env():
+    # Arrange
     from scitex_live_paper._django import services
 
-    monkeypatch.delenv("SCITEX_LIVE_PAPER_BUNDLE", raising=False)
-    # act / assert
-    with pytest.raises(RuntimeError, match="SCITEX_LIVE_PAPER_BUNDLE"):
-        services.resolve_bundle_path()
+    previous = os.environ.pop("SCITEX_LIVE_PAPER_BUNDLE", None)
+    services.clear_cache()
+    try:
+        # Act
+        # Assert — the raises block is the single assertion construct
+        with pytest.raises(RuntimeError, match="SCITEX_LIVE_PAPER_BUNDLE"):
+            services.resolve_bundle_path()
+    finally:
+        if previous is not None:
+            os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = previous
+        services.clear_cache()
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -227,13 +250,22 @@ def test_manifest_slug_is_live_paper():
     assert data["slug"] == "live-paper"
 
 
-def test_apps_config_exposes_correct_name():
-    # arrange
+def test_apps_config_exposes_correct_name__assert_livepaperconfig_name_scit():
+    # Arrange
+    # Act
     from scitex_live_paper._django.apps import LivePaperConfig
-
-    # act / assert
+    # Assert
     assert LivePaperConfig.name == "scitex_live_paper._django"
+
+
+def test_apps_config_exposes_correct_name__assert_livepaperconfig_label_sci():
+    # Arrange
+    # Act
+    from scitex_live_paper._django.apps import LivePaperConfig
+    # Assert
     assert LivePaperConfig.label == "scitex_live_paper"
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -241,27 +273,45 @@ def test_apps_config_exposes_correct_name():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_cli_top_level_help_lists_serve():
-    # arrange
+def test_cli_top_level_help_lists_serve__assert_result_exit_code_0():
+    # Arrange
     from click.testing import CliRunner
-
     from scitex_live_paper._cli import cli
-
-    # act
+    # Act
     result = CliRunner().invoke(cli, ["--help"])
-    # assert
+    # Assert
     assert result.exit_code == 0
+
+
+def test_cli_top_level_help_lists_serve__assert_serve_in_result_output():
+    # Arrange
+    from click.testing import CliRunner
+    from scitex_live_paper._cli import cli
+    # Act
+    result = CliRunner().invoke(cli, ["--help"])
+    # Assert
     assert "serve" in result.output
 
 
-def test_cli_serve_help_describes_django_extra():
-    # arrange
+
+
+def test_cli_serve_help_describes_django_extra__assert_result_exit_code_0_2():
+    # Arrange
     from click.testing import CliRunner
-
     from scitex_live_paper._cli import cli
-
-    # act
+    # Act
     result = CliRunner().invoke(cli, ["serve", "--help"])
-    # assert
+    # Assert
     assert result.exit_code == 0
+
+
+def test_cli_serve_help_describes_django_extra__assert_django_in_result_output_l():
+    # Arrange
+    from click.testing import CliRunner
+    from scitex_live_paper._cli import cli
+    # Act
+    result = CliRunner().invoke(cli, ["serve", "--help"])
+    # Assert
     assert "django" in result.output.lower() or "[django]" in result.output
+
+

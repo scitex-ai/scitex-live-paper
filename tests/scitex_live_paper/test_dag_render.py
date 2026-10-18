@@ -42,22 +42,25 @@ BUNDLE_MIN = FIXTURES / "bundle-min"
 
 
 def test_public_module_exposes_render_html_callable():
-    # Arrange / Act
+    # Arrange
+    # Act
     fn = getattr(dag_public, "render_html", None)
     # Assert
     assert callable(fn)
 
 
 def test_public_module_exposes_render_dag_callable():
-    # Arrange / Act
+    # Arrange
+    # Act
     fn = getattr(dag_public, "render_dag", None)
     # Assert
     assert callable(fn)
 
 
 def test_public_module_exposes_mermaid_version_string():
-    # Arrange / Act
+    # Arrange
     version = dag_public.MERMAID_VERSION
+    # Act
     # Assert
     assert isinstance(version, str) and version
 
@@ -65,20 +68,24 @@ def test_public_module_exposes_mermaid_version_string():
 def test_renderer_subpackage_reexports_render_dag():
     # Arrange
     from scitex_live_paper import _renderer as renderer_pkg
-
-    # Act / Assert
+    # Act
+    # Assert
     assert callable(getattr(renderer_pkg, "render_dag", None))
 
 
 def test_render_html_is_alias_of_render_dag():
-    # Arrange / Act / Assert: same callable bound under both names
+    # Arrange
+    # Act
+    # Assert
     assert dag_internal.render_html is render_html
 
 
 def test_public_render_html_matches_internal_render_html():
-    # Arrange / Act / Assert: the top-level facade must be the *same*
     # object as the internal callable so the contract from issue #10
     # (``scitex_live_paper.dag.render_html``) holds without divergence.
+    # Arrange
+    # Act
+    # Assert
     assert dag_public.render_html is dag_internal.render_html
 
 
@@ -87,7 +94,7 @@ def test_public_render_html_matches_internal_render_html():
 # ---------------------------------------------------------------------------
 
 
-def test_render_dag_writes_dag_html_in_out_dir(tmp_path: Path):
+def test_render_dag_writes_dag_html_in_out_dir__assert_isinstance_artifacts_daga(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -95,34 +102,102 @@ def test_render_dag_writes_dag_html_in_out_dir(tmp_path: Path):
     artifacts = render_dag(loaded, out)
     # Assert
     assert isinstance(artifacts, DagArtifacts)
+
+
+def test_render_dag_writes_dag_html_in_out_dir__assert_artifacts_dag_html_out_da(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.dag_html == out / "dag.html"
+
+
+def test_render_dag_writes_dag_html_in_out_dir__assert_artifacts_dag_html_is_fil(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.dag_html.is_file()
 
 
-def test_render_dag_vendors_css_and_js(tmp_path: Path):
+
+
+def test_render_dag_vendors_css_and_js__assert_artifacts_css_out_assets(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     # Act
     artifacts = render_dag(loaded, out)
-    # Assert: relative-pathed local assets so file:// renders without CDN
+    # Assert
     assert artifacts.css == out / "assets" / "dag.css"
+
+
+def test_render_dag_vendors_css_and_js__assert_artifacts_js_out_assets_d(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.js == out / "assets" / "dag.js"
+
+
+def test_render_dag_vendors_css_and_js__assert_artifacts_css_is_file(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.css.is_file()
+
+
+def test_render_dag_vendors_css_and_js__assert_artifacts_js_is_file(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.js.is_file()
 
 
-def test_render_dag_vendors_mermaid_main(tmp_path: Path):
+
+
+def test_render_dag_vendors_mermaid_main__assert_artifacts_mermaid_main_ou(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     # Act
     artifacts = render_dag(loaded, out)
-    # Assert: the mermaid UMD bundle lands under assets/mermaid/
+    # Assert
     assert artifacts.mermaid_main == out / "assets" / "mermaid" / "mermaid.min.js"
+
+
+def test_render_dag_vendors_mermaid_main__assert_artifacts_mermaid_main_is(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.mermaid_main.is_file()
-    # And it is a real script body, not a placeholder.
+
+
+def test_render_dag_vendors_mermaid_main__assert_artifacts_mermaid_main_st(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    artifacts = render_dag(loaded, out)
+    # Assert
     assert artifacts.mermaid_main.stat().st_size > 1000
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -137,47 +212,100 @@ def _read_html(tmp_path: Path) -> str:
     return artifacts.dag_html.read_text(encoding="utf-8")
 
 
-def test_html_loads_vendored_mermaid_via_relative_url(tmp_path: Path):
+def test_html_loads_vendored_mermaid_via_relative_url__assert_src_assets_mermaid_mermai(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: no CDN — mermaid is sourced from the vendored copy
+    # Assert
     assert 'src="assets/mermaid/mermaid.min.js"' in html
+
+
+def test_html_loads_vendored_mermaid_via_relative_url__assert_cdn_jsdelivr_net_not_in_h(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "cdn.jsdelivr.net" not in html
+
+
+def test_html_loads_vendored_mermaid_via_relative_url__assert_unpkg_com_not_in_html(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "unpkg.com" not in html
 
 
-def test_html_loads_local_css_and_js(tmp_path: Path):
+
+
+def test_html_loads_local_css_and_js__assert_href_assets_dag_css_in_ht(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
     # Assert
     assert 'href="assets/dag.css"' in html
+
+
+def test_html_loads_local_css_and_js__assert_src_assets_dag_js_in_html(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert 'src="assets/dag.js"' in html
+
+
 
 
 def test_html_embeds_mermaid_version_in_subtitle(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
     # Assert
     assert MERMAID_VERSION in html
 
 
-def test_html_renders_dag_source_block_from_bundle(tmp_path: Path):
+def test_html_renders_dag_source_block_from_bundle__assert_class_mermaid_in_html(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: mermaid expects a <pre class="mermaid"> block; the bundle
-    # fixture's dag.mmd lines must flow through verbatim (we do not
-    # rewrite the clew-owned graph).
+    # Assert
     assert 'class="mermaid"' in html
+
+
+def test_html_renders_dag_source_block_from_bundle__assert_s1_source_in_html(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "S1[Source" in html
+
+
+def test_html_renders_dag_source_block_from_bundle__assert_c1_claim_in_html(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "C1[Claim" in html
 
 
-def test_html_uses_default_title_when_not_provided(tmp_path: Path):
+
+
+def test_html_uses_default_title_when_not_provided__assert_live_paper_in_html(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
     # Assert
     assert "Live Paper" in html
+
+
+def test_html_uses_default_title_when_not_provided__assert_dag_in_html(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "DAG" in html
+
+
 
 
 def test_html_honours_custom_title(tmp_path: Path):
@@ -191,18 +319,26 @@ def test_html_honours_custom_title(tmp_path: Path):
     assert "<title>My DAG</title>" in html
 
 
-def test_html_embeds_provenance_map_as_inline_json(tmp_path: Path):
+def test_html_embeds_provenance_map_as_inline_json__assert_id_lp_provenance_map_in_h(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: the inline <script id="lp-provenance-map"> block is what
-    # the click handler reads to surface "script + hash" on Source /
-    # Processing nodes (avoids a second fetch).
+    # Assert
     assert 'id="lp-provenance-map"' in html
+
+
+def test_html_embeds_provenance_map_as_inline_json__assert_type_application_json_in(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert 'type="application/json"' in html
 
 
-def test_html_provenance_map_carries_claim_source_hashes(tmp_path: Path):
-    # Arrange: parse the embedded JSON out of the generated HTML.
+
+
+def test_html_provenance_map_carries_claim_source_hashes__assert_payload_get_scripts_03_an(tmp_path: Path):
+    # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     artifacts = render_dag(loaded, out)
@@ -210,28 +346,60 @@ def test_html_provenance_map_carries_claim_source_hashes(tmp_path: Path):
     start_tag = '<script id="lp-provenance-map" type="application/json">'
     start = html.index(start_tag) + len(start_tag)
     end = html.index("</script>", start)
+    # Act
     payload = json.loads(html[start:end])
-    # Assert: both claims in the fixture that carry source_file / source_hash
-    # show up in the map (the third claim is intentionally bare).
+    # Assert
     assert payload.get("scripts/03_analyze.py") == "deadbeefcafef00d"
+
+
+def test_html_provenance_map_carries_claim_source_hashes__assert_payload_get_scripts_04_st(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_dag(loaded, out)
+    html = artifacts.dag_html.read_text(encoding="utf-8")
+    start_tag = '<script id="lp-provenance-map" type="application/json">'
+    start = html.index(start_tag) + len(start_tag)
+    end = html.index("</script>", start)
+    # Act
+    payload = json.loads(html[start:end])
+    # Assert
     assert payload.get("scripts/04_stats.R") == "1234567890abcdef"
 
 
-def test_html_includes_overlay_scaffolding(tmp_path: Path):
+
+
+def test_html_includes_overlay_scaffolding__assert_lp_dag_overlay_in_html(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: the in-page overlay used to show "script + hash" for
-    # Source / Processing nodes is present (hidden until click).
+    # Assert
     assert "lp-dag-overlay" in html
+
+
+def test_html_includes_overlay_scaffolding__assert_lp_dag_overlay_title_in_h(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "lp-dag-overlay-title" in html
+
+
+def test_html_includes_overlay_scaffolding__assert_lp_dag_overlay_detail_in(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert "lp-dag-overlay-detail" in html
+
+
 
 
 def test_html_uses_module_script_for_dag_js(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: dag.js uses module syntax (ESM exports for testability);
-    # the page must load it with type="module" or browsers reject imports.
+    # Assert
     assert 'type="module" src="assets/dag.js"' in html
 
 
@@ -245,9 +413,9 @@ def test_dag_js_uses_live_paper_claim_event_channel(tmp_path: Path):
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     artifacts = render_dag(loaded, out)
+    # Act
     js = artifacts.js.read_text(encoding="utf-8")
-    # Assert: same cross-page channel the viewer (#4) and the claims
-    # sidebar (#5) speak — not a parallel event name.
+    # Assert
     assert "live-paper:claim" in js
 
 
@@ -256,9 +424,9 @@ def test_dag_js_tags_nodes_with_data_attribute(tmp_path: Path):
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     artifacts = render_dag(loaded, out)
+    # Act
     js = artifacts.js.read_text(encoding="utf-8")
-    # Assert: we tag rendered nodes via data-lp-node-kind so CSS can
-    # style them per-class without re-deriving the taxonomy.
+    # Assert
     assert "data-lp-node-kind" in js
 
 
@@ -267,10 +435,9 @@ def test_dag_js_recognises_clew_node_kinds(tmp_path: Path):
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     artifacts = render_dag(loaded, out)
+    # Act
     js = artifacts.js.read_text(encoding="utf-8")
-    # Assert: every clew node-class prefix is recognised. The taxonomy
-    # itself is upstream — we just enumerate the labels we see in the
-    # rendered mermaid SVG.
+    # Assert
     for kind in ("Claim", "Source", "Processing", "Input", "Output"):
         assert kind in js
 
@@ -280,9 +447,9 @@ def test_dag_js_navigates_to_claim_fragment_on_claim_click(tmp_path: Path):
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
     artifacts = render_dag(loaded, out)
+    # Act
     js = artifacts.js.read_text(encoding="utf-8")
-    # Assert: clicking a Claim node jumps to the claims page with the
-    # documented `#claim=<id>` protocol (same as the sidebar uses).
+    # Assert
     assert "#claim=" in js
 
 
@@ -411,33 +578,59 @@ def test_render_dag_overwrites_existing_output_idempotently(tmp_path: Path):
     assert "<title>Run 2</title>" in html
 
 
-def test_render_dag_links_default_to_sibling_pages(tmp_path: Path):
+def test_render_dag_links_default_to_sibling_pages__assert_data_viewer_url_viewer_ht(tmp_path: Path):
     # Arrange
+    # Act
     html = _read_html(tmp_path)
-    # Assert: default viewer / claims URLs are sibling-page relative so
-    # the CLI's index.html can stitch them with no extra config.
+    # Assert
     assert 'data-viewer-url="viewer.html"' in html
+
+
+def test_render_dag_links_default_to_sibling_pages__assert_data_claims_url_claims_ht(tmp_path: Path):
+    # Arrange
+    # Act
+    html = _read_html(tmp_path)
+    # Assert
     assert 'data-claims-url="claims.html"' in html
 
 
-def test_render_dag_honours_custom_viewer_and_claims_urls(tmp_path: Path):
+
+
+def test_render_dag_honours_custom_viewer_and_claims_urls__assert_data_viewer_url_pdf_viewe(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
-    # Act
     artifacts = render_dag(
         loaded,
         out,
         viewer_url="pdf/viewer.html",
         claims_url="panel/claims.html",
     )
+    # Act
     html = artifacts.dag_html.read_text(encoding="utf-8")
     # Assert
     assert 'data-viewer-url="pdf/viewer.html"' in html
+
+
+def test_render_dag_honours_custom_viewer_and_claims_urls__assert_data_claims_url_panel_cla(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    artifacts = render_dag(
+        loaded,
+        out,
+        viewer_url="pdf/viewer.html",
+        claims_url="panel/claims.html",
+    )
+    # Act
+    html = artifacts.dag_html.read_text(encoding="utf-8")
+    # Assert
     assert 'data-claims-url="panel/claims.html"' in html
 
 
-def test_render_html_alias_returns_equivalent_artifacts(tmp_path: Path):
+
+
+def test_render_html_alias_returns_equivalent_artifacts__assert_isinstance_via_alias_daga(tmp_path: Path):
     # Arrange
     loaded = bundle_module.load(BUNDLE_MIN)
     out = tmp_path / "site"
@@ -445,8 +638,28 @@ def test_render_html_alias_returns_equivalent_artifacts(tmp_path: Path):
     via_alias = render_html(loaded, out)
     # Assert
     assert isinstance(via_alias, DagArtifacts)
+
+
+def test_render_html_alias_returns_equivalent_artifacts__assert_via_alias_dag_html_out_da(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    via_alias = render_html(loaded, out)
+    # Assert
     assert via_alias.dag_html == out / "dag.html"
+
+
+def test_render_html_alias_returns_equivalent_artifacts__assert_via_alias_mermaid_main_is(tmp_path: Path):
+    # Arrange
+    loaded = bundle_module.load(BUNDLE_MIN)
+    out = tmp_path / "site"
+    # Act
+    via_alias = render_html(loaded, out)
+    # Assert
     assert via_alias.mermaid_main.is_file()
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -465,14 +678,26 @@ def test_render_dag_does_not_mutate_bundle_dag_string(tmp_path: Path):
     assert loaded.dag == original
 
 
-def test_scaffolding_stub_replaced_by_real_tests():
-    # Arrange: PR #13 left an importorskip stub at
+def test_scaffolding_stub_replaced_by_real_tests__assert_real_file_name_test_dag_r():
     # tests/dag/test_renderer.py. This PR retires it; if a future change
     # accidentally restores the stub-only state, this test fails loudly.
+    # Arrange
+    # Act
     real_file = Path(__file__)
     # Assert
     assert real_file.name == "test_dag_render.py"
+
+
+def test_scaffolding_stub_replaced_by_real_tests__assert_real_file_is_file():
+    # tests/dag/test_renderer.py. This PR retires it; if a future change
+    # accidentally restores the stub-only state, this test fails loudly.
+    # Arrange
+    # Act
+    real_file = Path(__file__)
+    # Assert
     assert real_file.is_file()
+
+
 
 
 # ---------------------------------------------------------------------------

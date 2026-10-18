@@ -29,24 +29,37 @@ def _module(name: str) -> str:
 
 
 def test_utils_exports_fetch_or_null():
+    # Arrange
+    # Act
     text = _module("_utils.js")
+    # Assert
     assert "export async function fetchOrNull" in text
 
 
 def test_utils_fetch_or_null_returns_null_on_non_ok():
+    # Arrange
+    # Act
     text = _module("_utils.js")
-    # On non-2xx, return null so the caller can fall back.
+    # Assert
     assert "if (!res.ok) return null" in text
 
 
-def test_utils_fetch_or_null_returns_null_on_network_error():
+def test_utils_fetch_or_null_returns_null_on_network_error__assert_return_null_in_text():
+    # Arrange
+    # Act
     text = _module("_utils.js")
-    # Catch path returns null too — distinguished from a 200 with
-    # a null body by the fallback caller branch (dash && bundle && claims).
+    # Assert
     assert "return null" in text
-    # Caught exception variable name — keeps the JS engine from
-    # complaining about an unused identifier.
+
+
+def test_utils_fetch_or_null_returns_null_on_network_error__assert_err_in_text_or_err_in_tex():
+    # Arrange
+    # Act
+    text = _module("_utils.js")
+    # Assert
     assert "(_err)" in text or "(err)" in text
+
+
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -55,42 +68,70 @@ def test_utils_fetch_or_null_returns_null_on_network_error():
 
 
 def test_viewer_js_imports_fetch_or_null():
+    # Arrange
+    # Act
     text = _module("viewer.js")
+    # Assert
     assert "fetchOrNull" in text
 
 
 def test_viewer_js_calls_dashboard_endpoint_first():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # The merged endpoint is the FIRST call after ping.
+    # Assert
     assert 'apiBase + "dashboard"' in text
 
 
 def test_viewer_js_uses_fetch_or_null_for_dashboard():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # Soft fetch — falling back to the 3-call path on null.
+    # Assert
     assert 'fetchOrNull(apiBase + "dashboard")' in text
 
 
-def test_viewer_js_reads_bundle_and_claims_from_dashboard():
+def test_viewer_js_reads_bundle_and_claims_from_dashboard__assert_dash_bundle_in_text():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # When dashboard responds, both halves come from one payload.
+    # Assert
     assert "dash.bundle" in text
+
+
+def test_viewer_js_reads_bundle_and_claims_from_dashboard__assert_dash_claims_in_text():
+    # Arrange
+    # Act
+    text = _module("viewer.js")
+    # Assert
     assert "dash.claims" in text
 
 
-def test_viewer_js_falls_back_to_separate_calls_when_dashboard_missing():
+
+
+def test_viewer_js_falls_back_to_separate_calls_when_dashboard_missing__assert_apibase_bundle_info_in_te():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # Fallback path still calls bundle-info + claims separately.
+    # Assert
     assert 'apiBase + "bundle-info"' in text
+
+
+def test_viewer_js_falls_back_to_separate_calls_when_dashboard_missing__assert_apibase_claims_in_text():
+    # Arrange
+    # Act
+    text = _module("viewer.js")
+    # Assert
     assert 'apiBase + "claims"' in text
 
 
+
+
 def test_viewer_js_fallback_guard_checks_bundle_and_claims_keys():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # Defensive: the "use dashboard" branch only fires when BOTH
-    # halves are present in the response — otherwise the SPA falls
-    # back to the separate calls. Means a half-broken dashboard
-    # response can't leave the sidebar empty.
+    # Assert
     assert "dash && dash.bundle && dash.claims" in text
 
 
@@ -100,22 +141,32 @@ def test_viewer_js_fallback_guard_checks_bundle_and_claims_keys():
 
 
 def test_viewer_js_still_renders_re_review_badge_at_boot():
+    # Arrange
+    # Act
     text = _module("viewer.js")
+    # Assert
     assert "renderReReviewBadge(rootEl, bundleInfo)" in text
 
 
 def test_viewer_js_still_renders_claims_sidebar_when_payload_present():
+    # Arrange
+    # Act
     text = _module("viewer.js")
+    # Assert
     assert "renderClaimsSidebar(rootEl, claimsPayload, apiBase)" in text
 
 
 def test_viewer_js_still_mounts_pdf_viewer():
+    # Arrange
+    # Act
     text = _module("viewer.js")
+    # Assert
     assert "new PDFViewer" in text
 
 
 def test_viewer_js_skips_claims_render_when_payload_null():
+    # Arrange
+    # Act
     text = _module("viewer.js")
-    # Boot RPC raised → claimsPayload stays null → renderClaimsSidebar
-    # is NOT called (avoids passing null into the sidebar renderer).
+    # Assert
     assert "if (claimsPayload)" in text
