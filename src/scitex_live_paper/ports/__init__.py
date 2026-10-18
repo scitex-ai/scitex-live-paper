@@ -19,8 +19,9 @@ from __future__ import annotations
 
 from . import protocols
 from ._bus import Event, EventBus
+from ._conformance import RENDER_METHOD, check_entry_point, check_figure_fragment
 from ._discovery import discover
-from ._figz_adapter import FigzFigureAdapter
+from ._figz_adapter import FigzDefaultEntry, FigzFigureAdapter
 from ._fragments import ProvenanceLink, figure_fragment, popup_fragment
 from ._registry import PortNotFound, Registry
 
@@ -28,7 +29,11 @@ __all__ = [
     "protocols",
     "Event",
     "EventBus",
+    "RENDER_METHOD",
+    "check_entry_point",
+    "check_figure_fragment",
     "discover",
+    "FigzDefaultEntry",
     "FigzFigureAdapter",
     "ProvenanceLink",
     "figure_fragment",
