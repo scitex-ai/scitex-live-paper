@@ -4,6 +4,8 @@
   "label": "Live Paper",
   "version": "0.1.0",
   "icon": "fas fa-file-alt",
+  "category": "writing",
+  "accent_color": "live-paper",
   "subtitle": "Read-only live paper viewer (PDF.js + claims + DAG)",
   "about": "Renders an accepted manuscript bundle as a live paper: PDF.js viewer with claim anchors, claims panel, mermaid DAG navigator, verification badge. Consumes the claim model owned by scitex-clew — never defines it.",
   "description": "scitex-live-paper is the published-side viewer for AI-verifiable research papers. M1 is the read-only static-site renderer; M2 wires the re-verify button (clew.verify_claim against pinned commit); M3 mounts this Django app under /viewer-v2/ on scitex-hub. The Django app pattern (SPA shell + <path:endpoint> api_dispatch + HANDLERS registry) mirrors scitex_writer._django.",

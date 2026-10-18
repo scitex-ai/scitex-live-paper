@@ -103,6 +103,30 @@ def _shells(client):
     return standalone, embedded
 
 
+def test_manifest_category_is_hub_taxonomy_member():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    taxonomy = (
+        "writing", "visualization", "data", "analysis",
+        "reference", "utility", "social", "other",
+    )
+    # Act
+    category = manifest.get("category")
+    # Assert — hub falls back to `other` for anything outside the enum
+    assert category in taxonomy
+
+
+def test_manifest_accent_color_is_live_paper_token():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    # Act
+    accent = manifest.get("accent_color")
+    # Assert — identifier (not hex); hub maps it to --app-accent-<value>
+    assert accent == "live-paper"
+
+
 def test_standalone_shell_references_no_hub_namespace(client):
     # Arrange
     standalone, _ = _shells(client)
