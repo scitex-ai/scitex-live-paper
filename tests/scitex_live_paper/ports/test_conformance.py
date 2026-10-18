@@ -84,9 +84,12 @@ def test_check_entry_point_accepts_default_entry():
 def test_check_entry_point_rejects_unknown_port():
     # Arrange
     bogus = type("Bogus", (), {"port": "nope", "adapter": object()})
-    # Act + Assert
-    with pytest.raises(AssertionError):
+    # Act
+    def act():
         check_entry_point(bogus)
+    # Assert
+    with pytest.raises(AssertionError):
+        act()
 
 
 def test_check_figure_fragment_accepts_adapter_result(tmp_path):
@@ -102,6 +105,9 @@ def test_check_figure_fragment_accepts_adapter_result(tmp_path):
 def test_check_figure_fragment_rejects_empty_provenance():
     # Arrange
     bare = {"figure_id": "x", "title": "figure:x", "html": "<svg/>", "provenance": []}
-    # Act + Assert
-    with pytest.raises(AssertionError):
+    # Act
+    def act():
         check_figure_fragment(bare, "x")
+    # Assert
+    with pytest.raises(AssertionError):
+        act()

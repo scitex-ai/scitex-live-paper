@@ -42,11 +42,19 @@ _HUB_IMPORT = re.compile(
 )
 
 
-def test_no_hub_imports_in_leaf_source():
-    # arrange — every leaf Python module
+def test_leaf_source_tree_present():
+    # Arrange
     modules = sorted(SRC_ROOT.rglob("*.py"))
-    assert modules, "leaf src tree missing"
-    # act — sweep import lines only (comments/docstrings may name the host)
+    # Act
+    count = len(modules)
+    # Assert
+    assert count > 0
+
+
+def test_no_hub_imports_in_leaf_source():
+    # Arrange — every leaf Python module
+    modules = sorted(SRC_ROOT.rglob("*.py"))
+    # Act — sweep import lines only (comments/docstrings may name the host)
     offenders = {
         str(p.relative_to(SRC_ROOT)): [
             line
@@ -55,49 +63,77 @@ def test_no_hub_imports_in_leaf_source():
         ]
         for p in modules
     }
-    offenders = {k: v for k, v in offenders.items() if v}
-    # assert — SDK-only: zero hub imports
-    assert not offenders, f"hub imports in leaf: {offenders}"
+    # Assert — SDK-only: zero hub imports
+    assert {k: v for k, v in offenders.items() if v} == {}
 
 
 def test_app_config_prefers_sdk_base_with_vanilla_fallback():
-    # arrange
+    # Arrange — expected base depends on whether scitex_app is installed
+    import importlib.util
+
     from scitex_live_paper._django import apps as apps_mod
 
-    # act
-    config = apps_mod.LivePaperConfig
-    # assert — prefers the SDK registry base when scitex_app is present,
-    # otherwise falls back to vanilla Django AppConfig (never hard-fails)
-    try:
+    if importlib.util.find_spec("scitex_app") is not None:
         from scitex_app._django import (  # type: ignore[import-not-found]
-            ScitexAppConfig,
+            ScitexAppConfig as ExpectedBase,
         )
-
-        assert issubclass(config, ScitexAppConfig)
-    except ImportError:
-        from django.apps import AppConfig
-
-        assert issubclass(config, AppConfig)
+    else:
+        from django.apps import AppConfig as ExpectedBase
+    # Act
+    config = apps_mod.LivePaperConfig
+    # Assert — prefers the SDK registry base, else vanilla (never hard-fails)
+    assert issubclass(config, ExpectedBase)
 
 
 def test_manifest_carries_registry_required_fields():
-    # arrange
+    # Arrange
     manifest_path = SRC_ROOT / "_django" / "manifest.json"
-    # act
+    required = ("name", "slug", "label", "version", "icon")
     manifest = json.loads(manifest_path.read_text())
-    # assert — same required set scitex_app validates on
-    for field in ("name", "slug", "label", "version", "icon"):
-        assert manifest.get(field), field
+    # Act
+    missing = [field for field in required if not manifest.get(field)]
+    # Assert — same required set scitex_app validates on
+    assert missing == []
 
 
-def test_viewer_shells_reference_no_hub_namespace(client):
-    # arrange — standalone shell + embed shell (query-string lever)
-    # act
+def _shells(client):
+    # Arrange helper — fetch standalone + embed shells once per test.
     standalone = client.get("/").content.decode("utf-8")
     embedded = client.get("/?embed=1").content.decode("utf-8")
-    # assert — no hub URL namespace leaks; host mount arrives via
-    # BundleContext.api_base -> data-api-base only
-    assert "scitex_hub" not in standalone
-    assert "scitex_hub" not in embedded
-    assert 'data-api-base="/api/"' in standalone
-    assert 'data-embed-mode="1"' in embedded
+    return standalone, embedded
+
+
+def test_standalone_shell_references_no_hub_namespace(client):
+    # Arrange
+    standalone, _ = _shells(client)
+    # Act
+    leaked = "scitex_hub" in standalone
+    # Assert
+    assert leaked is False
+
+
+def test_embed_shell_references_no_hub_namespace(client):
+    # Arrange
+    _, embedded = _shells(client)
+    # Act
+    leaked = "scitex_hub" in embedded
+    # Assert
+    assert leaked is False
+
+
+def test_standalone_shell_carries_api_base(client):
+    # Arrange
+    standalone, _ = _shells(client)
+    # Act
+    wired = 'data-api-base="/api/"' in standalone
+    # Assert
+    assert wired is True
+
+
+def test_embed_shell_flags_embed_mode(client):
+    # Arrange
+    _, embedded = _shells(client)
+    # Act
+    flagged = 'data-embed-mode="1"' in embedded
+    # Assert
+    assert flagged is True
