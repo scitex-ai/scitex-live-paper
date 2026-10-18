@@ -116,16 +116,18 @@ def test_doi_landing_uses_path_converter_for_slash_bearing_suffix():
     # The pattern MUST be `<path:doi>` (not `<str:doi>`) so DOI suffixes
     # like `10.1000/foo.bar/v2` (slashes legal per DOI handbook) match
     # without manual URL escaping.
-    for p in urlpatterns:
-        if p.name == "doi_landing":
-            # pattern.converters is a dict of {kwarg: converter_instance}
-            converters = p.pattern.converters  # type: ignore[union-attr]
-            assert "doi" in converters
-            # The path converter accepts any non-empty char sequence
-            # including `/`. Its name is `path`.
-            assert type(converters["doi"]).__name__ == "PathConverter"
-            return
-    pytest.fail("doi_landing pattern not found")
+    # Arrange
+    # Act
+    converters = next(
+        (p.pattern.converters for p in urlpatterns if p.name == "doi_landing"),
+        None,  # type: ignore[union-attr]
+    )
+    # Assert
+    assert (
+        converters is not None
+        and "doi" in converters
+        and type(converters["doi"]).__name__ == "PathConverter"
+    )
 
 
 def test_doi_landing_pattern_appears_before_catch_all__assert_doi_idx_is_not_none():

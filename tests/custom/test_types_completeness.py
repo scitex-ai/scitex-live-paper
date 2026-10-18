@@ -268,7 +268,7 @@ def test_mount_docstring_example_imports_are_all_public():
     """
     pytest.importorskip("django")
 
-    # The docstring's example block (verbatim from `_mount.py`):
+    # Arrange: the docstring's example block (verbatim from `_mount.py`):
     docstring_imports = [
         "BundleContext",
         "BundleNotFound",
@@ -401,12 +401,17 @@ def test_host_can_build_resolver_using_only_public_imports__assert_names_api_dis
 def test_exception_hierarchy_fully_public():
     # PR #47's hierarchy. Repeat the check here so the completeness
     # invariant lives in one place: the audit-pin file.
+    # Arrange
     import scitex_live_paper as lp
 
-    for name in (
+    names = (
         "BundleResolverError",
         "BundleNotFound",
         "BundleAccessDenied",
-    ):
-        assert hasattr(lp, name)
-        assert name in lp.__all__
+    )
+    # Act
+    missing = [
+        name for name in names if not (hasattr(lp, name) and name in lp.__all__)
+    ]
+    # Assert
+    assert missing == []

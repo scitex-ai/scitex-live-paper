@@ -52,11 +52,25 @@ def test_top_level_help_lists_hub_manifest__assert_hub_manifest_in_result_ou():
 
 
 
-def test_hub_manifest_help_documents_flags():
+def test_hub_manifest_help_documents_flags__assert_exit_code_0():
+    # Arrange
+    # Act
     result = CliRunner().invoke(cli, ["hub-manifest", "--help"])
+    # Assert
     assert result.exit_code == 0
-    for flag in ("--label", "--subtitle", "--schema-version", "--compact"):
-        assert flag in result.output, f"--help missing flag: {flag}"
+
+
+def test_hub_manifest_help_documents_flags():
+    # Arrange
+    # Act
+    result = CliRunner().invoke(cli, ["hub-manifest", "--help"])
+    missing = [
+        flag
+        for flag in ("--label", "--subtitle", "--schema-version", "--compact")
+        if flag not in result.output
+    ]
+    # Assert
+    assert missing == []
 
 
 def test_hub_manifest_help_mentions_redirect_example():

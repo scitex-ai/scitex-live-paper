@@ -354,17 +354,36 @@ def test_render_site_paths_point_at_emitted_pages(tmp_path: Path):
     # Act
     result = render_site(BUNDLE_MIN, out)
     # Assert
-    assert result.index_html == (out / "index.html").resolve()
-    assert result.viewer_html == (out / "viewer.html").resolve()
-    assert result.claims_html == (out / "claims.html").resolve()
-    assert result.dag_html == (out / "dag.html").resolve()
-    for path in (
+    assert (
         result.index_html,
         result.viewer_html,
         result.claims_html,
         result.dag_html,
-    ):
-        assert path.is_file()
+    ) == (
+        (out / "index.html").resolve(),
+        (out / "viewer.html").resolve(),
+        (out / "claims.html").resolve(),
+        (out / "dag.html").resolve(),
+    )
+
+
+def test_render_site_emits_all_pages_as_files(tmp_path: Path):
+    # Arrange
+    out = tmp_path / "site"
+    # Act
+    result = render_site(BUNDLE_MIN, out)
+    missing = [
+        str(path)
+        for path in (
+            result.index_html,
+            result.viewer_html,
+            result.claims_html,
+            result.dag_html,
+        )
+        if not path.is_file()
+    ]
+    # Assert
+    assert missing == []
 
 
 def test_render_site_is_idempotent(tmp_path: Path):

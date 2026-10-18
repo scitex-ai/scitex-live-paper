@@ -318,10 +318,13 @@ def partial_scitex_clew() -> Iterator[types.ModuleType]:
             sys.modules[key] = original  # type: ignore[assignment]
 
 
-def test_bulk_reverify_partial_clew_per_result_skew_reason(
-    env_snapshot, partial_scitex_clew,
-):
-    # arrange
+def _bulk_response_partial_clew():
+    """POST /api/claims/verify with a skew clew (no verify_claim).
+
+    Shared Arrange+Act for the partial-clew bulk tests (each test keeps a
+    single assert per STX-TQ007). Requires the partial_scitex_clew and
+    env_snapshot fixtures from the caller.
+    """
     from django.test import Client
 
     from scitex_live_paper._django import services
@@ -329,20 +332,46 @@ def test_bulk_reverify_partial_clew_per_result_skew_reason(
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_ACCEPTED)
     services.clear_cache()
 
-    # act
     response = Client().post(
         "/api/claims/verify",
         data="",
         content_type="application/json",
     )
-    body = json.loads(response.content)
-    # assert — every per-result entry carries the skew reason from
-    # _probe_clew()'s second return slot
+    return response, json.loads(response.content)
+
+
+def test_bulk_reverify_partial_clew_status_200(
+    env_snapshot, partial_scitex_clew,
+):
+    # Arrange
+    # Act
+    response, _body = _bulk_response_partial_clew()
+    # Assert
     assert response.status_code == 200
+
+
+def test_bulk_reverify_partial_clew_top_level_not_ok(
+    env_snapshot, partial_scitex_clew,
+):
+    # Arrange
+    # Act
+    _response, body = _bulk_response_partial_clew()
+    # Assert
     assert body["ok"] is False
-    for result in body["results"]:
-        assert result["fallback"] is True
-        assert "version skew" in result["reason"]
+
+
+def test_bulk_reverify_partial_clew_per_result_skew_reason(
+    env_snapshot, partial_scitex_clew,
+):
+    """Every per-result entry carries the skew reason from _probe_clew()."""
+    # Arrange
+    # Act
+    _response, body = _bulk_response_partial_clew()
+    # Assert
+    assert all(
+        result["fallback"] is True and "version skew" in result["reason"]
+        for result in body["results"]
+    )
 
 
 # ──────────────────────────────────────────────────────────────────

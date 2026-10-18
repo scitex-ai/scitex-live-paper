@@ -491,9 +491,12 @@ def test_reverify_without_clew_carries_claim_id_back(client, env_snapshot, no_sc
     assert body["claim_id"] == "claim_a1b2c3d4e5f6"
 
 
-def test_reverify_with_partial_clew_missing_verify_claim_falls_back(client, env_snapshot):
-    # arrange — install a clew module that lacks verify_claim() (e.g.
-    # version skew). Handler should still degrade gracefully, not 500.
+def _post_verify_partial_clew(client):
+    """POST /api/claim/verify with a skew clew (no verify_claim).
+
+    Shared Arrange+Act for the partial-clew tests (each test keeps a
+    single assert per STX-TQ007).
+    """
     key = "scitex_clew"
     sentinel = object()
     original = sys.modules.get(key, sentinel)
@@ -507,15 +510,37 @@ def test_reverify_with_partial_clew_missing_verify_claim_falls_back(client, env_
             data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
             content_type="application/json",
         )
-        assert response.status_code == 200
-        body = json.loads(response.content)
-        assert body["fallback"] is True
-        assert "version skew" in body["reason"]
+        return response, json.loads(response.content)
     finally:
         if original is sentinel:
             sys.modules.pop(key, None)
         else:
             sys.modules[key] = original  # type: ignore[assignment]
+
+
+def test_reverify_with_partial_clew_status_200(client, env_snapshot):
+    # Arrange: install a clew module that lacks verify_claim() (e.g.
+    # version skew). Handler should degrade gracefully, not 500.
+    # Act
+    response, _body = _post_verify_partial_clew(client)
+    # Assert
+    assert response.status_code == 200
+
+
+def test_reverify_with_partial_clew_falls_back(client, env_snapshot):
+    # Arrange
+    # Act
+    _response, body = _post_verify_partial_clew(client)
+    # Assert
+    assert body["fallback"] is True
+
+
+def test_reverify_with_partial_clew_missing_verify_claim_falls_back(client, env_snapshot):
+    # Arrange
+    # Act
+    _response, body = _post_verify_partial_clew(client)
+    # Assert
+    assert "version skew" in body["reason"]
 
 
 # ──────────────────────────────────────────────────────────────────

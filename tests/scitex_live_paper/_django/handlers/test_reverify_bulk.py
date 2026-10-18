@@ -431,18 +431,45 @@ def test_bulk_unknown_filter_id_returns_per_result_failure__assert_body_ok_is_fa
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_bulk_without_clew_returns_per_result_fallback(client, env_snapshot, no_scitex_clew):
+def _post_bulk_no_clew(client):
+    """POST /api/claims/verify with clew unavailable (no_scitex_clew).
+
+    Shared Arrange+Act for the no-clew bulk tests (each test keeps a
+    single assert per STX-TQ007).
+    """
     _pin(BUNDLE_ACCEPTED)
     response = client.post("/api/claims/verify", data="", content_type="application/json")
-    body = json.loads(response.content)
+    return response, json.loads(response.content)
+
+
+def test_bulk_without_clew_status_200(client, env_snapshot, no_scitex_clew):
+    # Arrange
+    # Act
+    response, _body = _post_bulk_no_clew(client)
+    # Assert
     assert response.status_code == 200
+
+
+def test_bulk_without_clew_top_level_not_ok(client, env_snapshot, no_scitex_clew):
+    # Arrange
+    # Act
+    _response, body = _post_bulk_no_clew(client)
+    # Assert
     assert body["ok"] is False
-    # All three claims should carry the fallback envelope
-    for result in body["results"]:
-        assert result["ok"] is False
-        assert result["fallback"] is True
-        assert result["status"] == "stale"
-        assert "scitex-clew not installed" in result["reason"]
+
+
+def test_bulk_without_clew_returns_per_result_fallback(client, env_snapshot, no_scitex_clew):
+    # Arrange
+    # Act
+    _response, body = _post_bulk_no_clew(client)
+    # Assert
+    assert all(
+        result["ok"] is False
+        and result["fallback"] is True
+        and result["status"] == "stale"
+        and "scitex-clew not installed" in result["reason"]
+        for result in body["results"]
+    )
 
 
 def test_bulk_happy_path_returns_top_level_ok_true__assert_body_ok_is_true(client, env_snapshot, fake_scitex_clew):
@@ -688,16 +715,21 @@ def test_bulk_per_result_envelope_carries_nested_status_and_details(
 ):
     # Per-result envelope matches the single endpoint: nested status +
     # details aggregation (source_verified/chain_verified/details list).
+    # Arrange
     _pin(BUNDLE_ACCEPTED)
+    # Act
     response = client.post("/api/claims/verify", data="", content_type="application/json")
     body = json.loads(response.content)
-    for result in body["results"]:
-        assert result["status"] == "verified"
-        assert result["verified_at"] == "2026-06-13T00:00:00Z"
-        assert result["verified_against"] == "deadbeefcafef00d12345678"
-        assert result["details"]["source_verified"] is True
-        assert result["details"]["chain_verified"] is True
-        assert result["details"]["details"] == ["Source file hash matches"]
+    # Assert
+    assert all(
+        result["status"] == "verified"
+        and result["verified_at"] == "2026-06-13T00:00:00Z"
+        and result["verified_against"] == "deadbeefcafef00d12345678"
+        and result["details"]["source_verified"] is True
+        and result["details"]["chain_verified"] is True
+        and result["details"]["details"] == ["Source file hash matches"]
+        for result in body["results"]
+    )
 
 
 def test_bulk_count_matches_results_length(client, env_snapshot, fake_scitex_clew):

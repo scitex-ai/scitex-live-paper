@@ -101,8 +101,12 @@ def test_clew_extra_visible_in_installed_metadata():
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_reverify_no_clew_reason_names_install_command():
-    """``api/claim/verify`` falls back with a reason naming the [clew] extra."""
+def _verify_payload_with_clew_hidden():
+    """POST /api/claim/verify with ``scitex_clew`` made unimportable.
+
+    Shared Arrange+Act for the no-clew fallback tests (each test keeps a
+    single assert per STX-TQ007).
+    """
     import os
     import json as _json
     import sys as _sys
@@ -132,11 +136,7 @@ def test_reverify_no_clew_reason_names_install_command():
                 data=_json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
                 content_type="application/json",
             )
-            payload = _json.loads(response.content)
-            assert payload["fallback"] is True
-            assert "scitex-live-paper[clew]" in payload["reason"], (
-                f"fallback reason must name [clew] extra; got {payload['reason']!r}"
-            )
+            return _json.loads(response.content)
         finally:
             for k in list(os.environ):
                 if k not in snap:
@@ -148,3 +148,23 @@ def test_reverify_no_clew_reason_names_install_command():
             _sys.modules.pop(key, None)
         else:
             _sys.modules[key] = original  # type: ignore[assignment]
+
+
+def test_reverify_no_clew_falls_back__assert_payload_fallback_is_true():
+    """``api/claim/verify`` falls back (fallback=True) without clew."""
+    # Arrange
+    # Act
+    payload = _verify_payload_with_clew_hidden()
+    # Assert
+    assert payload["fallback"] is True
+
+
+def test_reverify_no_clew_reason_names_install_command():
+    """``api/claim/verify`` falls back with a reason naming the [clew] extra."""
+    # Arrange
+    # Act
+    payload = _verify_payload_with_clew_hidden()
+    # Assert
+    assert "scitex-live-paper[clew]" in payload["reason"], (
+        f"fallback reason must name [clew] extra; got {payload['reason']!r}"
+    )

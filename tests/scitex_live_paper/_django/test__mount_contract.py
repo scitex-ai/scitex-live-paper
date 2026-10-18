@@ -509,10 +509,14 @@ def test_base_class_catches_all_subclasses():
     # Sanity at the Python level — the mount-wrapper relies on this.
     # If it ever breaks (rare — only if someone changes the bases),
     # the mapping logic still works but the catch-all path won't fire.
-    for subclass in (BundleNotFound, BundleAccessDenied):
+    # Arrange
+    subclasses = (BundleNotFound, BundleAccessDenied)
+    # Act
+    caught = []
+    for subclass in subclasses:
         try:
             raise subclass("test")
         except BundleResolverError as exc:
-            assert isinstance(exc, subclass)
-        else:  # pragma: no cover - defensive
-            pytest.fail(f"{subclass.__name__} not caught by BundleResolverError")
+            caught.append(isinstance(exc, subclass))
+    # Assert
+    assert caught == [True for _ in subclasses]

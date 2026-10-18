@@ -362,18 +362,26 @@ def test_derive_dependencies_python_prepends_python_requires():
 
 
 def test_derive_dependencies_python_strips_pep508_specifiers():
+    # Arrange
     from scitex_live_paper import derive_wrapper_manifest
 
+    # Act
     deps = derive_wrapper_manifest()["dependencies"]["python"]
     # After the `python>=...` prefix, the entries are bare distribution
     # names — version specifiers stripped per the hub UI chip surface.
-    assert "scitex-live-paper" in deps
-    assert "django" in deps
-    assert "scitex-clew" in deps
-    # No version specifier should remain on any entry
-    for entry in deps[1:]:
-        for spec_char in ("=", "<", ">", "!", "~"):
-            assert spec_char not in entry, f"version spec leaked: {entry!r}"
+    leaked = [
+        entry
+        for entry in deps[1:]
+        for spec_char in ("=", "<", ">", "!", "~")
+        if spec_char in entry
+    ]
+    # Assert
+    assert (
+        "scitex-live-paper" in deps
+        and "django" in deps
+        and "scitex-clew" in deps
+        and leaked == []
+    )
 
 
 def test_derive_privileges_mirrors_permissions():
