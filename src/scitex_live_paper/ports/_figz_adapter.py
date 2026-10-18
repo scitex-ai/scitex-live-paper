@@ -18,6 +18,7 @@ from typing import Any, Mapping
 from ..bundle import Bundle
 from . import _fragments as fragments
 from ._registry import PortNotFound
+from .protocols import FIGURE_PORT
 
 
 def _claim_for_figure(bundle: Bundle, figure_id: str):
@@ -70,3 +71,16 @@ class FigzFigureAdapter:
                 }
             )
         return fragments.figure_fragment(figure_id, html, provenance)
+
+
+class FigzDefaultEntry:
+    """Entry-point payload for the ``scitex.livepaper.renderers`` group.
+
+    The loaded object :func:`discover` expects: ``port`` names the §2
+    port, ``name`` keys the adapter, ``adapter`` is the implementation.
+    Registered in ``pyproject.toml`` as ``figz-default``.
+    """
+
+    port = FIGURE_PORT
+    name = "default"
+    adapter = FigzFigureAdapter()

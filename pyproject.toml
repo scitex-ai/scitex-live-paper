@@ -81,6 +81,9 @@ dev = [
 [project.scripts]
 scitex-live-paper = "scitex_live_paper._cli:main"
 
+[project.entry-points."scitex.livepaper.renderers"]
+figz-default = "scitex_live_paper.ports._figz_adapter:FigzDefaultEntry"
+
 [project.urls]
 Homepage = "https://github.com/ywatanabe1989/scitex-live-paper"
 Repository = "https://github.com/ywatanabe1989/scitex-live-paper"
