@@ -4,17 +4,22 @@ The dispatcher routes the ``api/port/`` prefix here (see
 :func:`views.api_dispatch`); static endpoints stay in
 :data:`HANDLERS`. The registry arrives on
 ``request.live_paper_context.renderers`` — handed in by the host's
-resolver-built :class:`BundleContext`. No context (standalone
-without injected adapters) or an empty registry raises
-:class:`PortNotFound`, which the dispatcher maps to a JSON 404.
-Adapters also raise :class:`PortNotFound` for unknown targets —
-one exception, one status, both directions.
+resolver-built context, or attached empty by the standalone-serve
+middleware. No context at all raises :class:`PortNotFound`, which
+the dispatcher maps to a JSON 404. Adapters also raise
+:class:`PortNotFound` for unknown targets — one exception, one
+status, both directions.
+
+The bundled default figure adapter (``FigzFigureAdapter``) is
+registered on demand whenever no explicit ``"figure"`` adapter is
+present — hosts keep theirs, standalone gets one for free.
 """
 
 from __future__ import annotations
 
 from typing import Any, Mapping
 
+from ...ports import FigzFigureAdapter, Registry
 from ...ports._registry import PortNotFound
 from ..services import get_request_bundle_state
 
@@ -29,13 +34,26 @@ def handle_port(request, port: str, target: str) -> Mapping[str, Any]:
     """Dispatch one port call to the injected adapter.
 
     Returns the adapter's JSON-plain fragment mapping verbatim.
-    Raises :class:`PortNotFound` when no registry is injected, the
-    port is unknown, or the adapter reports an unknown target.
+    Raises :class:`PortNotFound` when there is no context at all, the
+    port is unknown, or the adapter reports an unknown target. A
+    present-but-adapterless context gets the bundled default figure
+    adapter — :meth:`Registry.resolve` then decides per port.
     """
     context = getattr(request, "live_paper_context", None)
     registry = getattr(context, "renderers", None) if context else None
     if registry is None:
-        raise PortNotFound(f"no adapters registered for port {port!r}")
+        if context is None:
+            # No context at all (bare unit-test request, host bypassing
+            # mount/middleware): nothing to inject into — pinned 404.
+            raise PortNotFound("no adapters registered")
+        registry = Registry()
+    if "figure" not in registry.ports:
+        # Standalone + minimal host contexts get the bundled default
+        # figure adapter: the mount() signature stays unchanged and
+        # port calls work out of the box. Hosts that inject their own
+        # "figure" adapter keep it — we never override an explicit
+        # registration.
+        registry.register("figure", FigzFigureAdapter())
     method_name = _PORT_METHODS.get(port)
     if method_name is None:
         raise PortNotFound(f"unknown port {port!r}")

@@ -31,6 +31,10 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Standalone serve only (hub/hosts use their own settings): attach
+    # the env-pinned bundle context when a request has none, so
+    # api/port/* works out of the box with the bundled defaults.
+    "scitex_live_paper._django.serve_context.LivePaperServeContextMiddleware",
 ]
 
 ROOT_URLCONF = "scitex_live_paper._django._standalone_urls"
