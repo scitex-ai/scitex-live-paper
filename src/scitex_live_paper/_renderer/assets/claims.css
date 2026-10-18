@@ -1,0 +1,263 @@
+/* scitex-live-paper / M1 claims sidebar CSS
+ *
+ * The colour palette mirrors scitex-clew's VerificationStatus semantics
+ * via a single attribute selector per status string. To add a new
+ * status, add one selector here — never define a parallel enum in
+ * Python or JS.
+ */
+
+:root {
+  --lp-bg: #fafbfc;
+  --lp-fg: #111;
+  --lp-muted: #555;
+  --lp-border: #d0d7de;
+
+  --lp-status-verified: #2da44e;
+  --lp-status-suspect: #d29922;
+  --lp-status-mismatch: #cf222e;
+  --lp-status-missing: #a40e26;
+  --lp-status-registered: #6e7781;
+  --lp-status-not_found: #6e7781;
+  --lp-status-default: #6e7781;
+  /* clew 1.4 "unsourced" folds into the amber bucket. An ALIAS, not a
+   * literal, so it tracks suspect if that hue ever moves. clew's own
+   * fine palette gives unsourced its own #b26a00; we deliberately don't
+   * use it — the operator asked for one amber "questionable" bucket. */
+  --lp-status-unsourced: var(--lp-status-suspect);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.live-paper {
+  margin: 0;
+  background: var(--lp-bg);
+  color: var(--lp-fg);
+  font:
+    14px/1.4 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+.live-paper-header,
+.live-paper-footer {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--lp-border);
+  background: #fff;
+}
+
+.live-paper-footer {
+  border-bottom: 0;
+  border-top: 1px solid var(--lp-border);
+  font-size: 12px;
+  color: var(--lp-muted);
+}
+
+.live-paper-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.live-paper-subtitle {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: var(--lp-muted);
+}
+
+.lp-claims-shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.lp-claims-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-claim-row {
+  background: #fff;
+  border: 1px solid var(--lp-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lp-claim-summary {
+  display: grid;
+  grid-template-columns: 16px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.lp-claim-summary:hover,
+.lp-claim-summary:focus-visible {
+  background: #f6f8fa;
+  outline: 2px solid #0969da;
+  outline-offset: -2px;
+}
+
+.lp-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--lp-status-default);
+}
+
+.lp-claim-label {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-claim-type {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--lp-muted);
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 9999px;
+}
+
+.lp-claim-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--lp-muted);
+}
+
+.lp-claim-panel {
+  border-top: 1px solid var(--lp-border);
+  padding: 12px 14px;
+  background: #fbfcfd;
+}
+
+.lp-claim-detail {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0 0 12px 0;
+}
+
+.lp-claim-detail dt {
+  font-weight: 600;
+  color: var(--lp-muted);
+}
+.lp-claim-detail dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.lp-claim-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+/* Status colours: ONE selector per clew claim status string.
+ * Vocabulary owned by scitex-clew (palette v1.3, clew 0.7.0):
+ *   verified→green, suspect→amber, mismatch→red, missing→dark red
+ *   (own hue, distinct from mismatch), registered/not_found→grey,
+ *   unsourced→amber (clew 1.4, folded into the suspect bucket).
+ * Legacy "partial" is normalized to "suspect" at bundle ingest.
+ * "unsourced" is NOT normalized: it stays the visible label word and
+ * folds at the COLOUR layer only, so the sidebar still says which of
+ * the two amber states a claim is in.
+ * (The M4 re-review badge vocabulary is SEPARATE — not these
+ * selectors.) */
+.lp-status-dot[data-status="verified"] {
+  background: var(--lp-status-verified);
+}
+.lp-status-dot[data-status="suspect"] {
+  background: var(--lp-status-suspect);
+}
+.lp-status-dot[data-status="mismatch"] {
+  background: var(--lp-status-mismatch);
+}
+.lp-status-dot[data-status="missing"] {
+  background: var(--lp-status-missing);
+}
+.lp-status-dot[data-status="registered"] {
+  background: var(--lp-status-registered);
+}
+.lp-status-dot[data-status="not_found"] {
+  background: var(--lp-status-not_found);
+}
+.lp-status-dot[data-status="unsourced"] {
+  background: var(--lp-status-unsourced);
+}
+.lp-claim-detail dd[data-status="verified"] {
+  color: var(--lp-status-verified);
+  font-weight: 600;
+}
+.lp-claim-detail dd[data-status="suspect"] {
+  color: var(--lp-status-suspect);
+  font-weight: 600;
+}
+.lp-claim-detail dd[data-status="mismatch"] {
+  color: var(--lp-status-mismatch);
+  font-weight: 600;
+}
+.lp-claim-detail dd[data-status="missing"] {
+  color: var(--lp-status-missing);
+  font-weight: 600;
+}
+.lp-claim-detail dd[data-status="registered"] {
+  color: var(--lp-status-registered);
+}
+.lp-claim-detail dd[data-status="not_found"] {
+  color: var(--lp-status-not_found);
+}
+.lp-claim-detail dd[data-status="unsourced"] {
+  color: var(--lp-status-unsourced);
+  font-weight: 600;
+}
+
+.lp-claim-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lp-claim-jump,
+.lp-claim-reverify {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--lp-border);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+
+.lp-claim-jump:hover,
+.lp-claim-jump:focus-visible {
+  background: #f6f8fa;
+}
+
+.lp-claim-reverify[disabled],
+.lp-claim-reverify[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lp-claims-empty {
+  text-align: center;
+  color: var(--lp-muted);
+  padding: 40px 0;
+}

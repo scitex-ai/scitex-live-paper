@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.1.0-alpha"
+version = "0.1.0"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -35,6 +35,7 @@ classifiers = [
 ]
 dependencies = [
     "scitex-dev>=0.11.7",
+    "scitex-logging>=0.1.0",
     "scitex-ui>=0.1.0",
     "click>=8.0",
     "jinja2>=3.1",
@@ -48,8 +49,33 @@ django = [
 mcp = [
     "fastmcp>=2.0",
 ]
+# scitex-clew owns the claim model + the live `verify_claim()` operation.
+# Without this extra, the M2 `api/claim/verify` (and `api/claims/verify`)
+# endpoints degrade gracefully to `fallback: true` per-result so the SPA
+# badge stays meaningful — but the operator never gets a real verify.
+# Install with: `pip install scitex-live-paper[clew]`.
+clew = [
+    "scitex-clew>=0.1.0",
+]
 test = [
     "pytest>=8.0",
+]
+# `pip install scitex-live-paper[all]` must pull EVERYTHING public (PS-221).
+# PS-221: public extras are closed under `[all]` — CI installs `.[all,dev]`.
+all = [
+    "scitex-live-paper[clew,django,mcp,test]",
+]
+# `dev` toolchain extra — the org pytest-matrix reusable installs
+# `.[all,dev]`; without a `dev` extra the chain falls back to a bare
+# `-e .` and pytest is missing (exit 4). Mirrors the org leaf convention.
+dev = [
+    "pytest-asyncio",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.0.0",
+    # PS-210: [mcp] tool tests introspect fastmcp; declare it here so a
+    # fresh `pip install -e .[dev]` (without [all]) still runs them.
+    "fastmcp>=2.0",
+    "scitex-live-paper[all]",
 ]
 
 [project.scripts]
@@ -70,3 +96,7 @@ include = ["scitex_live_paper*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "smoke: fast CLI happy-path tests (<60s, runs on every PR)",
+    "e2e: end-to-end workflows against real subsystems (runs on every PR)",
+]

@@ -1,0 +1,249 @@
+"""Views for the live-paper Django app.
+
+Three surfaces:
+
+- ``viewer_page`` — renders the SPA shell template with a ``data-api-base``
+  attribute the frontend reads at boot.
+- ``api_dispatch`` — single catch-all that looks the ``endpoint`` up in
+  the ``HANDLERS`` registry. Unknown endpoints → JSON 404.
+- ``doi_landing`` — M5 foundational slice. Render the viewer when the
+  pinned bundle's ``paper_state.doi`` matches the URL DOI, else 404.
+
+Handlers take ``(request)`` and return a JSON-serialisable mapping, which
+this dispatcher wraps in a ``JsonResponse``. The bundle they read is
+pinned per-process by ``SCITEX_LIVE_PAPER_BUNDLE`` env (set by
+``_server.serve``) and cached behind ``services.get_bundle_state``.
+
+The whole shape mirrors ``scitex_writer._django`` (which mirrors
+``figrecipe._django``): one SPA shell + one dispatcher + a HANDLERS dict.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Callable, Mapping
+
+import scitex_logging as slogging
+
+try:
+    from django.http import (
+        HttpResponse,
+        HttpResponseBase,
+        HttpResponseNotFound,
+        JsonResponse,
+    )
+    from django.template.loader import render_to_string
+    from django.views.decorators.csrf import csrf_exempt
+except ImportError as exc:
+    raise ImportError(
+        "scitex-live-paper's Django surface requires Django — "
+        "install with: pip install 'scitex-live-paper[all]'"
+    ) from exc
+
+from . import services
+from .handlers import HANDLERS
+from .handlers.ports import handle_port
+from scitex_live_paper.ports._registry import PortNotFound
+
+log = slogging.getLogger(__name__)
+
+# Surfaces the handlers are allowed to return. ``HttpResponse`` instances
+# pass through untouched; mappings get wrapped in ``JsonResponse``.
+HandlerReturn = Any
+HandlerFn = Callable[..., HandlerReturn]
+
+
+# Truthy query-string values for ``?embed=...``. Anything outside this set
+# (or absence of the param) leaves the standalone chrome in place.
+_EMBED_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def _is_embed_mode(request) -> bool:
+    """Whether the request asks for the chrome-less embed shell.
+
+    Selection lever for PR #3: query string ``?embed=1`` (also accepts
+    ``true`` / ``yes`` / ``on``, case-insensitive). PR #2's
+    ``mount(resolver=...)`` middleware will additionally let hosts set
+    ``BundleContext.options.embed_mode=True`` to flip the same switch
+    without needing a query string.
+    """
+    raw = request.GET.get("embed")
+    if raw is None:
+        return False
+    return raw.strip().lower() in _EMBED_TRUTHY
+
+
+def viewer_page(request) -> HttpResponse:
+    """Render the SPA shell.
+
+    Two template variants:
+
+    - ``live_paper/viewer.html`` — full standalone page with header
+      chrome (subtitle, scitex-clew boundary callout, status pre block).
+    - ``live_paper/viewer_embed.html`` — minimal page with no chrome.
+      Used when host apps iframe the viewer into their own chrome.
+
+    Embed shell is selected when ``?embed=1`` is on the URL **or** when
+    ``request.live_paper_context.options.embed_mode`` is True (PR #2's
+    ``mount(resolver=...)`` injection).
+
+    When ``request.live_paper_context`` is set:
+
+    - ``context.api_base`` overrides the default ``/api/`` prefix so
+      the SPA's fetch calls hit the host-mounted endpoint.
+    - ``context.options.embed_mode=True`` flips to the embed shell
+      even without ``?embed=1`` on the URL.
+
+    Both variants carry ``data-api-base`` on the root element so the
+    SPA boots identically; the embed shell additionally sets
+    ``data-embed-mode="1"`` so the JS can suppress in-app chrome the
+    host doesn't want.
+    """
+    context = getattr(request, "live_paper_context", None)
+    embed = _is_embed_mode(request) or (
+        context is not None and context.options.embed_mode
+    )
+    template = (
+        "live_paper/viewer_embed.html" if embed
+        else "live_paper/viewer.html"
+    )
+
+    if context is not None and context.api_base:
+        # Templates render ``/{{ api_base }}`` so api_base should be
+        # the post-leading-slash portion. Hosts often pass ``/foo/api/``
+        # — strip the leading slash so the template doesn't double it.
+        api_base = context.api_base.lstrip("/")
+    else:
+        api_base = "api/"
+
+    html = render_to_string(
+        template,
+        {"api_base": api_base},
+        request=request,
+    )
+    return HttpResponse(html)
+
+
+@csrf_exempt
+def api_dispatch(request, endpoint: str) -> HttpResponse:
+    """Dispatch ``GET /<endpoint>`` (and POST) to the matching handler.
+
+    Returns a clean JSON 404 when the endpoint is not registered — this
+    keeps the unknown-endpoint contract explicit so the M2 / M3 wiring
+    can rely on it.
+
+    ``api/port/<port>/<target>`` bypasses :data:`HANDLERS` and
+    delegates to the injected adapters — unknown ports, missing
+    registries, and unknown targets all 404 via
+    :class:`PortNotFound`.
+    """
+    if endpoint == "api/port" or endpoint.startswith("api/port/"):
+        rest = endpoint[len("api/port/"):]
+        parts = rest.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            return JsonResponse(
+                {"error": f"malformed port endpoint: {endpoint}"},
+                status=404,
+            )
+        port, target = parts
+        try:
+            return JsonResponse(handle_port(request, port, target))
+        except PortNotFound as exc:
+            # PortNotFound is a KeyError: str(exc) would add an extra
+            # layer of quotes around the message.
+            message = exc.args[0] if exc.args else str(exc)
+            return JsonResponse({"error": message}, status=404)
+        except Exception as exc:
+            log.exception("[live-paper] port %s raised", endpoint)
+            return JsonResponse({"error": str(exc)}, status=500)
+
+    handler: HandlerFn | None = HANDLERS.get(endpoint)
+    if handler is None:
+        return JsonResponse(
+            {"error": f"unknown endpoint: {endpoint}"},
+            status=404,
+        )
+
+    try:
+        payload = handler(request)
+        # Accept the abstract HttpResponseBase so StreamingHttpResponse
+        # subclasses (in particular FileResponse, used by the PDF
+        # handler for byte streaming) pass through too — the previous
+        # narrow HttpResponse check rejected them.
+        if isinstance(payload, HttpResponseBase):
+            return payload
+        if not isinstance(payload, Mapping):
+            # Loud, named error — never let a handler quietly return a
+            # list/None/str and have the operator chase a bare TypeError
+            # from deep inside django.http.response.
+            raise TypeError(
+                f"handler for {endpoint!r} must return a Mapping or "
+                f"HttpResponse, got {type(payload).__name__}"
+            )
+        return JsonResponse(payload)
+    except Exception as exc:
+        log.exception("[live-paper] handler %s raised", endpoint)
+        return JsonResponse({"error": str(exc)}, status=500)
+
+
+def doi_landing(request, doi: str) -> HttpResponse:
+    """Render the viewer if the request's bundle is pinned to ``doi``.
+
+    **M5 foundational slice** — canonical DOI-keyed URL surface. The
+    route is ``doi/<path:doi>/`` so a DOI like ``10.1000/foo.bar/v2``
+    (suffix with slashes — perfectly legal per the DOI handbook)
+    matches without manual URL escaping.
+
+    Resolution priority (delegates to
+    :func:`services.get_request_bundle_state`):
+
+    1. ``request.live_paper_context`` (mount path) — host's resolver
+       owns DOI routing decisions; this view just renders the bundle
+       the resolver returned.
+    2. Env-pinned ``SCITEX_LIVE_PAPER_BUNDLE`` (standalone path).
+
+    Comparison: ``state.bundle.paper_state.doi == doi`` (exact match).
+    DOI case-sensitivity follows the DOI handbook's case-preserving
+    rule for the foundational slice; richer resolution (case-folding,
+    prefix normalisation, CrossRef lookup) is deferred until operator
+    confirms M5 shape.
+
+    Non-matching DOI → 404 with a short body naming the requested
+    DOI. Missing bundle → 404 with the same body shape (no traceback
+    leak; the "we couldn't find a bundle for this DOI" answer is the
+    same regardless of why).
+
+    On match: delegates to :func:`viewer_page` so the rendered HTML
+    is byte-identical to a direct ``/`` viewer hit. That means the
+    SPA boot, ``?embed=1`` switch, ``data-api-base`` attribute and
+    ``BundleContext`` plumbing all work unchanged — the DOI URL is
+    purely an alternate entry point.
+    """
+    try:
+        state = services.get_request_bundle_state(request)
+    except RuntimeError:
+        # No env-pinned bundle and no mount context — give the same
+        # 404 answer as a DOI mismatch. The operator-facing message
+        # is intentionally the same so we don't leak whether ANY
+        # bundle is configured at this server vs whether THIS DOI is.
+        return HttpResponseNotFound(f"no bundle pinned to DOI {doi!r}")
+
+    pinned_doi = state.bundle.paper_state.doi
+    if pinned_doi != doi:
+        return HttpResponseNotFound(f"no bundle pinned to DOI {doi!r}")
+
+    return viewer_page(request)
+
+
+def _read_body_json(request) -> Mapping[str, Any]:
+    """Lenient body parser exposed for handlers that need POST input.
+
+    Unused by the M1 skeleton's two handlers, but the contract lives here
+    so M2 handlers (which DO take body input) inherit a stable shape.
+    """
+    if not request.body:
+        return {}
+    try:
+        return json.loads(request.body)
+    except json.JSONDecodeError:
+        return {}

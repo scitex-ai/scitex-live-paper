@@ -1,104 +1,216 @@
-<!-- ---
-!-- Timestamp: 2026-06-12
-!-- Author: ywatanabe
-!-- File: /home/ywatanabe/proj/scitex-live-paper/README.md
-!-- --- -->
+# SciTeX Live Paper (<code>scitex-live-paper</code>)
 
-# SciTeX Live Paper (`scitex-live-paper`)
+<p align="center">
+  <a href="https://scitex.ai">
+    <img src="docs/scitex-logo-blue-cropped.png" alt="SciTeX" width="400">
+  </a>
+</p>
 
-Interactive, AI-verifiable, **live** rendering of a research manuscript — claims, code, data, DAG, and figures, all hash-linked back to the executable project that produced them.
+<p align="center"><b>The web-readable foundation for live, AI-verifiable research papers.</b></p>
 
-> **Status:** pre-alpha scaffold (v0.1.0-alpha). README + minimum package skeleton. M1 (read-only renderer) implementation pending.
+<p align="center">
+  <a href="https://github.com/ywatanabe1989/scitex-live-paper">Full Documentation</a> · <code>uv pip install scitex-live-paper[all]</code>
+</p>
 
-## What problem does it solve?
+<!-- scitex-badges:start -->
+<p align="center">
+  <a href="https://pypi.org/project/scitex-live-paper/"><img src="https://img.shields.io/pypi/v/scitex-live-paper?label=pypi" alt="pypi"></a>
+  <a href="https://pypi.org/project/scitex-live-paper/"><img src="https://img.shields.io/pypi/pyversions/scitex-live-paper?label=python" alt="python"></a>
+  <a href="https://github.com/ywatanabe1989/scitex-live-paper/tree/develop/docs"><img src="https://img.shields.io/badge/docs-develop-blue?label=docs" alt="docs"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/ywatanabe1989/scitex-live-paper/actions/workflows/pytest.yml"><img src="https://img.shields.io/github/actions/workflow/status/ywatanabe1989/scitex-live-paper/pytest.yml?branch=develop&label=tests" alt="tests"></a>
+  <a href="https://codecov.io/gh/ywatanabe1989/scitex-live-paper"><img src="https://img.shields.io/codecov/c/github/ywatanabe1989/scitex-live-paper/develop?label=cov" alt="cov"></a>
+</p>
+<!-- scitex-badges:end -->
 
-A traditional PDF paper is dead: the reader cannot click a claim, see the code that produced it, re-run it, or verify the provenance hash. A Live Paper does all of that — every claim is a link into the Clew DAG, every figure traces to a `figz`/`pltz` artefact, every method statement points to a hash-pinned commit. When the underlying claims are re-verified by an agentic reviewer (see [`scitex-agentic-journal`](https://github.com/ywatanabe1989/scitex-agentic-journal)), the paper updates its verification badge.
+---
 
-## What it renders
+## Problem and Solution
 
+| # | Problem | Solution |
+|---|---------|----------|
+| 1 | **A PDF is dead** — you cannot click a claim, see the code that produced it, re-run it, or check provenance. | **Live-paper renderer** — turns an accepted manuscript bundle into a page where every claim is hash-linked to the executable artefact that produced it. |
+| 2 | **Verification rots** — a badge stamped at acceptance says nothing about whether the claims still hold after the code moved on. | **Live re-verify (M2 shipped)** — per-claim and bulk `verify` endpoints call `scitex-clew` against the live project so the badge tracks a continuous re-review cycle. |
+| 3 | **Claim-model drift** — every consumer re-defines `Claim` slightly differently until nothing interoperates. | **Deliberately thin consumer** — the claim model is owned upstream by `scitex-clew`; this package reads it, never extends it. |
+
+## Quick Start
+
+```python
+from scitex_live_paper import bundle
+
+loaded = bundle.load("./bundle/")
+print(len(loaded.claims), "claims,", loaded.paper_state.stage)
 ```
-   accepted manuscript bundle
-   (LaTeX + claims.json + DAG + figz/pltz + provenance)
-              |
-              v
-        scitex-live-paper
-              |
-   +----------+----------+----------+
-   v          v          v          v
- viewer    claims     DAG nav    badge
- (PDF.js)  panel     (mermaid)  (verification status)
-```
-
-UI surfaces:
-
-- **Viewer** — PDF.js overlay synced with claim anchors (`\vclaim{id}`).
-- **Claims panel** — list, status colour (green/orange/red, owned by Clew `VerificationStatus`), per-claim re-verify button.
-- **DAG nav** — mermaid render of the Clew DAG; click a node to jump to the claim or the producing script.
-- **Badge** — overall verification status fed from `scitex-agentic-journal` re-review runs.
-
-## Dependency direction
-
-```
-scitex-live-paper   --reads-->   scitex-clew              (claim model + DAG + verify)
-scitex-live-paper   --reads-->   scitex-writer            (manuscript bundle layout, \vclaim macros)
-scitex-live-paper   <--emits--   scitex-agentic-journal   (accepted bundle handed in for rendering)
-scitex-live-paper   --hosts-on-> scitex-hub               (Django mount at /viewer-v2/)
-```
-
-- The **claim** data model is owned by `scitex-clew` (decision locked in). Live-paper is a **consumer** — it does not define or mutate claim types; it only reads `VerificationStatus`, the DAG, and the hash-verified provenance graph.
-- `scitex-writer`'s `viewer` (PDF.js + claims + DAG) is the in-app authoring preview. `scitex-live-paper` is the **published** counterpart — the post-acceptance, public, agent-re-verifiable rendition.
-- Hosting on `scitex-hub` is via a `_django` app pluggable into the existing `/viewer/` mount (target slug `/viewer-v2/`).
-
-## First milestone (M1, "read-only renderer")
-
-1. Accept a bundle directory: `manuscript.tex`, `claims.json`, `dag.mmd`, `figz/`, `provenance.yaml`.
-2. Render to a static site (HTML + PDF.js + mermaid):
-   - viewer page with PDF + claim sidebar
-   - DAG page (mermaid render, click-to-claim wiring)
-   - per-claim page showing status, hash, producing script
-3. CLI: `scitex-live-paper render ./bundle/ --out ./site/`.
-4. No live re-verify yet, no agentic re-review yet, no editing. **Read-only**.
-
-Subsequent milestones:
-
-- M2 — live re-verify button (calls `clew claim verify` against pinned commit)
-- M3 — mount as Django app on `scitex-hub` `/viewer-v2/`
-- M4 — re-review badge fed from `scitex-agentic-journal`
-- M5 — public DOI landing page (sandbox → Zenodo → JaLC)
-
-## Install (planned)
 
 ```bash
-pip install scitex-live-paper           # CLI + library
-pip install scitex-live-paper[django]   # + Django app for scitex-hub mount
-pip install scitex-live-paper[mcp]      # + MCP server for agents
+# Render the static site (viewer + claims sidebar + DAG + index)
+scitex-live-paper render ./bundle/ --out ./site/
 ```
+
+For a runnable walk-through see [`examples/example_live_paper.py`](examples/example_live_paper.py).
+
+## Demo
+
+A runnable load-and-summarise demo lives in
+[`examples/example_live_paper.py`](examples/example_live_paper.py)
+(run every example with
+[`examples/00_run_all.sh`](examples/00_run_all.sh)):
+
+```bash
+python examples/example_live_paper.py
+# bundle: bundle-min
+# claims: 3
+# manuscript: manuscript.pdf
+# paper stage: preprint
+```
+
+## Installation
+
+```bash
+uv pip install "scitex-live-paper[all]"
+pip install "scitex-live-paper[all]"
+pip install scitex-live-paper           # CLI + library only
+```
+
+> **Recommended**: `uv pip install scitex-live-paper[all]` —
+> uv's Rust resolver handles the SciTeX dep set in 1-3 min where
+> pip's serial backtracker can take 30+ min on the full extras.
+> Plain `pip install` still works, as shown above.
+
+<details>
+<summary><strong>Extras matrix</strong></summary>
+
+| Extra | Pulls | For |
+|-------|-------|-----|
+| `django` | `django>=4.2` | standalone `serve` + `scitex-hub` mount |
+| `clew` | `scitex-clew>=0.1.0` | live re-verify (M2) |
+| `mcp` | `fastmcp>=2.0` | MCP server for agents |
+| `test` | `pytest>=8.0` | test suite |
+| `all` | everything above | the one install line operators need |
+
+</details>
+
+<sub><b>Table 1.</b> Optional-dependency extras.</sub>
+
+Without `[clew]` the M2 `api/claim/verify` and `api/claims/verify`
+endpoints stay reachable but degrade gracefully (every per-claim
+response carries `fallback: true` + a clear reason); install
+`[clew]` to get the real `verify_claim()` call.
+
+> **Working on `scitex-live-paper` itself?** See
+> [Dev quickstart](docs/dev-quickstart.md) — editable install, render
+> the in-tree fixture bundle, bundle-layout contract, and where the
+> Django app pattern is mirrored from.
+
+## Architecture
+
+`scitex-live-paper` is **deliberately thin**. It is a **consumer /
+rendering layer**, not an authority on claims. If a feature requires
+extending the claim or DAG model, **the change belongs upstream in
+`scitex-clew`**, not here.
+
+```mermaid
+flowchart TD
+    bundle["accepted manuscript bundle<br/>(LaTeX + claims.json + DAG + figz + provenance)"] --> lp["scitex-live-paper<br/>(thin renderer)"]
+    lp --> viewer["viewer (PDF.js)"]
+    lp --> claims["claims panel"]
+    lp --> dag["DAG nav (mermaid)"]
+    lp --> badge["badge (verification status)"]
+```
+
+<sub><b>Figure 1.</b> Bundle in, four surfaces out — the package renders, upstream owns the models.</sub>
+
+| Concern | Owner | This package's role |
+|---------|-------|---------------------|
+| `Claim` data model, `VerificationStatus`, DAG | `scitex-clew` | reads only — never defines, never mutates |
+| Hash-linked provenance graph | `scitex-clew` | reads `clew.dag()` / `clew.verify_claim()` outputs |
+| Manuscript bundle layout | `scitex-writer` | ingests the bundle as-is |
+| Acceptance + re-review verdicts | `scitex-agentic-journal` | receives accepted bundle, surfaces badge |
+| Auth / Django app surface | `scitex-hub` | mounted on `/viewer-v2/` |
+
+<sub><b>Table 2.</b> Ownership boundaries — who owns what.</sub>
+
+## Roadmap
+
+| Milestone | Status | Goal |
+|-----------|--------|------|
+| **M1** | shipped | Read-only static-site renderer for an accepted bundle (CLI) |
+| **M2** | shipped | Live re-verify (`api/claim/verify` + `api/claims/verify` + SPA Re-verify button) — see [runbook](docs/dev/m2-reverify-runbook.md) |
+| M3 | in flight (hub-side) | Mount as Django app on `scitex-hub` `/apps/live-paper/<paper_id>/` |
+| M4 | pending | Re-review badge fed from `scitex-agentic-journal` |
+| M5 | future | Public DOI landing page (sandbox → Zenodo → JaLC) |
+
+<sub><b>Table 3.</b> Milestone roadmap.</sub>
+
+Issues for M1 are filed in this repo — see [open issues](https://github.com/ywatanabe1989/scitex-live-paper/issues).
+
+## 3 Interfaces
+
+<details open>
+<summary><strong>Python API (primary)</strong></summary>
+
+```python
+from scitex_live_paper import BundleContext, BundleSource, PaperState, bundle
+
+loaded = bundle.load("./bundle/")
+```
+
+</details>
+
+<details>
+<summary><strong>CLI</strong></summary>
+
+`scitex-live-paper render ./bundle/ --out ./site/` emits the static
+site; `scitex-live-paper serve ./bundle/` boots the standalone Django
+dev server (requires the `[django]` extra); `python -m
+scitex_live_paper` works too.
+
+</details>
+
+<details>
+<summary><strong>Django app</strong></summary>
+
+Mounted under `scitex-hub` at `/viewer-v2/` (M3): SPA shell +
+`<path:endpoint>` API dispatcher backed by the `HANDLERS` registry.
+Host apps inject per-request bundle resolution via
+`scitex_live_paper.mount(resolver=...)`.
+
+</details>
+
+## Environment Variables
+
+| Variable | Set by | Read by | Purpose |
+|----------|--------|---------|---------|
+| `SCITEX_LIVE_PAPER_BUNDLE` | `serve` CLI / operator | bundle cache | bundle path pinned for the process |
+| `SCITEX_CLEW_DB_PATH` | — (retired) | — | retired — clew has no database file |
+| `SCITEX_STORE_DSN` | operator | `scitex-clew` | clew's store switch (owned by clew, not this package) |
+
+<sub><b>Table 4.</b> Environment variables referenced by this package.</sub>
 
 ## Part of SciTeX
 
-`scitex-live-paper` is part of [SciTeX](https://scitex.ai).
+`scitex-live-paper` is part of [**SciTeX**](https://scitex.ai).
 
-Upstream dependencies:
+Upstream dependencies (this package consumes them; it does not define their models): `scitex-clew` (claim model, DAG, verification), `scitex-writer` (bundle layout + Django viewer pattern), `scitex-hub` (Django host, auth), `scitex-ui` (viewer widgets). Producer: `scitex-agentic-journal` (accepted bundle + re-review verdicts).
 
-| Package | Provides | Used here for |
-|---------|----------|---------------|
-| `scitex-clew`   | claim model + DAG + verification         | claim status, hashes, DAG render |
-| `scitex-writer` | manuscript bundle layout + `\vclaim` macros | bundle ingestion, claim anchoring |
-| `scitex-hub`    | Django host, Auth, app surface           | `/viewer-v2/` mount |
-| `scitex-ui`     | UI shell + components                    | viewer / claims panel / DAG nav widgets |
+>Four Freedoms for Research
+>
+>0. The freedom to **run** your research anywhere — your machine, your terms.
+>1. The freedom to **study** how every step works — from raw data to final manuscript.
+>2. The freedom to **redistribute** your workflows, not just your papers.
+>3. The freedom to **modify** any module and share improvements with the community.
+>
+>AGPL-3.0 — because we believe research infrastructure deserves the same freedoms as the software it runs on.
 
-Producer:
-
-| Package | Hands in | For |
-|---------|----------|-----|
-| `scitex-agentic-journal` | accepted manuscript bundle + verification result | render + publish |
-
-## Status
-
-Pre-alpha — design + scaffold only. Implementation tracked under issues.
+---
 
 ## License
 
-AGPL-3.0-only.
+AGPL-3.0-only. See [LICENSE](LICENSE).
 
-<!-- EOF -->
+---
+
+<p align="center">
+  <a href="https://scitex.ai" target="_blank"><img src="docs/scitex-icon-navy-inverted.png" alt="SciTeX" width="40"/></a>
+</p>

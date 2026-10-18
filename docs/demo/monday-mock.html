@@ -1,0 +1,254 @@
+<!doctype html>
+<!-- LOOKS-ONLY MOCK for the Monday demo. NOT product UI.
+     Single file, zero dependencies, opens from file://.
+     Claim data hand-baked from tests/fixtures/bundle-accepted/claims.json
+     (claim ids, statuses, anchors, provenance) + state.yaml (eLife DOI).
+     Gap to real M2ST: hover content is static here; the ports/events API
+     will serve the same popup content dynamically. Popup layout matches
+     that contract so visuals carry over. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SciTeX Live Paper — Monday looks-only mock</title>
+  <style>
+    :root {
+      --lp-bg: #1e1e2e;
+      --lp-fg: #e0e0e0;
+      --lp-muted: #a0a0b0;
+      --lp-accent: #7c5cbf;
+      --lp-panel: #313145;
+      --clew-verified: #2fa36b;
+      --clew-suspect: #d99a2b;
+      --clew-registered: #8a8a99;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--lp-bg);
+      color: var(--lp-fg);
+      line-height: 1.5;
+    }
+    .mock-ribbon {
+      background: var(--lp-accent);
+      color: #fff;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      padding: 6px 12px;
+    }
+    header {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 24px 0;
+    }
+    header h1 { color: var(--lp-accent); margin: 0 0 4px; font-size: 26px; }
+    header .paper-title { margin: 0 0 4px; font-size: 18px; }
+    header .paper-meta { color: var(--lp-muted); font-size: 13px; margin: 0 0 16px; }
+    header .paper-meta a { color: var(--lp-accent); }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .badge.elife { background: #1f4e5f; color: #bfe3ef; }
+    .badge.reverify { background: #1e3a2a; color: #7fd6a4; }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+      display: grid;
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      gap: 20px;
+    }
+    .sheet {
+      background: #fff;
+      color: #222;
+      border-radius: 6px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+      padding: 36px 40px;
+    }
+    .sheet h2 { margin-top: 0; font-size: 20px; }
+    .sheet p { font-size: 14px; }
+    .figslot {
+      border: 2px dashed #bbb;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 16px 0;
+      text-align: center;
+      color: #666;
+      font-size: 12px;
+    }
+    .anchor {
+      position: relative;
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      padding: 0 5px;
+      margin: 0 1px;
+      cursor: pointer;
+      color: #fff;
+    }
+    .anchor.verified { background: var(--clew-verified); }
+    .anchor.suspect { background: var(--clew-suspect); }
+    .anchor.registered { background: var(--clew-registered); }
+    .anchor .popup {
+      display: none;
+      position: absolute;
+      z-index: 10;
+      left: 0;
+      top: 130%;
+      width: 340px;
+      background: var(--lp-panel);
+      color: var(--lp-fg);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-weight: 400;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      font-size: 13px;
+    }
+    .anchor:hover .popup, .anchor:focus-within .popup { display: block; }
+    .popup .claim-id { font-family: monospace; font-size: 11px; color: var(--lp-muted); }
+    .popup .claim-text { margin: 6px 0; }
+    .popup .prov { color: var(--lp-muted); font-size: 12px; margin: 6px 0 0; }
+    .popup .prov code { font-size: 11px; color: var(--lp-fg); }
+    .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+    .status-dot.verified { background: var(--clew-verified); }
+    .status-dot.suspect { background: var(--clew-suspect); }
+    .status-dot.registered { background: var(--clew-registered); }
+    aside.sidebar {
+      background: var(--lp-panel);
+      border-radius: 6px;
+      padding: 16px 18px;
+      align-self: start;
+      font-size: 13px;
+    }
+    aside.sidebar h3 { margin: 0 0 12px; font-size: 14px; }
+    .claim-row { border-top: 1px solid #4a4a63; padding: 10px 0; }
+    .claim-row:first-of-type { border-top: none; }
+    .claim-row .cid { font-family: monospace; font-size: 11px; color: var(--lp-muted); }
+    footer {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px 40px;
+      color: var(--lp-muted);
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="mock-ribbon">LOOKS-ONLY MOCK — MONDAY DEMO (static file, no backend)</div>
+  <header>
+    <h1>SciTeX Live Paper</h1>
+    <p class="paper-title">Sample manuscript — bundle-accepted fixture</p>
+    <p class="paper-meta">
+      eLife, accepted 2026-06-01 ·
+      <a href="https://doi.org/10.7554/eLife.99999">doi:10.7554/eLife.99999</a>
+      <span class="badge elife">eLife accepted</span>
+      <span class="badge reverify">re-verify: passing</span>
+    </p>
+  </header>
+  <main>
+    <section class="sheet" aria-label="paper sheet">
+      <h2>Results</h2>
+      <p>
+        Treatment recovered function across all cohorts
+        <span class="anchor verified" tabindex="0">[1]
+          <span class="popup">
+            <span class="status-dot verified"></span><strong>verified</strong>
+            <span class="claim-id">claim_a1b2c3d4e5f6</span>
+            <span class="claim-text">Fig 1 shows p&lt;0.05</span>
+            <svg width="310" height="64" viewBox="0 0 310 64" role="img" aria-label="provenance mini-graph">
+              <text x="2" y="12" fill="#a0a0b0" font-size="9">scripts/03_analyze.py</text>
+              <text x="118" y="12" fill="#a0a0b0" font-size="9">processing</text>
+              <text x="198" y="12" fill="#a0a0b0" font-size="9">output</text>
+              <text x="258" y="12" fill="#a0a0b0" font-size="9">claim</text>
+              <line x1="45" y1="20" x2="130" y2="34" stroke="#7c5cbf" stroke-width="1.5" />
+              <line x1="150" y1="20" x2="205" y2="34" stroke="#7c5cbf" stroke-width="1.5" />
+              <line x1="225" y1="20" x2="262" y2="34" stroke="#7c5cbf" stroke-width="1.5" />
+              <circle cx="135" cy="38" r="5" fill="#7c5cbf" />
+              <circle cx="210" cy="38" r="5" fill="#7c5cbf" />
+              <circle cx="267" cy="38" r="5" fill="#2fa36b" />
+            </svg>
+            <p class="prov">source <code>scripts/03_analyze.py</code> · hash <code>deadbeefcafef00d</code> · anchor p.3 · main.tex:42</p>
+          </span>
+        </span>
+        with the primary endpoint met in every dose group.
+      </p>
+      <div class="figslot">
+        <svg width="420" height="120" viewBox="0 0 420 120" role="img" aria-label="figure placeholder">
+          <rect x="60" y="30" width="40" height="70" fill="#7c5cbf" opacity="0.75" />
+          <rect x="120" y="55" width="40" height="45" fill="#7c5cbf" opacity="0.75" />
+          <rect x="180" y="15" width="40" height="85" fill="#7c5cbf" opacity="0.75" />
+          <rect x="240" y="45" width="40" height="55" fill="#7c5cbf" opacity="0.45" />
+          <rect x="300" y="70" width="40" height="30" fill="#7c5cbf" opacity="0.45" />
+          <line x1="40" y1="100" x2="380" y2="100" stroke="#666" stroke-width="1" />
+        </svg>
+        <div>Figure slot (placeholder — live re-render is figure-adapter work, post-merge)</div>
+      </div>
+      <p>
+        The key interaction reached
+        <span class="anchor suspect" tabindex="0">[2]
+          <span class="popup">
+            <span class="status-dot suspect"></span><strong>suspect — needs re-check</strong>
+            <span class="claim-id">claim_f6e5d4c3b2a1</span>
+            <span class="claim-text">p = 0.003</span>
+            <svg width="310" height="64" viewBox="0 0 310 64" role="img" aria-label="provenance mini-graph">
+              <text x="2" y="12" fill="#a0a0b0" font-size="9">scripts/04_stats.R</text>
+              <text x="118" y="12" fill="#a0a0b0" font-size="9">processing</text>
+              <text x="198" y="12" fill="#a0a0b0" font-size="9">output</text>
+              <text x="258" y="12" fill="#a0a0b0" font-size="9">claim</text>
+              <line x1="45" y1="20" x2="130" y2="34" stroke="#7c5cbf" stroke-width="1.5" />
+              <line x1="150" y1="20" x2="205" y2="34" stroke="#7c5cbf" stroke-width="1.5" />
+              <line x1="225" y1="20" x2="262" y2="34" stroke="#d99a2b" stroke-width="1.5" stroke-dasharray="3 2" />
+              <circle cx="135" cy="38" r="5" fill="#7c5cbf" />
+              <circle cx="210" cy="38" r="5" fill="#7c5cbf" />
+              <circle cx="267" cy="38" r="5" fill="#d99a2b" />
+            </svg>
+            <p class="prov">source <code>scripts/04_stats.R</code> · hash <code>1234567890abcdef</code> · anchor p.5 · main.tex:88</p>
+          </span>
+        </span>,
+        while the pilot cohort held at
+        <span class="anchor registered" tabindex="0">[3]
+          <span class="popup">
+            <span class="status-dot registered"></span><strong>registered (unsourced)</strong>
+            <span class="claim-id">claim_999888777666</span>
+            <span class="claim-text">n = 15</span>
+            <p class="prov">no source file recorded · main.tex:130</p>
+          </span>
+        </span>
+        animals.
+      </p>
+    </section>
+    <aside class="sidebar" aria-label="claims sidebar">
+      <h3>Claims (3)</h3>
+      <div class="claim-row">
+        <span class="status-dot verified"></span><strong>verified</strong><br>
+        <span class="cid">claim_a1b2c3d4e5f6</span><br>
+        Fig 1 shows p&lt;0.05
+      </div>
+      <div class="claim-row">
+        <span class="status-dot suspect"></span><strong>suspect</strong><br>
+        <span class="cid">claim_f6e5d4c3b2a1</span><br>
+        p = 0.003
+      </div>
+      <div class="claim-row">
+        <span class="status-dot registered"></span><strong>registered</strong><br>
+        <span class="cid">claim_999888777666</span><br>
+        n = 15
+      </div>
+    </aside>
+  </main>
+  <footer>
+    Gap to real viewer: hover data hand-baked from tests/fixtures/bundle-accepted/
+    (claims.json + state.yaml). The ports/events API will serve the same popup
+    content dynamically; this layout matches that contract so visuals carry over.
+  </footer>
+</body>
+</html>
