@@ -13,7 +13,8 @@
       "registered_at": "2026-06-01T10:00:00Z",
       "verified_at": "2026-06-10T14:30:00Z",
       "status": "verified",
-      "anchor": {"page": 3, "bbox": [120.0, 480.0, 360.0, 540.0]}
+      "anchor": {"page": 3, "bbox": [120.0, 480.0, 360.0, 540.0]},
+      "figure_id": "fig-demo-1"
     },
     {
       "claim_id": "claim_f6e5d4c3b2a1",
@@ -25,7 +26,8 @@
       "source_file": "scripts/04_stats.R",
       "source_hash": "1234567890abcdef",
       "status": "suspect",
-      "anchor": {"page": 5, "bbox": [80.0, 120.0, 280.0, 160.0]}
+      "anchor": {"page": 5, "bbox": [80.0, 120.0, 280.0, 160.0]},
+      "figure_id": "fig-demo-2"
     },
     {
       "claim_id": "claim_999888777666",
