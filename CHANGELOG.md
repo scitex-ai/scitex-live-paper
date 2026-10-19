@@ -16,8 +16,11 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-19
+
 ### Added
 
+- Tile manifest `category` + `accent_color` per hub tile schema (#68).
 - Serve-defaults wiring (contract §5): standalone `serve` injects the
   bundled figure-port default with no host code. New
   `LivePaperServeContextMiddleware` (standalone `settings.py` only —
