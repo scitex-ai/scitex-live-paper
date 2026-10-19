@@ -41,4 +41,4 @@ def test_package_module_answers_version():
     # Act
     completed = _run_module(argv)
     # Assert
-    assert (completed.returncode, "0.1.0" in completed.stdout) == (0, True)
+    assert (completed.returncode, "0.1.1" in completed.stdout) == (0, True)
