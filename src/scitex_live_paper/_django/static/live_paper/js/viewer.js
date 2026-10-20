@@ -54,6 +54,11 @@ if (!root) {
 
 async function boot(rootEl) {
   const apiBase = normalizeBase(rootEl.getAttribute("data-api-base") || "/api/");
+  // Project picker into the canonical AppHeader slot (stats
+  // pattern): the header component mounts on DOMContentLoaded, which
+  // runs after this module — move now if the slot exists, else once
+  // when it appears.
+  movePickerIntoHeaderSlot(rootEl);
   // Empty state first: the mount wrapper renders the shell with a
   // reason when no bundle resolved (HTTP 200, no RPCs to boot
   // against). Guidance now, viewer later.
@@ -152,6 +157,30 @@ async function boot(rootEl) {
     viewer.setClaims(claimsPayload.claims);
   }
   await viewer.load();
+}
+
+/**
+ * Move the server-rendered project picker (`[data-stx-project-picker]`)
+ * into the AppHeader's canonical slot. The header component mounts on
+ * DOMContentLoaded — after this module runs — so move immediately
+ * when the slot already exists, otherwise once via MutationObserver.
+ */
+export function movePickerIntoHeaderSlot(rootEl) {
+  const doc = rootEl.ownerDocument || document;
+  const move = () => {
+    const picker = rootEl.querySelector("[data-stx-project-picker]");
+    const slot = doc.querySelector(".stx-app-header__slot--project-selector");
+    if (picker && slot && picker.parentElement !== slot) {
+      slot.appendChild(picker);
+      return true;
+    }
+    return Boolean(picker && slot);
+  };
+  if (move()) return;
+  const observer = new MutationObserver(() => {
+    if (move()) observer.disconnect();
+  });
+  observer.observe(doc.documentElement, { childList: true, subtree: true });
 }
 
 // Public global — writer / scholar / hub embed paths can hand their

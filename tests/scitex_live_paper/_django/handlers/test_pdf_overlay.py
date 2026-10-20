@@ -680,3 +680,33 @@ def test_css_neutralises_header_separator():
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert "border-bottom: none;" in text
+
+
+def test_viewer_declares_project_picker():
+    # Arrange — the AppHeader project slot stays empty unless the leaf
+    # supplies the picker (stats pattern).
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert "scitex_project_picker" in text
+
+
+def test_viewer_moves_picker_into_header_slot():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "movePickerIntoHeaderSlot" in text
+
+
+def test_viewer_picker_targets_header_slot_class():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "stx-app-header__slot--project-selector" in text

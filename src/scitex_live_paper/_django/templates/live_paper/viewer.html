@@ -1,5 +1,5 @@
 {% extends "scitex_sdk/app/app_shell.html" %}
-{% load static %}
+{% load static scitex_project_picker %}
 {% comment %}
 Standalone viewer page inside the canonical SDK app shell (stats
 pattern): host chrome comes from scitex_sdk/app/app_shell.html (hub
@@ -19,6 +19,7 @@ claim model and never defines it.
   <div data-stx-app-header
        data-app-title="SciTeX Live Paper"
        data-app-version="{{ app_version }}">
+    {% scitex_project_picker scope="project" current=current_project %}
   </div>
   <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
