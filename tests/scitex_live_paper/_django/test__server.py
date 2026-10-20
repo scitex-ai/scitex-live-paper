@@ -1,11 +1,10 @@
-"""``_django/_server.serve`` — env-pinning + bad-bundle paths + delegation.
+"""``_django/_server.serve`` — env-pinning + bad-bundle paths + SDK delegation.
 
-All collaborators are real. The Django command runner is *injected*
-via the ``runner`` kwarg on :func:`serve` (real callable, not a mock)
-so the tests exercise the actual env-mutation + ``django.setup()``
-path without binding a TCP port. ``os.environ`` is restored via the
-``env_snapshot`` fixture (real process state with try/finally
-cleanup — not ``monkeypatch.setenv/delenv``).
+All collaborators are real. The SDK ``run_standalone`` launcher is
+reached through the module attribute (read at call time), so the
+delegation tests swap in a real spy function with try/finally
+restoration — the same no-mocks, real-state discipline as the
+``env_snapshot`` fixture (not ``monkeypatch``).
 """
 
 from __future__ import annotations
@@ -55,12 +54,11 @@ def bundle_dir(tmp_path: Path) -> Path:
     return bundle
 
 
-class _RunnerSpy:
+class _LauncherSpy:
     """Real callable that records its invocations.
 
-    Used as the ``runner`` argument to :func:`server_module.serve` — a
-    real Python function, not a mock, satisfying the injected-collaborator
-    contract.
+    Stands in for the SDK ``run_standalone`` launcher via module-attribute
+    swap — a real Python function, not a mock.
     """
 
     def __init__(self) -> None:
@@ -70,8 +68,21 @@ class _RunnerSpy:
         self.calls.append((args, kwargs))
 
 
+def _swap_launcher(spy: _LauncherSpy) -> tuple[object, object]:
+    """Swap the SDK sentinels for test doubles; return pair to restore."""
+    previous_run = server_module.run_standalone
+    previous_hosts = server_module.hosts_to_allow
+    server_module.run_standalone = spy  # type: ignore[method-assign]
+    server_module.hosts_to_allow = lambda host: []  # type: ignore[method-assign]
+    return previous_run, previous_hosts
+
+
+def _restore_launcher(previous: tuple[object, object]) -> None:
+    server_module.run_standalone, server_module.hosts_to_allow = previous  # type: ignore[misc]
+
+
 # ──────────────────────────────────────────────────────────────────
-# Bad-bundle paths — pre-django.setup, no runner needed
+# Bad-bundle paths — pre-launcher, no SDK needed
 # ──────────────────────────────────────────────────────────────────
 
 
@@ -94,94 +105,141 @@ def test_serve_raises_filenotfounderror_for_file_path(tmp_path):
         server_module.serve(a_file)
 
 
+def test_serve_refuses_without_sdk(bundle_dir, env_snapshot):
+    # Arrange — SDK sentinels absent (broken/partial install)
+    previous = _swap_launcher(_LauncherSpy())
+    server_module.run_standalone = None
+    server_module.hosts_to_allow = None
+    try:
+        # Act
+        # Assert — loud refusal naming the extra
+        with pytest.raises(ImportError, match="scitex-live-paper\\[server\\]"):
+            server_module.serve(bundle_dir)
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_refusal_leaves_env_untouched(bundle_dir, env_snapshot):
+    # Arrange — SDK sentinels absent (broken/partial install)
+    previous = _swap_launcher(_LauncherSpy())
+    server_module.run_standalone = None
+    server_module.hosts_to_allow = None
+    try:
+        # Act — refusal fires before the env pin
+        try:
+            server_module.serve(bundle_dir)
+        except ImportError:
+            pass
+        # Assert — no bundle pin leaked into the environment
+        assert "SCITEX_LIVE_PAPER_BUNDLE" not in os.environ
+    finally:
+        _restore_launcher(previous)
+
+
 # ──────────────────────────────────────────────────────────────────
-# Env pinning — `os.environ` is the observable; runner is recorded
+# Bundle env pin — real env state, launcher swapped
 # ──────────────────────────────────────────────────────────────────
 
 
 def test_serve_pins_bundle_env_to_resolved_path(bundle_dir, env_snapshot):
     # arrange
     os.environ.pop("SCITEX_LIVE_PAPER_BUNDLE", None)
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert — env carries the *resolved* absolute path
-    assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
-
-
-def test_serve_sets_django_settings_module_when_unset(bundle_dir, env_snapshot):
-    # arrange
-    os.environ.pop("DJANGO_SETTINGS_MODULE", None)
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert
-    assert os.environ["DJANGO_SETTINGS_MODULE"] == "scitex_live_paper._django.settings"
-
-
-def test_serve_does_not_override_existing_django_settings(bundle_dir, env_snapshot):
-    # arrange — parent harness already pinned settings; we must respect it
-    os.environ["DJANGO_SETTINGS_MODULE"] = "scitex_live_paper._django.settings"
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert — `setdefault` is the only correct behaviour
-    assert os.environ["DJANGO_SETTINGS_MODULE"] == "scitex_live_paper._django.settings"
+    previous = _swap_launcher(_LauncherSpy())
+    try:
+        # act
+        server_module.serve(bundle_dir)
+        # assert — env carries the *resolved* absolute path
+        assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
+    finally:
+        _restore_launcher(previous)
 
 
 # ──────────────────────────────────────────────────────────────────
-# Runner delegation — injected real callable, not a patch
+# SDK launcher delegation — real spy via module-attribute swap
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_serve_invokes_runner_once(bundle_dir, env_snapshot):
+def test_serve_delegates_to_sdk_launcher_once(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert
-    assert len(spy.calls) == 1
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir)
+        # assert
+        assert len(spy.calls) == 1
+    finally:
+        _restore_launcher(previous)
 
 
-def test_serve_passes_runserver_command_first(bundle_dir, env_snapshot):
+def test_serve_passes_app_module(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert
-    (args, _kwargs) = spy.calls[0]
-    assert args[0] == "runserver"
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir, host="0.0.0.0", port=9100)
+        # assert
+        (_args, kwargs) = spy.calls[0]
+        assert kwargs["app_module"] == "scitex_live_paper._django"
+    finally:
+        _restore_launcher(previous)
 
 
-def test_serve_passes_host_port_addr(bundle_dir, env_snapshot):
+def test_serve_passes_explicit_host(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, host="0.0.0.0", port=9100, runner=spy)
-    # assert
-    (args, _kwargs) = spy.calls[0]
-    assert args[1] == "0.0.0.0:9100"
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir, host="0.0.0.0", port=9100)
+        # assert
+        (_args, kwargs) = spy.calls[0]
+        assert kwargs["host"] == "0.0.0.0"
+    finally:
+        _restore_launcher(previous)
 
 
-def test_serve_passes_noreload_flag(bundle_dir, env_snapshot):
+def test_serve_passes_explicit_port(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert — --noreload is the contract; without it the env-pin would
-    # be wiped by Django's autoreload subprocess.
-    (args, _kwargs) = spy.calls[0]
-    assert "--noreload" in args
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir, host="0.0.0.0", port=9100)
+        # assert
+        (_args, kwargs) = spy.calls[0]
+        assert kwargs["port"] == 9100
+    finally:
+        _restore_launcher(previous)
 
 
-def test_serve_uses_default_host_port_when_omitted(bundle_dir, env_snapshot):
+def test_serve_default_host_is_loopback(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(bundle_dir, runner=spy)
-    # assert
-    (args, _kwargs) = spy.calls[0]
-    assert args[1] == "127.0.0.1:8765"
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir)
+        # assert
+        (_args, kwargs) = spy.calls[0]
+        assert kwargs["host"] == "127.0.0.1"
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_default_port(bundle_dir, env_snapshot):
+    # arrange
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir)
+        # assert
+        (_args, kwargs) = spy.calls[0]
+        assert kwargs["port"] == 8765
+    finally:
+        _restore_launcher(previous)
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -192,61 +250,50 @@ def test_serve_uses_default_host_port_when_omitted(bundle_dir, env_snapshot):
 def test_serve_resolves_relative_path_components__assert_pinned_str_path_raw_resol(bundle_dir, env_snapshot):
     # Arrange
     raw = f"{bundle_dir}/."
-    spy = _RunnerSpy()
-    # Act
-    server_module.serve(raw, runner=spy)
-    pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
-    # Assert
-    assert pinned == str(Path(raw).resolve())
+    previous = _swap_launcher(_LauncherSpy())
+    try:
+        # Act
+        server_module.serve(raw)
+        pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
+        # Assert
+        assert pinned == str(Path(raw).resolve())
+    finally:
+        _restore_launcher(previous)
 
 
 def test_serve_resolves_relative_path_components__assert_not_pinned_endswith(bundle_dir, env_snapshot):
     # Arrange
     raw = f"{bundle_dir}/."
-    spy = _RunnerSpy()
-    # Act
-    server_module.serve(raw, runner=spy)
-    pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
-    # Assert
-    assert not pinned.endswith("/.")
-
-
+    previous = _swap_launcher(_LauncherSpy())
+    try:
+        # Act
+        server_module.serve(raw)
+        pinned = os.environ["SCITEX_LIVE_PAPER_BUNDLE"]
+        # Assert
+        assert not pinned.endswith("/.")
+    finally:
+        _restore_launcher(previous)
 
 
 def test_serve_accepts_pathlib_path(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(Path(bundle_dir), runner=spy)
-    # assert
-    assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
+    previous = _swap_launcher(_LauncherSpy())
+    try:
+        # act
+        server_module.serve(Path(bundle_dir))
+        # assert
+        assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
+    finally:
+        _restore_launcher(previous)
 
 
 def test_serve_resolves_str_input_same_as_path_input(bundle_dir, env_snapshot):
     # arrange
-    spy = _RunnerSpy()
-    # act
-    server_module.serve(str(bundle_dir), runner=spy)
-    # assert
-    assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
-
-
-# ──────────────────────────────────────────────────────────────────
-# Default runner — exists, callable, real wrapper
-# ──────────────────────────────────────────────────────────────────
-
-
-def test_default_runner_is_module_level_callable():
-    # Arrange
-    runner = server_module._default_runner
-    # Act
-    # Assert
-    assert callable(runner)
-
-
-def test_default_runner_delegates_to_django_call_command():
-    # Arrange
-    from django.core import management
-    # Act
-    # Assert
-    assert hasattr(management, "call_command")
+    previous = _swap_launcher(_LauncherSpy())
+    try:
+        # act
+        server_module.serve(str(bundle_dir))
+        # assert
+        assert os.environ["SCITEX_LIVE_PAPER_BUNDLE"] == str(bundle_dir.resolve())
+    finally:
+        _restore_launcher(previous)

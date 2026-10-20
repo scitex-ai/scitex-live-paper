@@ -34,10 +34,10 @@ try:
     )
     from django.template.loader import render_to_string
     from django.views.decorators.csrf import csrf_exempt
-except ImportError as exc:
+except ImportError as exc:  # django absent — the [server]-gated GUI capability only
     raise ImportError(
-        "scitex-live-paper's Django surface requires Django — "
-        "install with: pip install 'scitex-live-paper[all]'"
+        "scitex_live_paper._django.views needs Django, which is not installed. "
+        "Install the optional stack: pip install 'scitex-live-paper[server]'"
     ) from exc
 
 from . import services
@@ -118,7 +118,13 @@ def viewer_page(request) -> HttpResponse:
 
     html = render_to_string(
         template,
-        {"api_base": api_base},
+        {
+            "api_base": api_base,
+            # SDK shell slots (standalone_shell.html): tab title +
+            # app identity. All other shell slots carry defaults.
+            "app_label": "SciTeX Live Paper",
+            "app_name": "live-paper",
+        },
         request=request,
     )
     return HttpResponse(html)

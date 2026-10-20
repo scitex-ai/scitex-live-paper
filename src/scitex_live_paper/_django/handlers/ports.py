@@ -21,7 +21,31 @@ from typing import Any, Mapping
 
 from ...ports import FigzFigureAdapter, Registry
 from ...ports._registry import PortNotFound
-from ..services import get_request_bundle_state
+from ..services import get_request_bundle_state, resolve_bundle_path
+from scitex_live_paper import BundleContext, BundleSource
+
+
+def _standalone_context_from_env() -> "BundleContext | None":
+    """Ephemeral port context over the env-pinned bundle, or None.
+
+    The SDK ``run_standalone`` server (and any host that skips the
+    serve-context middleware) leaves ``request.live_paper_context``
+    unset. When ``SCITEX_LIVE_PAPER_BUNDLE`` is pinned, synthesize
+    the same context the middleware would have attached: env bundle
+    + a registry the dispatcher back-fills with bundled defaults.
+    Env unset (or not a directory) → None, and the caller keeps the
+    pinned 404.
+    """
+    try:
+        bundle_path = resolve_bundle_path()
+    except RuntimeError:
+        return None
+    if not bundle_path.is_dir():
+        return None
+    return BundleContext(
+        source=BundleSource.from_directory(bundle_path),
+        renderers=Registry(),
+    )
 
 _PORT_METHODS = {
     "figure": "render_figure",
@@ -38,15 +62,29 @@ def handle_port(request, port: str, target: str) -> Mapping[str, Any]:
     port is unknown, or the adapter reports an unknown target. A
     present-but-adapterless context gets the bundled default figure
     adapter — :meth:`Registry.resolve` then decides per port.
+
+    Standalone (no mount/middleware context, e.g. the SDK
+    ``run_standalone`` server whose middleware list is fixed): when
+    the ``SCITEX_LIVE_PAPER_BUNDLE`` env pin is set, an ephemeral
+    context over that bundle with the bundled defaults is
+    synthesized, so the viewer works out of the box. With neither a
+    context nor an env pin (bare unit-test request), the pinned 404
+    stands.
     """
     context = getattr(request, "live_paper_context", None)
     registry = getattr(context, "renderers", None) if context else None
     if registry is None:
         if context is None:
-            # No context at all (bare unit-test request, host bypassing
-            # mount/middleware): nothing to inject into — pinned 404.
-            raise PortNotFound("no adapters registered")
-        registry = Registry()
+            context = _standalone_context_from_env()
+            if context is None:
+                # No context at all (bare unit-test request, host
+                # bypassing mount/middleware): nothing to inject
+                # into — pinned 404.
+                raise PortNotFound("no adapters registered")
+            registry = context.renderers
+        else:
+            registry = Registry()
+    assert registry is not None  # narrowed: both branches yield a Registry
     if "figure" not in registry.ports:
         # Standalone + minimal host contexts get the bundled default
         # figure adapter: the mount() signature stays unchanged and

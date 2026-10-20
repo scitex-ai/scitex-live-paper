@@ -4,6 +4,8 @@
 // annotation-layer extensions. Writer can later import this class
 // directly with zero API changes.
 
+import { groupClaimsByPage, paintPageOverlays } from "./claim-overlays.js";
+
 export class PDFViewer {
   constructor(options) {
     this.container = options.container;
@@ -13,7 +15,13 @@ export class PDFViewer {
     this.scale = 1.0;
     this.fitMode = "width";
     this.canvases = [];
+    this.claimsByPage = new Map();
     this.container.classList.add("pdf-viewer-host");
+  }
+
+  /** Pin the claims whose anchors paint as overlay regions. */
+  setClaims(claims) {
+    this.claimsByPage = groupClaimsByPage(claims);
   }
 
   async load(docType) {
@@ -97,6 +105,15 @@ export class PDFViewer {
         await this._renderAnnotationLayer(page, viewport, pageWrap);
       } catch (err) {
         console.warn("[pdf-viewer] annotation-layer page %d failed", pageNum, err);
+      }
+
+      // CCT 3000 overlay: claim-anchor regions from anchor bboxes.
+      // Re-painted on every render so zoom / fit-width keeps the
+      // rects aligned with the canvas underneath.
+      try {
+        paintPageOverlays(pageWrap, viewport, this.claimsByPage.get(pageNum) || []);
+      } catch (err) {
+        console.warn("[pdf-viewer] overlay page %d failed", pageNum, err);
       }
     }
   }

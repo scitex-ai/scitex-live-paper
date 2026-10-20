@@ -160,6 +160,35 @@ def test_missing_registry_404s_with_named_error():
     ) == (404, True)
 
 
+def test_bare_request_with_env_pin_serves_default_adapter():
+    # Arrange — SDK standalone (no middleware context): the env pin
+    # synthesizes the ephemeral context, so the bundled default
+    # figure adapter serves out of the box.
+    import os
+
+    from scitex_live_paper._django import services
+
+    bundle_accepted = Path(__file__).resolve().parents[2] / "fixtures" / "bundle-accepted"
+    previous = os.environ.get("SCITEX_LIVE_PAPER_BUNDLE")
+    os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(bundle_accepted)
+    services.clear_cache()
+    try:
+        request = _port_request("/api/port/figure/fig-demo-1", None)
+        # Act
+        response = views.api_dispatch(request, "api/port/figure/fig-demo-1")
+        # Assert
+        assert (
+            response.status_code,
+            json.loads(response.content)["figure_id"],
+        ) == (200, "fig-demo-1")
+    finally:
+        if previous is not None:
+            os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = previous
+        else:
+            os.environ.pop("SCITEX_LIVE_PAPER_BUNDLE", None)
+        services.clear_cache()
+
+
 def test_adapter_unknown_target_404s():
     # Arrange
     request = _port_request("/api/port/figure/missing", _registry_with_all())
