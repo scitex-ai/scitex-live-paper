@@ -649,3 +649,17 @@ def test_viewer_renders_no_custom_h1():
     )
     # Assert
     assert "<h1>" not in text
+
+
+def test_viewer_links_sdk_app_header_stylesheet():
+    # Arrange — the header JS without its stylesheet renders title
+    # and version jammed together with no gap.
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert "scitex_sdk/ui/css/app/app-header.css" in text

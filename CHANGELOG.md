@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-20
+
+### Fixed
+
+- AppHeader spacing: include the SDK app-header.css so the title
+  and version badge render with proper styling instead of jammed
+  together (CCT follow-up).
+
 ## [0.2.4] - 2026-10-20
 
 ### Changed
