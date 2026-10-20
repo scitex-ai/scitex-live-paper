@@ -16,6 +16,17 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-20
+
+### Fixed
+
+- Hub plugin discovery: declare the `scitex.apps` entry point
+  (`live-paper = scitex_live_paper._django.apps:LivePaperConfig`)
+  so the Hub's generic mount finds the leaf (`mount_route` resolves
+  `apps/live-paper/`, login-gated per manifest). Without it
+  `loaded_plugin_configs()` never saw the package and the mount
+  silently did nothing.
+
 ## [0.2.0] - 2026-10-20
 
 Independent GUI app on scitex-sdk: the viewer runs inside the shared
