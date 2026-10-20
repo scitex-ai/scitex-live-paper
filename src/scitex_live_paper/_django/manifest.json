@@ -4,7 +4,7 @@
   "label": "Live Paper",
   "scope": "project",
   "pip_package": "scitex-live-paper",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "icon": "fas fa-file-alt",
   "category": "writing",
   "accent_color": "live-paper",
