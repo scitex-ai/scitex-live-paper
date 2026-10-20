@@ -1,12 +1,18 @@
-{% load static %}<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SciTeX Live Paper</title>
-  <link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">
-</head>
-<body>
+{% extends "scitex_sdk/ui/standalone_shell.html" %}
+{% load static %}
+{% comment %}
+Standalone viewer page inside the shared SDK workspace shell (scholar
+pattern): the shell owns <html>/<head>/launcher chrome; this leaf
+only fills extra_css (viewer + overlay styles), app_content (the
+#live-paper-root the viewer.js boot reads: data-api-base for the API,
+status block for the boot payload), and extra_js (mermaid vendor +
+the viewer orchestrator module).
+
+The claim model callout stays: the engine consumes scitex-clew's
+claim model and never defines it.
+{% endcomment %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">{% endblock %}
+{% block app_content %}
   <main id="live-paper-root" data-api-base="/{{ api_base }}">
     <header class="live-paper-header">
       <h1>SciTeX Live Paper</h1>
@@ -21,7 +27,8 @@
       <pre id="live-paper-bundle-info">{}</pre>
     </section>
   </main>
+{% endblock %}
+{% block extra_js %}
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
   <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
-</body>
-</html>
+{% endblock %}

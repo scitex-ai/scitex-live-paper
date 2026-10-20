@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.1.1"
+version = "0.2.0"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -46,6 +46,12 @@ dependencies = [
 django = [
     "django>=4.2",
 ]
+# Standalone + host integration: the SDK supplies the shared App/UI
+# contracts and mount. Mirrors the scitex-stats [server] extra floor.
+server = [
+    "django>=4.2",
+    "scitex-sdk[gui]>=0.3.7",
+]
 mcp = [
     "fastmcp>=2.0",
 ]
@@ -63,7 +69,7 @@ test = [
 # `pip install scitex-live-paper[all]` must pull EVERYTHING public (PS-221).
 # PS-221: public extras are closed under `[all]` — CI installs `.[all,dev]`.
 all = [
-    "scitex-live-paper[clew,django,mcp,test]",
+    "scitex-live-paper[clew,django,server,mcp,test]",
 ]
 # `dev` toolchain extra — the org pytest-matrix reusable installs
 # `.[all,dev]`; without a `dev` extra the chain falls back to a bare

@@ -20,7 +20,7 @@ __all__ = ["serve_cmd", "register"]
     **spec_command_kwargs(
         summary="Run the standalone Django dev server pinned to a bundle.",
         description=(
-            "Requires the [django] extra. The viewer mounts at / and the "
+            "Requires the [server] extra. The viewer mounts at / and the "
             "catch-all API dispatcher mounts at /<endpoint> (e.g. "
             "/api/ping, /api/bundle-info).",
         ),
@@ -53,22 +53,21 @@ __all__ = ["serve_cmd", "register"]
 def serve_cmd(bundle_path: str, host: str, port: int) -> None:
     """Run the standalone Django dev server pinned to BUNDLE_PATH.
 
-    Requires the ``[django]`` extra. The viewer mounts at ``/`` and the
+    Requires the ``[server]`` extra. The viewer mounts at ``/`` and the
     catch-all API dispatcher mounts at ``/<endpoint>`` (e.g. ``/api/ping``,
     ``/api/bundle-info``).
     """
     try:
         from scitex_live_paper._django._server import serve as _serve  # type: ignore[import-not-found]
-    except ImportError as exc:  # pragma: no cover - exercised only without [django]
+    except ImportError as exc:  # pragma: no cover - exercised only without [server]
         raise click.ClickException(
-            "the `serve` command requires the [django] extra — "
-            "install with: pip install 'scitex-live-paper[django]'"
+            "the `serve` command requires the [server] extra — "
+            "install with: pip install 'scitex-live-paper[server]'"
         ) from exc
-    # pragma: no cover reason — `_serve(...)` is `_server.serve()`
-    # with no injected runner, which calls Django's `runserver` and
-    # binds a TCP port. No-mocks doctrine prohibits patching
-    # call_command for a coverage hit; this line only fires from the
-    # live `scitex-live-paper serve` CLI.
+    # pragma: no cover reason — `_serve(...)` delegates to the SDK
+    # `run_standalone` launcher and binds a TCP port. The no-mocks
+    # doctrine prohibits patching it for a coverage hit; this line
+    # only fires from the live `scitex-live-paper serve` CLI.
     _serve(bundle_path, host=host, port=port)  # pragma: no cover
 
 

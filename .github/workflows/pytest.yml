@@ -44,10 +44,12 @@ jobs:
           # the package WITHOUT its declared deps and then layer on
           # the minimum runtime + test deps the suite actually needs
           # (loader uses pyyaml; _django handlers import scitex-logging;
+          # _django settings/templates boot the scitex-sdk workspace
+          # shell, so scitex-sdk[gui] rides along;
           # renderer/CLI scaffolding stays skipped until those modules
           # land in their own PRs).
           python -m pip install --no-deps -e .
-          python -m pip install pytest pyyaml jinja2 click 'django>=4.2' 'scitex-logging>=0.1.0'
+          python -m pip install pytest pyyaml jinja2 click 'django>=4.2' 'scitex-logging>=0.1.0' 'scitex-sdk[gui]>=0.3.7'
 
       - name: Show environment
         run: |

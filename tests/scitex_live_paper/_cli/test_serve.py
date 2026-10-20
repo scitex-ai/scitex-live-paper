@@ -144,8 +144,8 @@ def test_serve_without_django_raises_click_exception__assert_django_in_result_ou
     runner = CliRunner()
     # Act
     result = runner.invoke(cli, ["serve", str(bundle)])
-    # Assert
-    assert "[django]" in result.output
+    # Assert — names the [server] extra (SDK-era contract)
+    assert "[server]" in result.output
 
 
 
