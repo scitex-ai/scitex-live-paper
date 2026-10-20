@@ -3,8 +3,10 @@
 Pins the Django SPA overlay wiring: claim-anchor regions painted
 over PDF.js pages from anchor bboxes (``claim-overlays.js``),
 port-events bus binding + evidence popup chrome, the event-log
-sidecar (``event-log.js``), and the print/export strip
-(``viewer.css`` ``@media print`` hides the overlay).
+sidecar (``event-log.js``), the viewer Archive action
+(``archive.js`` — server persist with download fallback), and the
+print/export strip (``viewer.css`` ``@media print`` hides the
+overlay).
 
 All assertions are static (file text) — the JS runs in the
 browser; here we pin the contract the browser relies on.
@@ -329,3 +331,167 @@ def test_css_print_strips_claim_anchor():
     # Assert
     print_block = text.split("@media print", 1)[1]
     assert ".lp-claim-anchor" in print_block
+
+
+# ---------------------------------------------------------------------------
+# Module existence
+# ---------------------------------------------------------------------------
+
+
+def test_archive_module_exists():
+    # Arrange
+    # Act
+    # Assert
+    assert _module_file("archive.js").is_file()
+
+
+# ---------------------------------------------------------------------------
+# archive.js contract
+# ---------------------------------------------------------------------------
+
+
+def test_archive_exports_render_archive_button():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "export function renderArchiveButton" in text
+
+
+def test_archive_exports_archive_event_log():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "export async function archiveEventLog" in text
+
+
+def test_archive_uses_server_persist():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "persistSidecar" in text
+
+
+def test_archive_falls_back_to_client_download():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "downloadSidecar" in text
+
+
+def test_archive_imports_event_log_helpers():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert 'from "./event-log.js"' in text
+
+
+def test_archive_reads_session_log_lazily():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "rootEl._livePaperEventLog" in text
+
+
+def test_archive_reads_stashed_bundle_lazily():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "rootEl._livePaperBundle" in text
+
+
+def test_archive_button_has_button_class():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "lp-archive-button" in text
+
+
+def test_archive_button_has_status_element():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert "lp-archive-status" in text
+
+
+def test_archive_status_is_live_region():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
+    assert 'aria-live' in text
+
+
+# ---------------------------------------------------------------------------
+# viewer.js boot wiring
+# ---------------------------------------------------------------------------
+
+
+def test_viewer_imports_archive_module():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert 'from "./archive.js"' in text
+
+
+def test_viewer_calls_render_archive_button():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "renderArchiveButton" in text
+
+
+def test_viewer_stashes_bundle_for_archive():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "rootEl._livePaperBundle" in text
+
+
+# ---------------------------------------------------------------------------
+# viewer.css chrome + print strip
+# ---------------------------------------------------------------------------
+
+
+def test_css_has_archive_button_chrome():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert ".lp-archive-button" in text
+
+
+def test_css_has_archive_status_chrome():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert ".lp-archive-status" in text
+
+
+def test_css_print_block_exists():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert "@media print" in text
+
+
+def test_css_print_strips_archive_button():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    print_block = text.split("@media print", 1)[1]
+    assert ".lp-archive-button" in print_block

@@ -68,19 +68,17 @@ def test_no_hub_imports_in_leaf_source():
     assert {k: v for k, v in offenders.items() if v} == {}
 
 
-def test_app_config_raises_without_sdk():
-    # Arrange — SDK base is REQUIRED (hub ruling 2026-08-18, same as
-    # scholar/stats): the leaf is an SDK workspace app or it fails
+def test_apps_sdk_guard_names_server_extra():
+    # Arrange — the SDK base is REQUIRED (hub ruling 2026-08-18, same
+    # as scholar/stats): the leaf is an SDK workspace app or it fails
     # loud with the install hint. No vanilla fallback — a fallback
-    # would silently drop every SDK contract.
-    import importlib.util
-
-    if importlib.util.find_spec("scitex_sdk") is not None:
-        pytest.skip("scitex_sdk installed — absent-SDK path not exercisable")
+    # would silently drop every SDK contract. Pinned statically: the
+    # absent-SDK runtime path is untestable in any env that installs
+    # the [server] extra, so the guard text itself is the contract.
     # Act
+    text = (SRC_ROOT / "_django" / "apps.py").read_text(encoding="utf-8")
     # Assert
-    with pytest.raises(ImportError, match="scitex-live-paper\\[server\\]"):
-        import scitex_live_paper._django.apps  # noqa: F401
+    assert "scitex-live-paper[server]" in text
 
 
 def test_app_config_subclasses_sdk_base():
