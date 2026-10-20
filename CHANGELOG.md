@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-20
+
+### Added
+
+- Project selector in the canonical AppHeader (stats pattern):
+  server-rendered SDK picker (?project= deep link carries current),
+  moved into the header slot at boot.
+
 ## [0.2.6] - 2026-10-20
 
 ### Fixed

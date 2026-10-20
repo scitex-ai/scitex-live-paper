@@ -150,6 +150,10 @@ def viewer_page(request) -> HttpResponse:
                 request, "live_paper_empty_reason", None
             )
             or "",
+            # Project slot of the canonical AppHeader (stats pattern):
+            # the host deep link carries it (?project=<id>); the SPA
+            # moves the picker element into the header slot at boot.
+            "current_project": request.GET.get("project", ""),
         },
         request=request,
     )
