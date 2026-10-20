@@ -37,13 +37,13 @@ def test_viewer_page_contains_data_api_base_attribute(client):
     assert 'data-api-base="/api/"' in body
 
 
-def test_viewer_page_references_scitex_clew_boundary(client):
-    # arrange
+def test_viewer_page_carries_app_title(client):
+    # arrange — leaf identity is the AppHeader title, never an h1
     url = "/"
     # act
     body = client.get(url).content.decode("utf-8")
     # assert
-    assert "scitex-clew" in body
+    assert 'data-app-title="SciTeX Live Paper"' in body
 
 
 # ──────────────────────────────────────────────────────────────────

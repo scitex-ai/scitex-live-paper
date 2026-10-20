@@ -44,24 +44,25 @@ def test_viewer_page_default_returns_full_chrome__assert_response_status_code_20
     assert response.status_code == 200
 
 
-def test_viewer_page_default_returns_full_chrome__assert_header_in_body(rf):
-    # Arrange
+def test_viewer_page_default_returns_full_chrome__assert_app_header_in_body(rf):
+    # Arrange — chrome comes from the canonical SDK AppHeader (stats
+    # pattern); the leaf renders no <header> of its own.
     request = rf.get("/")
     response = views.viewer_page(request)
     # Act
     body = response.content.decode("utf-8")
     # Assert
-    assert "<header" in body
+    assert "data-stx-app-header" in body
 
 
-def test_viewer_page_default_returns_full_chrome__assert_scitex_clew_in_body(rf):
-    # Arrange
+def test_viewer_page_default_returns_full_chrome__assert_app_title_in_body(rf):
+    # Arrange — leaf identity is the AppHeader title, never an h1.
     request = rf.get("/")
     response = views.viewer_page(request)
     # Act
     body = response.content.decode("utf-8")
     # Assert
-    assert "scitex-clew" in body  # boundary callout in the subtitle
+    assert 'data-app-title="SciTeX Live Paper"' in body
 
 
 
@@ -217,12 +218,12 @@ def test_embed_mode_absent_param_keeps_full_chrome(rf):
     assert views._is_embed_mode(request) is False
 
 
-def test_embed_mode_other_query_params_dont_trigger__assert_header_in_body_2(rf):
+def test_embed_mode_other_query_params_dont_trigger__assert_app_header_in_body(rf):
     # Arrange
     # Act
     body = views.viewer_page(rf.get("/?foo=1&bar=true")).content.decode("utf-8")
     # Assert
-    assert "<header" in body
+    assert "data-stx-app-header" in body
 
 
 def test_embed_mode_other_query_params_dont_trigger__assert_data_embed_mode_not_in_bo(rf):

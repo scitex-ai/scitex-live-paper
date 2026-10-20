@@ -25,19 +25,8 @@ body {
   padding: 32px 24px;
 }
 
-.live-paper-header h1 {
-  color: var(--lp-accent);
-  margin: 0 0 8px;
-}
-
-.live-paper-header .subtitle {
-  color: var(--lp-muted);
-  margin: 0 0 24px;
-}
-
-.live-paper-header a {
-  color: var(--lp-accent);
-}
+/* Header chrome comes from the canonical SDK AppHeader (stats
+ * pattern) — the leaf renders no <header> of its own. */
 
 /* CCT 3000 archive action: persists the session event log as the
  * `live-paper-events.json` sidecar (server POST, download fallback).

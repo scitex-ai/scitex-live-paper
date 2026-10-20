@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-20
+
+### Changed
+
+- Viewer uses the canonical SDK AppHeader (stats pattern) instead of
+  its own h1/subtitle block; leaf AppConfig version shown as badge.
+
 ## [0.2.2] - 2026-10-20
 
 ### Fixed

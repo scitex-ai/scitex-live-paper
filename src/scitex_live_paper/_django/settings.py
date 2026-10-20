@@ -72,6 +72,21 @@ except ImportError as exc:  # scitex-sdk absent — the [server]-gated GUI capab
 
 INSTALLED_APPS.append("scitex_sdk.ui")
 
+# scitex-sdk ships `scitex_sdk/app/app_shell.html`, the base template
+# viewer.html EXTENDS. APP_DIRS only searches installed apps, so
+# leaving scitex_sdk.app out of INSTALLED_APPS makes every page 500
+# with `TemplateDoesNotExist: scitex_sdk/app/app_shell.html` (stats
+# hit exactly this; same loud-guard rationale as above).
+try:
+    import scitex_sdk.app  # noqa: F401
+except ImportError as exc:  # scitex-sdk absent — the [server]-gated GUI capability only
+    raise ImportError(
+        "scitex_live_paper._django.settings needs scitex-sdk app, which is not "
+        "installed. Install the optional stack: pip install 'scitex-live-paper[server]'"
+    ) from exc
+
+INSTALLED_APPS.append("scitex_sdk.app")
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.locale.LocaleMiddleware",
