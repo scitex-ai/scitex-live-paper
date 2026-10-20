@@ -141,11 +141,24 @@ def _resolver_error_to_response(exc: BundleResolverError) -> HttpResponse:
 
 
 def _wrap_viewer_page(resolver: BundleResolver) -> Callable[..., Any]:
-    """Wrap :func:`views.viewer_page` so the resolver runs first."""
+    """Wrap :func:`views.viewer_page` so the resolver runs first.
+
+    A :class:`BundleNotFound` (no paper selected, unknown id) renders
+    the viewer shell with a friendly empty state (HTTP 200) instead of
+    a bare-text 404 — the viewer page is a human surface, and the
+    operator sees the raw resolver message otherwise. The reason
+    travels on ``request.live_paper_empty_reason``; the API half
+    (``_wrap_api_dispatch``) keeps the machine-readable 404.
+    :class:`BundleAccessDenied` and anything else keep their mapped
+    statuses — access problems must not render as content.
+    """
 
     def wrapped(request, **url_kwargs):
         try:
             request.live_paper_context = resolver(request, **url_kwargs)
+        except BundleNotFound as exc:
+            request.live_paper_empty_reason = str(exc) or "bundle not found"
+            return views.viewer_page(request)
         except BundleResolverError as exc:
             return _resolver_error_to_response(exc)
         return views.viewer_page(request)
