@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-20
+
+### Changed
+
+- Viewer uses the canonical SDK AppHeader (stats pattern) instead of
+  its own h1/subtitle block; the shell supplies the official SciTeX
+  tab mark (CCT4925).
+
 ## [0.2.3] - 2026-10-20
 
 ### Changed
