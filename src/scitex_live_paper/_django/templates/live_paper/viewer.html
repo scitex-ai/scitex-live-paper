@@ -1,27 +1,26 @@
-{% extends "scitex_sdk/ui/standalone_shell.html" %}
+{% extends "scitex_sdk/app/app_shell.html" %}
 {% load static %}
 {% comment %}
-Standalone viewer page inside the shared SDK workspace shell (scholar
-pattern): the shell owns <html>/<head>/launcher chrome; this leaf
-only fills extra_css (viewer + overlay styles), app_content (the
-#live-paper-root the viewer.js boot reads: data-api-base for the API,
-status block for the boot payload), and extra_js (mermaid vendor +
-the viewer orchestrator module).
+Standalone viewer page inside the canonical SDK app shell (stats
+pattern): host chrome comes from scitex_sdk/app/app_shell.html (hub
+maps it to its own base page; standalone uses the SDK UI shell).
+The leaf owns only identity via the canonical AppHeader row below
+(title span, never an h1 — a mounted leaf must not add a second H1)
+plus #live-paper-root, which the viewer.js boot reads (data-api-base
+for the API, data-empty-reason for the empty state, status block for
+the boot payload). extra_js mounts the header component first, then
+mermaid vendor + the viewer orchestrator module.
 
 The claim model callout stays: the engine consumes scitex-clew's
 claim model and never defines it.
 {% endcomment %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">{% endblock %}
-{% block app_content %}
+{% block scitex_app_content %}
+  <div data-stx-app-header
+       data-app-title="SciTeX Live Paper"
+       data-app-version="{{ app_version }}">
+  </div>
   <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
-    <header class="live-paper-header">
-      <h1>SciTeX Live Paper</h1>
-      <p class="subtitle">
-        Read-only viewer for accepted manuscript bundles.
-        Claim model owned upstream by
-        <a href="https://github.com/ywatanabe1989/scitex-clew">scitex-clew</a>.
-      </p>
-    </header>
     <section class="live-paper-status">
       <p>Loading bundle info…</p>
       <pre id="live-paper-bundle-info">{}</pre>
@@ -29,6 +28,7 @@ claim model and never defines it.
   </main>
 {% endblock %}
 {% block extra_js %}
+  <script type="module" src="{% static 'scitex_sdk/ui/js/app/app-header.js' %}"></script>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
   <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
 {% endblock %}

@@ -45,6 +45,13 @@ from .handlers import HANDLERS
 from .handlers.ports import handle_port
 from scitex_live_paper.ports._registry import PortNotFound
 
+
+def _package_version() -> str:
+    """Installed leaf version for the AppHeader badge (stats pattern)."""
+    import scitex_live_paper
+
+    return getattr(scitex_live_paper, "__version__", "0.0.0+local")
+
 log = slogging.getLogger(__name__)
 
 # Surfaces the handlers are allowed to return. ``HttpResponse`` instances
@@ -130,6 +137,10 @@ def viewer_page(request) -> HttpResponse:
             # app identity. All other shell slots carry defaults.
             "app_label": "SciTeX Live Paper",
             "app_name": "live-paper",
+            # Canonical AppHeader identity (stats pattern): product
+            # name + installed version, read off the package at call
+            # time so the header never drifts from the release.
+            "app_version": _package_version(),
             # Empty-state handoff from the mount wrapper (missing
             # bundle): the SPA reads this off the root dataset and
             # renders guidance instead of booting RPCs. Empty string

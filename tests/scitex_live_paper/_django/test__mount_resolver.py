@@ -501,12 +501,13 @@ def test_viewer_page_default_without_context_unchanged__assert_data_api_base_api
     assert 'data-api-base="/api/"' in body
 
 
-def test_viewer_page_default_without_context_unchanged__assert_header_in_body(rf):
-    # Arrange
+def test_viewer_page_default_without_context_unchanged__assert_app_header_in_body(rf):
+    # Arrange — chrome comes from the canonical SDK AppHeader (stats
+    # pattern); the leaf renders no <header> of its own.
     # Act
     body = views.viewer_page(rf.get("/")).content.decode("utf-8")
     # Assert
-    assert "<header" in body
+    assert "data-stx-app-header" in body
 
 
 def test_viewer_page_default_without_context_unchanged__assert_data_embed_mode_not_in_bo(rf):

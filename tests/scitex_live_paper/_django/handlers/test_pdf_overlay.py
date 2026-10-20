@@ -592,3 +592,60 @@ def test_css_has_empty_state_chrome():
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert ".lp-empty-state" in text
+
+
+# ---------------------------------------------------------------------------
+# Canonical SDK AppHeader (stats pattern — no leaf <header>)
+# ---------------------------------------------------------------------------
+
+
+def test_viewer_extends_sdk_app_shell():
+    # Arrange
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert '{% extends "scitex_sdk/app/app_shell.html" %}' in text
+
+
+def test_viewer_declares_canonical_app_header():
+    # Arrange
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert "data-stx-app-header" in text
+
+
+def test_viewer_mounts_sdk_app_header_component():
+    # Arrange
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert "scitex_sdk/ui/js/app/app-header.js" in text
+
+
+def test_viewer_renders_no_custom_h1():
+    # Arrange
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    # Act
+    text = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Assert
+    assert "<h1>" not in text
