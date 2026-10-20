@@ -5,7 +5,10 @@
 //
 // Module layout (under _django/static/live_paper/js/):
 //   - viewer.js          (this file — orchestrator, public global)
-//   - pdf-viewer.js      (PDFViewer class)
+//   - pdf-viewer.js      (PDFViewer class + claim-anchor overlays)
+//   - claim-overlays.js  (anchor bbox -> overlay regions, port attrs)
+//   - port-events.js     (evidence-request bus + popup chrome)
+//   - event-log.js       (overlay event-log sidecar for archive replay)
 //   - claims-sidebar.js  (sidebar + per-claim Re-verify)
 //   - reverify-all.js    (bulk Re-verify-all button)
 //   - _utils.js          (shared helpers)
@@ -25,9 +28,21 @@ import {
 import { PDFViewer } from "./pdf-viewer.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
+import { bindPortEvents } from "./port-events.js";
+import { createEventLog, bindEventLog } from "./event-log.js";
+import { renderArchiveButton } from "./archive.js";
 
-const PDFJS_REL = "../pdfjs/pdf.min.mjs"; // relative to data-api-base
-const PDFJS_WORKER_REL = "../pdfjs/pdf.worker.min.mjs";
+// PDF.js vendor bundle lives next to this module under staticfiles
+// (live_paper/pdfjs/). Resolve it from `import.meta.url` — never from
+// the API base: the API base moves with the mount point (standalone
+// root vs hub /apps/live-paper/api/), while static files always sit
+// beside this module. The old apiBase-relative join built
+// /pdfjs/... (404) instead of /static/live_paper/pdfjs/....
+const pdfjsUrl = new URL("../pdfjs/pdf.min.mjs", import.meta.url).href;
+const pdfjsWorkerUrl = new URL(
+  "../pdfjs/pdf.worker.min.mjs",
+  import.meta.url
+).href;
 
 const root = document.getElementById("live-paper-root");
 if (!root) {
@@ -38,13 +53,25 @@ if (!root) {
 
 async function boot(rootEl) {
   const apiBase = normalizeBase(rootEl.getAttribute("data-api-base") || "/api/");
-  const pdfjsUrl = new URL(PDFJS_REL, document.baseURI + apiBase).href;
-  const workerUrl = new URL(PDFJS_WORKER_REL, document.baseURI + apiBase).href;
+  // CCT 3000 overlay wiring: port bus serves evidence popups for
+  // overlay regions; the event log records the session for the
+  // archive sidecar (PDF + event-log). Both bind once at boot.
+  bindPortEvents(rootEl, apiBase);
+  const eventLog = createEventLog();
+  bindEventLog(rootEl, eventLog);
+  rootEl._livePaperEventLog = eventLog;
+  // Archive action renders immediately (reads log + bundle lazily
+  // at click time) so it survives failed boot RPCs.
+  try {
+    renderArchiveButton(rootEl, apiBase);
+  } catch (err) {
+    console.warn("[live-paper] archive button render failed", err);
+  }
 
   let pdfjs;
   try {
     pdfjs = await import(pdfjsUrl);
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
   } catch (err) {
     console.error("[live-paper] PDF.js failed to load", err);
     renderError("PDF.js bundle not available at " + pdfjsUrl);
@@ -80,6 +107,9 @@ async function boot(rootEl) {
 
     setStatus(bundleInfo);
     renderReReviewBadge(rootEl, bundleInfo);
+    // Stash for the Archive action (archive.js reads it lazily at
+    // click time, so the button renders even when boot RPCs fail).
+    rootEl._livePaperBundle = bundleInfo;
   } catch (err) {
     console.error("[live-paper] boot RPCs failed", err);
     setStatus({ error: String(err) });
@@ -101,6 +131,11 @@ async function boot(rootEl) {
     pdfjs: pdfjs,
     apiBase: apiBase,
   });
+  // Overlay regions paint from the same claims payload as the
+  // sidebar, so sidebar rows and PDF regions never disagree.
+  if (claimsPayload && Array.isArray(claimsPayload.claims)) {
+    viewer.setClaims(claimsPayload.claims);
+  }
   await viewer.load();
 }
 

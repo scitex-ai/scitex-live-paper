@@ -2,18 +2,23 @@
 
 Two routes — the SPA shell at the app root and a catch-all
 ``<path:endpoint>`` that delegates into the ``HANDLERS`` registry. This
-mirrors ``scitex_writer._django.urls`` so the hub mount in M3 stays a
-one-line ``include()``.
+mirrors ``scitex_writer._django.urls`` so the hub mount stays a
+one-line ``include()`` under ``/apps/live-paper/``.
+
+Django is a `[server]`-extra member: not optional AT RUN TIME (this
+module IS a urlconf), optional for the DISTRIBUTION — so the import
+is GUARDED and the guard FAILS LOUDLY rather than substituting
+anything (scholar pattern; hub ruling 2026-08-18).
 """
 
 from __future__ import annotations
 
 try:
     from django.urls import path
-except ImportError as exc:
+except ImportError as exc:  # django absent — the [server]-gated GUI capability only
     raise ImportError(
-        "scitex-live-paper's Django surface requires Django — "
-        "install with: pip install 'scitex-live-paper[all]'"
+        "scitex_live_paper._django.urls needs Django, which is not installed. "
+        "Install the optional stack: pip install 'scitex-live-paper[server]'"
     ) from exc
 
 from . import views

@@ -16,6 +16,39 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+Independent GUI app on scitex-sdk: the viewer runs inside the shared
+SDK workspace shell and ships as a standalone package that also
+provides the `/apps/live-paper/` Hub plugin mount.
+
+### Added
+
+- PDF base layer + event overlay (CCT 3000, binding): claim-anchor
+  regions painted over PDF.js pages from anchor bboxes
+  (`claim-overlays.js`, zoom-safe repaint); hover/click evidence
+  popups over PDF regions via the port bus (`port-events.js`);
+  print/export strips the overlay (`@media print`), archive keeps
+  PDF + event-log sidecar for replay.
+- Archive session persist: POST `api/event-log` validates the
+  `scitex-live-paper.event-log/v1` sidecar and stores it verbatim
+  as `live-paper-events.json` in the bundle directory; the viewer
+  Archive button persists server-side with a client-download
+  fallback, so the archive action always produces a sidecar.
+- scitex-sdk shell migration: the Django surface runs on
+  `scitex-sdk` (`ScitexAppConfig`, shared `standalone_shell`,
+  `run_standalone` launcher); new `[server]` extra
+  (`django` + `scitex-sdk[gui]>=0.3.7`); `serve`, settings, and
+  guards hardened (DEBUG defaults false, ALLOWED_HOSTS switch,
+  loud missing-dependency errors, no silent fallbacks).
+
+### Changed
+
+- Hub mount path finalized as `/apps/live-paper/` (manifest, URL
+  docs, and mount notes updated from `/viewer-v2/`); host deep-link
+  contract is resolver-based via `mount(resolver=...)` — no leaf
+  URL-shape change.
+
 ## [0.1.1] - 2026-10-19
 
 ### Added

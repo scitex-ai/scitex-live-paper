@@ -17,7 +17,11 @@ The ``HANDLERS`` mapping is the *single source of truth* for what the
                           against ``bundle.paper_state.pinned_commit``;
                           degrades gracefully when clew is not installed)
 - ``api/claims/verify`` — M2 bulk re-verify (per-claim envelopes; one bad
-                          claim doesn't 500 the sweep)
+                         claim doesn't 500 the sweep)
+- ``api/event-log`` — CCT 3000 archive sidecar persist (POST a validated
+                        ``scitex-live-paper.event-log/v1`` sidecar; stored
+                        verbatim as ``live-paper-events.json`` in the bundle
+                        directory next to ``manuscript.pdf``)
 
 Extend this dict when new endpoints land; do NOT inline endpoint
 logic in ``views.py``.
@@ -31,6 +35,7 @@ from .claims import handle_claims
 from .core import bundle_info, ping
 from .dag import handle_dag
 from .dashboard import handle_dashboard
+from .event_log import handle_event_log
 from .pdf import handle_pdf
 from .reverify import handle_reverify, handle_reverify_all
 
@@ -46,6 +51,7 @@ HANDLERS: Dict[str, HandlerFn] = {
     "api/dag":            handle_dag,
     "api/claim/verify":   handle_reverify,
     "api/claims/verify":  handle_reverify_all,
+    "api/event-log":      handle_event_log,
 }
 # fmt: on
 
@@ -56,6 +62,7 @@ __all__ = [
     "handle_claims",
     "handle_dag",
     "handle_dashboard",
+    "handle_event_log",
     "handle_pdf",
     "handle_reverify",
     "handle_reverify_all",
