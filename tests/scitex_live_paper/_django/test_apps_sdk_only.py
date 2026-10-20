@@ -151,6 +151,18 @@ def test_manifest_mount_policy_has_jail():
     assert isinstance(manifest.get("mount_policy").get("jail"), dict)
 
 
+def test_plugin_entry_point_declared():
+    # Arrange — the Hub discovers plugins through the `scitex.apps`
+    # entry-point group (SDK thin-hub rule); without it the mount
+    # silently does nothing.
+    from importlib.metadata import entry_points
+
+    # Act
+    values = [ep.value for ep in entry_points(group="scitex.apps")]
+    # Assert
+    assert "scitex_live_paper._django.apps:LivePaperConfig" in values
+
+
 def _shells(client):
     # Arrange helper — fetch standalone + embed shells once per test.
     standalone = client.get("/").content.decode("utf-8")

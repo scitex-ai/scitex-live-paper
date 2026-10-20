@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.2.0"
+version = "0.2.1"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -89,6 +89,15 @@ scitex-live-paper = "scitex_live_paper._cli:main"
 
 [project.entry-points."scitex.livepaper.renderers"]
 figz-default = "scitex_live_paper.ports._figz_adapter:FigzDefaultEntry"
+
+# Hub plugin discovery (thin-hub rule): `pip install` is the whole
+# install. The group name contains a dot, so it MUST stay QUOTED.
+# The host mounts `scitex_live_paper._django.urls` at the manifest
+# route (apps/live-paper/) and lists the launcher tile from
+# `_django/manifest.json`. Without this, `loaded_plugin_configs()`
+# never sees the leaf and the mount silently does nothing.
+[project.entry-points."scitex.apps"]
+live-paper = "scitex_live_paper._django.apps:LivePaperConfig"
 
 [project.urls]
 Homepage = "https://github.com/ywatanabe1989/scitex-live-paper"
