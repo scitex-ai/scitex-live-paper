@@ -8,6 +8,8 @@ sidecar (``event-log.js``), and the print/export strip
 
 All assertions are static (file text) — the JS runs in the
 browser; here we pin the contract the browser relies on.
+
+One assertion per test (STX-TQ007).
 """
 
 from __future__ import annotations
@@ -71,16 +73,38 @@ def test_claim_overlays_exports_bbox_converter():
     text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
     # Assert
     assert "export function pdfBboxToCssRect" in text
+
+
+def test_claim_overlays_uses_viewport_rectangle():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
     assert "convertToViewportRectangle" in text
 
 
-def test_claim_overlays_exports_painters():
+def test_claim_overlays_exports_paint_claim_anchor():
     # Arrange
     # Act
     text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
     # Assert
     assert "export function paintClaimAnchor" in text
+
+
+def test_claim_overlays_exports_paint_page_overlays():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function paintPageOverlays" in text
+
+
+def test_claim_overlays_binds_port_attribute():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
+    assert "data-lp-port" in text
 
 
 def test_claim_overlays_binds_figure_port():
@@ -88,17 +112,30 @@ def test_claim_overlays_binds_figure_port():
     # Act
     text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
     # Assert
-    assert "data-lp-port" in text
     assert '"figure"' in text
+
+
+def test_claim_overlays_binds_target_attribute():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
     assert "data-lp-target" in text
 
 
-def test_claim_overlays_maps_status_classes():
+def test_claim_overlays_maps_verified_class():
     # Arrange
     # Act
     text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
     # Assert
     assert "lp-status-verified" in text
+
+
+def test_claim_overlays_maps_suspect_class():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
     assert "lp-status-suspect" in text
 
 
@@ -107,14 +144,35 @@ def test_claim_overlays_maps_status_classes():
 # ---------------------------------------------------------------------------
 
 
-def test_event_log_exports_sidecar_api():
+def test_event_log_exports_create_event_log():
     # Arrange
     # Act
     text = _module_file("event-log.js").read_text(encoding="utf-8")
     # Assert
     assert "export function createEventLog" in text
+
+
+def test_event_log_exports_record_event():
+    # Arrange
+    # Act
+    text = _module_file("event-log.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function recordEvent" in text
+
+
+def test_event_log_exports_export_sidecar():
+    # Arrange
+    # Act
+    text = _module_file("event-log.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function exportSidecar" in text
+
+
+def test_event_log_exports_bind_event_log():
+    # Arrange
+    # Act
+    text = _module_file("event-log.js").read_text(encoding="utf-8")
+    # Assert
     assert "export function bindEventLog" in text
 
 
@@ -160,21 +218,35 @@ def test_pdf_viewer_paints_overlays_per_page():
 # ---------------------------------------------------------------------------
 
 
-def test_viewer_binds_port_events_bus():
+def test_viewer_imports_port_events_module():
     # Arrange
     # Act
     text = _module_file("viewer.js").read_text(encoding="utf-8")
     # Assert
     assert 'from "./port-events.js"' in text
+
+
+def test_viewer_calls_bind_port_events():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert "bindPortEvents" in text
 
 
-def test_viewer_binds_event_log():
+def test_viewer_imports_event_log_module():
     # Arrange
     # Act
     text = _module_file("viewer.js").read_text(encoding="utf-8")
     # Assert
     assert 'from "./event-log.js"' in text
+
+
+def test_viewer_calls_bind_event_log():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert "bindEventLog" in text
 
 
@@ -194,6 +266,13 @@ def test_viewer_resolves_pdfjs_from_module_url():
     text = _module_file("viewer.js").read_text(encoding="utf-8")
     # Assert
     assert "import.meta.url" in text
+
+
+def test_viewer_never_resolves_pdfjs_from_api_base():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert "document.baseURI + apiBase" not in text
 
 
@@ -208,6 +287,13 @@ def test_css_has_overlay_layer():
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert ".lp-overlay" in text
+
+
+def test_css_has_claim_anchor():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
     assert ".lp-claim-anchor" in text
 
 
@@ -219,12 +305,27 @@ def test_css_has_evidence_popup_chrome():
     assert ".lp-evidence-popup" in text
 
 
-def test_css_print_strips_overlay():
+def test_css_print_block_exists():
     # Arrange
     # Act
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert "@media print" in text
+
+
+def test_css_print_strips_overlay_layer():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
     print_block = text.split("@media print", 1)[1]
     assert ".lp-overlay" in print_block
+
+
+def test_css_print_strips_claim_anchor():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    print_block = text.split("@media print", 1)[1]
     assert ".lp-claim-anchor" in print_block

@@ -112,9 +112,25 @@ def test_serve_refuses_without_sdk(bundle_dir, env_snapshot):
     server_module.hosts_to_allow = None
     try:
         # Act
-        # Assert — loud refusal naming the extra, before env mutation
+        # Assert — loud refusal naming the extra
         with pytest.raises(ImportError, match="scitex-live-paper\\[server\\]"):
             server_module.serve(bundle_dir)
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_refusal_leaves_env_untouched(bundle_dir, env_snapshot):
+    # Arrange — SDK sentinels absent (broken/partial install)
+    previous = _swap_launcher(_LauncherSpy())
+    server_module.run_standalone = None
+    server_module.hosts_to_allow = None
+    try:
+        # Act — refusal fires before the env pin
+        try:
+            server_module.serve(bundle_dir)
+        except ImportError:
+            pass
+        # Assert — no bundle pin leaked into the environment
         assert "SCITEX_LIVE_PAPER_BUNDLE" not in os.environ
     finally:
         _restore_launcher(previous)
@@ -156,7 +172,7 @@ def test_serve_delegates_to_sdk_launcher_once(bundle_dir, env_snapshot):
         _restore_launcher(previous)
 
 
-def test_serve_passes_app_module_host_port(bundle_dir, env_snapshot):
+def test_serve_passes_app_module(bundle_dir, env_snapshot):
     # arrange
     spy = _LauncherSpy()
     previous = _swap_launcher(spy)
@@ -166,13 +182,39 @@ def test_serve_passes_app_module_host_port(bundle_dir, env_snapshot):
         # assert
         (_args, kwargs) = spy.calls[0]
         assert kwargs["app_module"] == "scitex_live_paper._django"
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_passes_explicit_host(bundle_dir, env_snapshot):
+    # arrange
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir, host="0.0.0.0", port=9100)
+        # assert
+        (_args, kwargs) = spy.calls[0]
         assert kwargs["host"] == "0.0.0.0"
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_passes_explicit_port(bundle_dir, env_snapshot):
+    # arrange
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir, host="0.0.0.0", port=9100)
+        # assert
+        (_args, kwargs) = spy.calls[0]
         assert kwargs["port"] == 9100
     finally:
         _restore_launcher(previous)
 
 
-def test_serve_uses_default_host_port_when_omitted(bundle_dir, env_snapshot):
+def test_serve_default_host_is_loopback(bundle_dir, env_snapshot):
     # arrange
     spy = _LauncherSpy()
     previous = _swap_launcher(spy)
@@ -182,6 +224,19 @@ def test_serve_uses_default_host_port_when_omitted(bundle_dir, env_snapshot):
         # assert
         (_args, kwargs) = spy.calls[0]
         assert kwargs["host"] == "127.0.0.1"
+    finally:
+        _restore_launcher(previous)
+
+
+def test_serve_default_port(bundle_dir, env_snapshot):
+    # arrange
+    spy = _LauncherSpy()
+    previous = _swap_launcher(spy)
+    try:
+        # act
+        server_module.serve(bundle_dir)
+        # assert
+        (_args, kwargs) = spy.calls[0]
         assert kwargs["port"] == 8765
     finally:
         _restore_launcher(previous)

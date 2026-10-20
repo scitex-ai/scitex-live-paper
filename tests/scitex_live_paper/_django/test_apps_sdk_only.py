@@ -68,25 +68,32 @@ def test_no_hub_imports_in_leaf_source():
     assert {k: v for k, v in offenders.items() if v} == {}
 
 
-def test_app_config_prefers_sdk_base_with_vanilla_fallback():
+def test_app_config_raises_without_sdk():
     # Arrange — SDK base is REQUIRED (hub ruling 2026-08-18, same as
     # scholar/stats): the leaf is an SDK workspace app or it fails
     # loud with the install hint. No vanilla fallback — a fallback
     # would silently drop every SDK contract.
     import importlib.util
 
+    if importlib.util.find_spec("scitex_sdk") is not None:
+        pytest.skip("scitex_sdk installed — absent-SDK path not exercisable")
     # Act
-    if importlib.util.find_spec("scitex_sdk") is None:
-        with pytest.raises(ImportError, match="scitex-live-paper\\[server\\]"):
-            import scitex_live_paper._django.apps  # noqa: F401
-    else:
-        from scitex_live_paper._django import apps as apps_mod
-        from scitex_sdk import app as _sdk_app
+    # Assert
+    with pytest.raises(ImportError, match="scitex-live-paper\\[server\\]"):
+        import scitex_live_paper._django.apps  # noqa: F401
 
-        # Assert — stats/writer leaf shape through the package path
-        assert issubclass(
-            apps_mod.LivePaperConfig, _sdk_app.embed.ScitexAppConfig
-        )
+
+def test_app_config_subclasses_sdk_base():
+    # Arrange — stats/writer leaf shape through the package path.
+    pytest.importorskip("scitex_sdk")
+    from scitex_live_paper._django import apps as apps_mod
+    from scitex_sdk import app as _sdk_app
+
+    # Act
+    # Assert
+    assert issubclass(
+        apps_mod.LivePaperConfig, _sdk_app.embed.ScitexAppConfig
+    )
 
 
 def test_manifest_carries_registry_required_fields():
@@ -100,7 +107,7 @@ def test_manifest_carries_registry_required_fields():
     assert missing == []
 
 
-def test_manifest_carries_mount_fields():
+def test_manifest_scope_is_user_or_project():
     # Arrange — hub generic plugin mount reads these (scholar/writer/
     # stats shape): scope + pip_package + mount_policy jail.
     manifest_path = SRC_ROOT / "_django" / "manifest.json"
@@ -108,11 +115,42 @@ def test_manifest_carries_mount_fields():
     # Act
     # Assert
     assert manifest.get("scope") in ("user", "project")
+
+
+def test_manifest_pip_package_is_leaf():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    # Act
+    # Assert
     assert manifest.get("pip_package") == "scitex-live-paper"
-    policy = manifest.get("mount_policy")
-    assert isinstance(policy, dict)
-    assert policy.get("login_required") is True
-    assert isinstance(policy.get("jail"), dict)
+
+
+def test_manifest_mount_policy_is_mapping():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    # Act
+    # Assert
+    assert isinstance(manifest.get("mount_policy"), dict)
+
+
+def test_manifest_mount_policy_requires_login():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    # Act
+    # Assert
+    assert manifest.get("mount_policy").get("login_required") is True
+
+
+def test_manifest_mount_policy_has_jail():
+    # Arrange
+    manifest_path = SRC_ROOT / "_django" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    # Act
+    # Assert
+    assert isinstance(manifest.get("mount_policy").get("jail"), dict)
 
 
 def _shells(client):

@@ -8,6 +8,8 @@ so the "PDF + event-log sidecar" archive always produces a sidecar.
 
 All assertions are static (file text) — the JS runs in the
 browser; here we pin the contract the browser relies on.
+
+One assertion per test (STX-TQ007).
 """
 
 from __future__ import annotations
@@ -66,13 +68,27 @@ def test_archive_exports_archive_event_log():
     assert "export async function archiveEventLog" in text
 
 
-def test_archive_uses_persist_sidecar_with_download_fallback():
+def test_archive_uses_server_persist():
     # Arrange
     # Act
     text = _module_file("archive.js").read_text(encoding="utf-8")
     # Assert
     assert "persistSidecar" in text
+
+
+def test_archive_falls_back_to_client_download():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
     assert "downloadSidecar" in text
+
+
+def test_archive_imports_event_log_helpers():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
     assert 'from "./event-log.js"' in text
 
 
@@ -82,16 +98,37 @@ def test_archive_reads_session_log_lazily():
     text = _module_file("archive.js").read_text(encoding="utf-8")
     # Assert
     assert "rootEl._livePaperEventLog" in text
+
+
+def test_archive_reads_stashed_bundle_lazily():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
     assert "rootEl._livePaperBundle" in text
 
 
-def test_archive_button_has_accessible_status():
+def test_archive_button_has_button_class():
     # Arrange
     # Act
     text = _module_file("archive.js").read_text(encoding="utf-8")
     # Assert
     assert "lp-archive-button" in text
+
+
+def test_archive_button_has_status_element():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
     assert "lp-archive-status" in text
+
+
+def test_archive_status_is_live_region():
+    # Arrange
+    # Act
+    text = _module_file("archive.js").read_text(encoding="utf-8")
+    # Assert
     assert 'aria-live' in text
 
 
@@ -106,6 +143,13 @@ def test_viewer_imports_archive_module():
     text = _module_file("viewer.js").read_text(encoding="utf-8")
     # Assert
     assert 'from "./archive.js"' in text
+
+
+def test_viewer_calls_render_archive_button():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
     assert "renderArchiveButton" in text
 
 
@@ -128,14 +172,28 @@ def test_css_has_archive_button_chrome():
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert ".lp-archive-button" in text
+
+
+def test_css_has_archive_status_chrome():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
     assert ".lp-archive-status" in text
 
 
-def test_css_print_strips_archive_chrome():
+def test_css_print_block_exists():
     # Arrange
     # Act
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert "@media print" in text
+
+
+def test_css_print_strips_archive_button():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
     print_block = text.split("@media print", 1)[1]
     assert ".lp-archive-button" in print_block

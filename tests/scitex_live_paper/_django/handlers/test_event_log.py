@@ -118,15 +118,43 @@ def test_post_valid_sidecar_returns_200(client, scratch_bundle):
     assert response.status_code == 200
 
 
-def test_post_valid_sidecar_receipt_shape(client, scratch_bundle):
+def test_post_valid_sidecar_receipt_ok(client, scratch_bundle):
     # Arrange
     # Act
     body = json.loads(_post(client, _sidecar()).content)
     # Assert
     assert body["ok"] is True
+
+
+def test_post_valid_sidecar_receipt_schema(client, scratch_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_post(client, _sidecar()).content)
+    # Assert
     assert body["schema"] == SIDECAR_SCHEMA
+
+
+def test_post_valid_sidecar_receipt_event_count(client, scratch_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_post(client, _sidecar()).content)
+    # Assert
     assert body["event_count"] == 2
+
+
+def test_post_valid_sidecar_receipt_filename(client, scratch_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_post(client, _sidecar()).content)
+    # Assert
     assert body["filename"] == SIDECAR_FILENAME
+
+
+def test_post_valid_sidecar_receipt_received_at(client, scratch_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_post(client, _sidecar()).content)
+    # Assert
     assert body["received_at"]
 
 
@@ -138,7 +166,7 @@ def test_post_valid_sidecar_writes_file(client, scratch_bundle):
     assert (scratch_bundle / SIDECAR_FILENAME).is_file()
 
 
-def test_post_valid_sidecar_stored_verbatim(client, scratch_bundle):
+def test_post_valid_sidecar_stored_schema(client, scratch_bundle):
     # Arrange
     posted = _sidecar()
     # Act
@@ -146,7 +174,25 @@ def test_post_valid_sidecar_stored_verbatim(client, scratch_bundle):
     stored = json.loads((scratch_bundle / SIDECAR_FILENAME).read_text(encoding="utf-8"))
     # Assert
     assert stored["schema"] == posted["schema"]
+
+
+def test_post_valid_sidecar_stored_events(client, scratch_bundle):
+    # Arrange
+    posted = _sidecar()
+    # Act
+    _post(client, posted)
+    stored = json.loads((scratch_bundle / SIDECAR_FILENAME).read_text(encoding="utf-8"))
+    # Assert
     assert stored["events"] == posted["events"]
+
+
+def test_post_valid_sidecar_stored_exported_at(client, scratch_bundle):
+    # Arrange
+    posted = _sidecar()
+    # Act
+    _post(client, posted)
+    stored = json.loads((scratch_bundle / SIDECAR_FILENAME).read_text(encoding="utf-8"))
+    # Assert
     assert stored["exported_at"] == posted["exported_at"]
 
 
@@ -160,13 +206,19 @@ def test_post_twice_second_wins(client, scratch_bundle):
     assert len(stored["events"]) == 3
 
 
-def test_post_empty_events_list_accepted(client, scratch_bundle):
+def test_post_empty_events_list_returns_200(client, scratch_bundle):
     # Arrange
     # Act
     response = _post(client, _sidecar(n_events=0))
-    body = json.loads(response.content)
     # Assert
     assert response.status_code == 200
+
+
+def test_post_empty_events_list_count_is_zero(client, scratch_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_post(client, _sidecar(n_events=0)).content)
+    # Assert
     assert body["event_count"] == 0
 
 
@@ -288,10 +340,17 @@ def test_event_log_exports_persist_sidecar():
     assert "export async function persistSidecar" in text
 
 
-def test_event_log_persist_posts_to_event_log_endpoint():
+def test_event_log_persist_uses_post_method():
     # Arrange
     # Act
     text = _js_file().read_text(encoding="utf-8")
     # Assert
     assert 'method: "POST"' in text
+
+
+def test_event_log_persist_posts_to_event_log_endpoint():
+    # Arrange
+    # Act
+    text = _js_file().read_text(encoding="utf-8")
+    # Assert
     assert '+ "event-log"' in text
