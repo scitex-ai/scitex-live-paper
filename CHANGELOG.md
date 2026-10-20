@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-20
+
+### Fixed
+
+- No accent separator under the global header (operator rule):
+  neutralise the AppHeader bottom border on the leaf surface.
+
 ## [0.2.5] - 2026-10-20
 
 ### Fixed

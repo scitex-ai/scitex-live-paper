@@ -28,6 +28,13 @@ body {
 /* Header chrome comes from the canonical SDK AppHeader (stats
  * pattern) — the leaf renders no <header> of its own. */
 
+/* Operator rule: no accent separator under the global header. The
+ * SDK AppHeader carries a bottom border; the leaf surface must not
+ * add (or keep) a separator line of its own. */
+.stx-app-header {
+  border-bottom: none;
+}
+
 /* CCT 3000 archive action: persists the session event log as the
  * `live-paper-events.json` sidecar (server POST, download fallback).
  * Hidden in print — the PDF base layer prints, interactivity does not. */
