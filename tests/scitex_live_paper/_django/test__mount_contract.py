@@ -163,24 +163,37 @@ def _dispatch_view_with(resolver):
     return next(p.callback for p in patterns if p.name == "api_dispatch")
 
 
-def test_viewer_bundle_not_found_returns_404__assert_response_status_code_404(rf):
+def test_viewer_bundle_not_found_renders_shell__assert_response_status_code_200(rf):
+    # Arrange — the viewer page is a human surface: a missing bundle
+    # renders the shell with a friendly empty state (HTTP 200), not a
+    # bare-text 404. The API half keeps the machine 404.
+    def resolver(request, **kw):
+        raise BundleNotFound("paper 'pap-9' not in project 'proj-x'")
+    # Act
+    response = _viewer_view_with(resolver)(rf.get("/"))
+    # Assert
+    assert response.status_code == 200
+
+
+def test_viewer_bundle_not_found_carries_empty_reason(rf):
     # Arrange
     def resolver(request, **kw):
         raise BundleNotFound("paper 'pap-9' not in project 'proj-x'")
     # Act
     response = _viewer_view_with(resolver)(rf.get("/"))
     # Assert
-    assert response.status_code == 404
+    assert b"data-empty-reason" in response.content
 
 
-def test_viewer_bundle_not_found_returns_404__assert_b_paper_pap_9_not_in_proj(rf):
-    # Arrange
+def test_viewer_bundle_not_found_shows_resolver_message(rf):
+    # Arrange — the reason travels HTML-escaped through the
+    # data-empty-reason attribute (Django autoescape).
     def resolver(request, **kw):
         raise BundleNotFound("paper 'pap-9' not in project 'proj-x'")
     # Act
     response = _viewer_view_with(resolver)(rf.get("/"))
     # Assert
-    assert b"paper 'pap-9' not in project 'proj-x'" in response.content
+    assert b"paper &#x27;pap-9&#x27; not in project" in response.content
 
 
 
@@ -375,17 +388,17 @@ def test_dispatch_non_resolver_error_propagates(rf):
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_viewer_empty_message_uses_default_text__assert_response_status_code_404_3(rf):
-    # When the host raises with no message, the response body falls
-    # back to a stable default (so the body is never empty — a blank
-    # body confuses curl-based smoke checks).
+def test_viewer_empty_message_uses_default_reason__assert_response_status_code_200(rf):
+    # When the host raises with no message, the shell still renders
+    # (HTTP 200) with the stable default reason — the operator gets
+    # guidance, never a bare-text 404.
     # Arrange
     def resolver(request, **kw):
         raise BundleNotFound()
     # Act
     response = _viewer_view_with(resolver)(rf.get("/"))
     # Assert
-    assert response.status_code == 404
+    assert response.status_code == 200
 
 
 def test_viewer_empty_message_uses_default_text__assert_response_content(rf):

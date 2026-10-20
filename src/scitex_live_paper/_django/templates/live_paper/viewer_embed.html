@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">
 </head>
 <body class="live-paper-embed">
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-embed-mode="1">
+  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
     <pre id="live-paper-bundle-info">{}</pre>
   </main>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>

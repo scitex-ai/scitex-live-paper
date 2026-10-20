@@ -31,6 +31,7 @@ import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
 import { renderArchiveButton } from "./archive.js";
+import { isMissingPaper, renderEmptyState } from "./empty-state.js";
 
 // PDF.js vendor bundle lives next to this module under staticfiles
 // (live_paper/pdfjs/). Resolve it from `import.meta.url` — never from
@@ -53,6 +54,14 @@ if (!root) {
 
 async function boot(rootEl) {
   const apiBase = normalizeBase(rootEl.getAttribute("data-api-base") || "/api/");
+  // Empty state first: the mount wrapper renders the shell with a
+  // reason when no bundle resolved (HTTP 200, no RPCs to boot
+  // against). Guidance now, viewer later.
+  const emptyReason = rootEl.getAttribute("data-empty-reason") || "";
+  if (emptyReason) {
+    renderEmptyState(rootEl, emptyReason);
+    return;
+  }
   // CCT 3000 overlay wiring: port bus serves evidence popups for
   // overlay regions; the event log records the session for the
   // archive sidecar (PDF + event-log). Both bind once at boot.
@@ -112,7 +121,13 @@ async function boot(rootEl) {
     rootEl._livePaperBundle = bundleInfo;
   } catch (err) {
     console.error("[live-paper] boot RPCs failed", err);
-    setStatus({ error: String(err) });
+    // Missing paper (unpinned bundle, resolver 404) gets guidance,
+    // not a raw JSON dump — same empty state as the mount wrapper.
+    if (isMissingPaper(String((err && err.message) || err))) {
+      renderEmptyState(rootEl, String((err && err.message) || err));
+    } else {
+      setStatus({ error: String(err) });
+    }
   }
 
   // Claims sidebar — best-effort; if the claims payload didn't land
