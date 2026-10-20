@@ -10,7 +10,15 @@ export function normalizeBase(base) {
 
 export async function fetchJson(url) {
   const res = await fetch(url);
-  return res.json();
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (_err) {
+    // Non-JSON error bodies (the mount wrapper answers resolver
+    // failures as text/plain): surface status + body instead of a
+    // bare SyntaxError so the boot error path can react to it.
+    throw new Error("HTTP " + res.status + ": " + text.slice(0, 200));
+  }
 }
 
 export async function fetchOrNull(url) {

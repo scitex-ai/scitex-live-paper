@@ -13,7 +13,7 @@ claim model and never defines it.
 {% endcomment %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">{% endblock %}
 {% block app_content %}
-  <main id="live-paper-root" data-api-base="/{{ api_base }}">
+  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
     <header class="live-paper-header">
       <h1>SciTeX Live Paper</h1>
       <p class="subtitle">

@@ -98,6 +98,12 @@ def viewer_page(request) -> HttpResponse:
     SPA boots identically; the embed shell additionally sets
     ``data-embed-mode="1"`` so the JS can suppress in-app chrome the
     host doesn't want.
+
+    Empty state: when the mount wrapper could not resolve a bundle
+    (``request.live_paper_empty_reason`` set, no context), the shell
+    still renders (HTTP 200) with ``data-empty-reason`` on the root
+    element, and the SPA shows the friendly empty state instead of
+    booting RPCs against a bundle that isn't there.
     """
     context = getattr(request, "live_paper_context", None)
     embed = _is_embed_mode(request) or (
@@ -124,6 +130,15 @@ def viewer_page(request) -> HttpResponse:
             # app identity. All other shell slots carry defaults.
             "app_label": "SciTeX Live Paper",
             "app_name": "live-paper",
+            # Empty-state handoff from the mount wrapper (missing
+            # bundle): the SPA reads this off the root dataset and
+            # renders guidance instead of booting RPCs. Empty string
+            # when a bundle resolved — the attribute is always
+            # present so the contract is stable.
+            "empty_reason": getattr(
+                request, "live_paper_empty_reason", None
+            )
+            or "",
         },
         request=request,
     )

@@ -16,6 +16,15 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-20
+
+### Fixed
+
+- Friendly empty state when no paper is selected: the viewer page
+  renders the shell (HTTP 200) with guidance (open from the file
+  browser, or `?working_dir=`) instead of a bare-text 404. The API
+  keeps the machine-readable 404; access-denied stays 403.
+
 ## [0.2.1] - 2026-10-20
 
 ### Fixed

@@ -495,3 +495,100 @@ def test_css_print_strips_archive_button():
     # Assert
     print_block = text.split("@media print", 1)[1]
     assert ".lp-archive-button" in print_block
+
+
+# ---------------------------------------------------------------------------
+# Empty state (no paper selected)
+# ---------------------------------------------------------------------------
+
+
+def test_empty_state_module_exists():
+    # Arrange
+    # Act
+    # Assert
+    assert _module_file("empty-state.js").is_file()
+
+
+def test_empty_state_exports_matcher():
+    # Arrange
+    # Act
+    text = _module_file("empty-state.js").read_text(encoding="utf-8")
+    # Assert
+    assert "export function isMissingPaper" in text
+
+
+def test_empty_state_exports_renderer():
+    # Arrange
+    # Act
+    text = _module_file("empty-state.js").read_text(encoding="utf-8")
+    # Assert
+    assert "export function renderEmptyState" in text
+
+
+def test_empty_state_panel_has_stable_class():
+    # Arrange
+    # Act
+    text = _module_file("empty-state.js").read_text(encoding="utf-8")
+    # Assert
+    assert "lp-empty-state" in text
+
+
+def test_empty_state_guides_to_working_dir():
+    # Arrange
+    # Act
+    text = _module_file("empty-state.js").read_text(encoding="utf-8")
+    # Assert
+    assert "?working_dir=" in text
+
+
+def test_viewer_imports_empty_state_module():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert 'from "./empty-state.js"' in text
+
+
+def test_viewer_renders_empty_state_before_boot():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "data-empty-reason" in text
+
+
+def test_viewer_boot_falls_back_to_empty_state():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "renderEmptyState(rootEl" in text
+
+
+def test_fetch_json_tolerates_non_json_bodies():
+    # Arrange
+    # Act
+    text = _module_file("_utils.js").read_text(encoding="utf-8")
+    # Assert
+    assert "JSON.parse(text)" in text
+
+
+def test_templates_carry_empty_reason_attribute():
+    # Arrange
+    import scitex_live_paper
+
+    pkg_root = Path(scitex_live_paper.__file__).resolve().parent
+    standalone = (pkg_root / "_django/templates/live_paper/viewer.html").read_text(
+        encoding="utf-8"
+    )
+    # Act
+    # Assert
+    assert "data-empty-reason" in standalone
+
+
+def test_css_has_empty_state_chrome():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert ".lp-empty-state" in text
