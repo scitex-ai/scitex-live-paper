@@ -36,9 +36,13 @@ def test_package_module_answers_help():
 
 
 def test_package_module_answers_version():
-    # Arrange
+    # Arrange — expected version floats with the installed dist so
+    # release bumps never break this pin (STX-TQ007 single-assert).
+    from importlib.metadata import version as _dist_version
+
+    expected = _dist_version("scitex-live-paper")
     argv = "--version"
     # Act
     completed = _run_module(argv)
     # Assert
-    assert (completed.returncode, "0.2.7" in completed.stdout) == (0, True)
+    assert (completed.returncode, expected in completed.stdout) == (0, True)

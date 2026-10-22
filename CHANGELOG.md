@@ -14,6 +14,8 @@ URL patterns / `bundle-info` JSON shape. Internal modules
 (`_django` internals, `_renderer` internals, `_types` internals)
 may change without a changelog entry.
 
+## [Unreleased]
+
 ## [0.2.8] - 2026-10-22
 
 ### Added
