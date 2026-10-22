@@ -16,6 +16,21 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+### Added
+
+- Leaf API-consistency rules (`docs/dev/api-consistency.md`, R1–R7
+  across Python/CLI/MCP/Skills/Web) with §6 MCP↔Python parity pins
+  (`tests/scitex_live_paper/test__mcp_server.py`) and docs-sync pins
+  (`tests/custom/test_goal_docs_sync.py`).
+
+### Fixed
+
+- Docs drift: README M3 shipped at `/apps/live-paper/`, `[server]`
+  extra + `scitex.livepaper.renderers` group documented;
+  quickstart/runbook/demo fixture paths moved to
+  `tests/scitex_live_paper/fixtures/`; `_django/` skeleton landed.
+- PS-140 cross-package gate: added `scitex_sdk.app`; PS-204 clean.
+
 ## [0.2.7] - 2026-10-20
 
 ### Added
