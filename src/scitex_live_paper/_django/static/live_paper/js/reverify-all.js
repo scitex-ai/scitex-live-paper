@@ -100,6 +100,10 @@ function _applyResultToRow(result) {
   if (badge) {
     badge.dataset.status = nextStatus;
     badge.textContent = nextStatus;
+    // Beta-5: hover tells the user why (was console-only).
+    const note = result.reason || result.error || "";
+    if (note) badge.title = String(note).slice(0, 240);
+    else badge.removeAttribute("title");
   }
 }
 
