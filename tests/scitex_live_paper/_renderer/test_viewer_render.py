@@ -253,8 +253,12 @@ def test_viewer_html_references_vendored_pdfjs_paths__assert_data_pdfjs_url_asse
     artifacts = render_viewer(loaded, out)
     # Act
     html = artifacts.viewer_html.read_text(encoding="utf-8")
-    # Assert
-    assert 'data-pdfjs-url="assets/pdfjs/pdf.min.mjs"' in html
+    # Assert — module-relative "./" form: viewer.js feeds it to a
+    # dynamic import(), which resolves against the module URL
+    # (assets/viewer.js), not the document — a bare "assets/..."
+    # specifier fails, and "./assets/..." doubles to
+    # assets/assets/....
+    assert 'data-pdfjs-url="./pdfjs/pdf.min.mjs"' in html
 
 
 def test_viewer_html_references_vendored_pdfjs_paths__assert_data_pdfjs_worker_url_ass(tmp_path: Path):

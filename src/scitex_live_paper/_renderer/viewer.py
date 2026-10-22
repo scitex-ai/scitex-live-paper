@@ -148,7 +148,7 @@ def render_viewer(
         title=title or "Live Paper — Viewer",
         pdf_url="manuscript.pdf",
         claims_url="claims.json",
-        pdfjs_url=f"assets/pdfjs/{_PDFJS_MAIN}",
+        pdfjs_url=f"./pdfjs/{_PDFJS_MAIN}",
         pdfjs_worker_url=f"assets/pdfjs/{_PDFJS_WORKER}",
         css_url="assets/viewer.css",
         js_url="assets/viewer.js",
