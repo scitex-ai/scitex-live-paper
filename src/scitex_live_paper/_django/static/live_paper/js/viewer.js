@@ -23,9 +23,11 @@ import {
   fetchOrNull,
   setStatus,
   ensurePdfContainer,
+  ensureClaimsSidebar,
   renderError,
 } from "./_utils.js";
 import { PDFViewer } from "./pdf-viewer.js";
+import { renderClaimDetail } from "./claim-details.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
@@ -144,6 +146,26 @@ async function boot(rootEl) {
       console.warn("[live-paper] claims sidebar render failed", err);
     }
   }
+
+  // Anchor -> detail (beta-4): PDF overlay anchors dispatch
+  // `live-paper:claim`. Open the same detail pane the sidebar rows
+  // open (provenance + DAG) so the PDF and the sidebar never disagree
+  // about what a claim shows. The port-events popup still fires for
+  // figure anchors — quick evidence there, full trace here.
+  rootEl.addEventListener("live-paper:claim", (event) => {
+    const id = event && event.detail ? event.detail.id : null;
+    const claims =
+      claimsPayload && Array.isArray(claimsPayload.claims)
+        ? claimsPayload.claims
+        : [];
+    const claim = claims.find((c) => c && c.claim_id === id);
+    if (!claim) return;
+    try {
+      renderClaimDetail(ensureClaimsSidebar(rootEl), claim, apiBase);
+    } catch (err) {
+      console.warn("[live-paper] anchor detail render failed", err);
+    }
+  });
 
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
