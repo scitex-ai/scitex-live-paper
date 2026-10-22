@@ -28,7 +28,7 @@ export function renderEmptyState(rootEl, reason) {
   help.className = "lp-empty-help";
   help.textContent =
     "Open a paper from your workspace file browser, or append " +
-    "?working_dir=/absolute/path/to/bundle to this URL.";
+    "'?working_dir=/absolute/path/to/bundle' to this URL.";
   panel.appendChild(title);
   panel.appendChild(detail);
   panel.appendChild(help);
