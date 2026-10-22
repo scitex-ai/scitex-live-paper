@@ -189,3 +189,32 @@ def test_no_archive_sidecar_committed_in_fixtures():
     )
     # Assert
     assert sidecars == []
+
+
+# ──────────────────────────────────────────────────────────────────
+# Beta rule docs track the beta batch (R7 living doc)
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_quickstart_maps_spa_js_modules():
+    # Arrange
+    # Act
+    text = _read("docs/dev-quickstart.md")
+    # Assert
+    assert "live_paper/js" in text
+
+
+def test_api_consistency_doc_declares_extras_fallback_rule():
+    # Arrange
+    # Act
+    text = _read("docs/dev/api-consistency.md")
+    # Assert
+    assert "pickAnchor" in text
+
+
+def test_api_consistency_doc_declares_sidecar_rule():
+    # Arrange
+    # Act
+    text = _read("docs/dev/api-consistency.md")
+    # Assert
+    assert "live-paper-events.json" in text
