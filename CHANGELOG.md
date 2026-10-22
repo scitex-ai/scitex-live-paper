@@ -16,6 +16,17 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-22
+
+### Added
+
+- Claim-anchor overlays paint on the PDF (beta-2): `pickAnchor()` reads
+  `claim.anchor` with `claim.extras.anchor` fallback; same for the
+  `figure_id` port attrs. Accepted-fixture anchors moved to page 1
+  (single-page placeholder PDF).
+- Evidence popup bounded by the viewport with scroll + port SVGs
+  constrained to the popup box (beta-3).
+
 ## [0.2.8] - 2026-10-22
 
 ### Added
