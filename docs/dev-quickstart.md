@@ -49,11 +49,12 @@ graceful-degradation cheatsheet, and hub-mount notes.
 ## 2. Render the fixture bundle
 
 A minimal accepted-manuscript bundle lives in-tree at
-[`tests/fixtures/bundle-min/`](../tests/fixtures/bundle-min/). Render
+[`tests/scitex_live_paper/fixtures/bundle-min/`](../tests/scitex_live_paper/fixtures/bundle-min/).
+Render
 it into a throwaway site directory:
 
 ```bash
-scitex-live-paper render tests/fixtures/bundle-min --out /tmp/live-paper-site
+scitex-live-paper render tests/scitex_live_paper/fixtures/bundle-min --out /tmp/live-paper-site
 ```
 
 This emits the full M1 site layout (see `_cli.render_site`):
@@ -83,9 +84,9 @@ open    /tmp/live-paper-site/index.html    # macOS
 Library-mode call (same site, programmatic):
 
 ```python
-from scitex_live_paper._cli import render_site
+from scitex_live_paper._cli.render import render_site
 
-result = render_site("tests/fixtures/bundle-min", "/tmp/live-paper-site")
+result = render_site("tests/scitex_live_paper/fixtures/bundle-min", "/tmp/live-paper-site")
 print(result.index_html, result.viewer_html, result.claims_html, result.dag_html)
 ```
 
@@ -135,10 +136,10 @@ first — never invent or extend the claim shape here.
 
 ### Fixture as living spec
 
-[`tests/fixtures/bundle-min/`](../tests/fixtures/bundle-min/) is the
+[`tests/scitex_live_paper/fixtures/bundle-min/`](../tests/scitex_live_paper/fixtures/bundle-min/) is the
 canonical minimum bundle: 3 claims (`verified` / `stale` /
 `registered`), a toy mermaid DAG, a placeholder PDF. Its
-[README](../tests/fixtures/bundle-min/README.md) restates the
+[README](../tests/scitex_live_paper/fixtures/bundle-min/README.md) restates the
 boundary: when `clew` bumps the claim schema, refresh the fixture —
 do **not** extend the loader.
 
@@ -146,8 +147,8 @@ do **not** extend the loader.
 
 ## Where the Django app pattern comes from
 
-M3 (mount on `scitex-hub` `/viewer-v2/`) is not in M1, but the
-package directory is already shaped for it. The Django pattern is
+M3 (mount on `scitex-hub` at `/apps/live-paper/`) is shipped, and the
+package directory is shaped for it. The Django pattern is
 mirrored from
 [`scitex_writer._django`](https://github.com/ywatanabe1989/scitex-writer/tree/main/src/scitex_writer/_django):
 
@@ -163,10 +164,11 @@ editable). `scitex-live-paper` is the **published** counterpart —
 post-acceptance, public, agent-re-verifiable. Same Django shape,
 opposite side of the accept boundary.
 
-When the `_django/` skeleton lands (tracked under issue #8), it
-should be a near-verbatim copy of the `scitex_writer._django`
+The `_django/` skeleton has landed (M3 shipped): near-verbatim copy of the `scitex_writer._django`
 structure, with the handlers swapped for the read-only viewer /
-claims / DAG endpoints.
+claims / DAG endpoints. `scitex_writer._django` remains the pattern
+reference for future handler additions — new endpoints land in the
+`HANDLERS` registry, never inline in `views.py`.
 
 ---
 
@@ -174,8 +176,11 @@ claims / DAG endpoints.
 
 | Path                                       | What                                              |
 |--------------------------------------------|---------------------------------------------------|
-| `src/scitex_live_paper/_cli.py`            | CLI entry (`render` subcommand, `render_site`)    |
+| `src/scitex_live_paper/_cli/`            | CLI entry (subcommands `render`/`serve`/`info`/`validate`/`hub-manifest`/`mcp`, `render_site`) |
 | `src/scitex_live_paper/bundle.py`          | Bundle loader (`load`, `Bundle`, `Claim`, `BundleError`) |
 | `src/scitex_live_paper/_renderer/`         | Per-surface renderers (viewer, claims, dag, index) + vendored assets |
-| `tests/fixtures/bundle-min/`               | Minimal accepted-bundle fixture                   |
-| `tests/{bundle,cli,claims,dag,viewer}/`    | Per-module pytest suites (STX-TQ)                 |
+| `src/scitex_live_paper/_django/`           | Django app (M3 shipped): SPA shell + `HANDLERS` API dispatcher + SDK `serve` launcher |
+| `src/scitex_live_paper/ports/`             | Ports/events contract (§2–§4): protocols, registry, entry-point discovery, conformance kit |
+| `src/scitex_live_paper/_mcp_server.py`     | MCP tools projecting the Python API (+ `skills_list`/`skills_get` pair) |
+| `tests/scitex_live_paper/fixtures/bundle-min/` | Minimal accepted-bundle fixture                   |
+| `tests/{custom,integration,e2e,smoke}/`    | Docs-sync pins, cross-package gate, workflows, CLI smoke (STX-TQ) |

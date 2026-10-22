@@ -36,10 +36,45 @@ export async function fetchOrNull(url) {
 }
 
 export function setStatus(payload) {
+  // Beta-1 chrome: the loading line is replaced by a rendered bundle
+  // header; the raw JSON moves into the collapsed diagnostics
+  // <details>. textContent only — bundle fields are server data, never
+  // markup.
+  const loading = document.getElementById("live-paper-loading");
+  if (loading) loading.hidden = true;
+  const header = document.getElementById("live-paper-bundle-header");
+  const diagnostics = document.getElementById(
+    "live-paper-bundle-diagnostics"
+  );
   const pre = document.getElementById("live-paper-bundle-info");
   if (pre) {
     pre.textContent = JSON.stringify(payload, null, 2);
   }
+  if (diagnostics) diagnostics.hidden = false;
+  if (!header) return;
+  header.hidden = false;
+  header.textContent = "";
+  if (payload && payload.error) {
+    header.className = "lp-bundle-header lp-bundle-error";
+    header.textContent = "Couldn't load bundle info: " + payload.error;
+    return;
+  }
+  header.className = "lp-bundle-header";
+  const ps = (payload && payload.paper_state) || {};
+  const title = document.createElement("strong");
+  title.className = "lp-bundle-title";
+  title.textContent = ps.header_label || ps.stage || "Live paper";
+  header.appendChild(title);
+  const meta = document.createElement("span");
+  meta.className = "lp-bundle-meta";
+  const parts = [];
+  if (ps.journal) parts.push(ps.journal);
+  if (ps.doi) parts.push(ps.doi);
+  if (payload && payload.manuscript) parts.push(payload.manuscript);
+  if (payload && payload.claim_count != null)
+    parts.push(payload.claim_count + " claims");
+  meta.textContent = parts.join(" · ");
+  header.appendChild(meta);
 }
 
 export function ensurePdfContainer(rootEl) {

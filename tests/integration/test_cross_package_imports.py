@@ -10,7 +10,7 @@ auditor's ECOSYSTEM registry, so `scitex-dev ecosystem
 install-cross-package-gate scitex-live-paper` refuses with
 `'scitex-live-paper' not in ECOSYSTEM`. The list below matches what
 the generator computes (the same function the PS-140 auditor grades
-against): `scitex_sdk` + `scitex_sdk.ui` (SDK App/UI base in
+against): `scitex_sdk` + `scitex_sdk.app` + `scitex_sdk.ui` (SDK App/UI base in
 `_django/apps.py` + `_django/settings.py` and the shared workspace
 shell in `viewer.html`) + `scitex_logging` (diagnostic logging in the
 Django surface).
@@ -41,6 +41,7 @@ CROSS_PACKAGE_IMPORTS = [
     'scitex_dev.ecosystem',
     'scitex_logging',
     'scitex_sdk',
+    'scitex_sdk.app',
     'scitex_sdk.ui',
 ]
 # ===== END AUTO-GENERATED =====

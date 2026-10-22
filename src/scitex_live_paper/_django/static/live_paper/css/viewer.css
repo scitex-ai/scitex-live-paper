@@ -88,6 +88,46 @@ body {
   overflow-x: auto;
 }
 
+/* Beta-1 bundle header: rendered status replacing the raw JSON dump.
+ * Flat surfaces only (no gradients / gloss) per the curly-highlight rule. */
+.lp-bundle-header {
+  background: #2a2a3a;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-left: 4px solid var(--lp-accent);
+  overflow-wrap: break-word;
+}
+
+.lp-bundle-title {
+  display: block;
+  font-size: 1.1em;
+  color: var(--lp-fg);
+}
+
+.lp-bundle-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: var(--lp-muted);
+  overflow-wrap: break-word;
+}
+
+.lp-bundle-error {
+  border-left-color: var(--lp-status-error);
+  color: var(--lp-status-error);
+}
+
+#live-paper-bundle-diagnostics {
+  margin: 8px 0;
+  font-size: 0.85em;
+  color: var(--lp-muted);
+}
+
+#live-paper-bundle-diagnostics summary {
+  cursor: pointer;
+}
+
 /* ──────────────────────────────────────────────────────────────────
  * PDF viewer host (ported from writer's pdf-viewer.ts) + PR (c)
  * text-layer + annotation-layer.

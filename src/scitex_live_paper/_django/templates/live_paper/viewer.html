@@ -23,8 +23,12 @@ claim model and never defines it.
   </div>
   <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
-      <p>Loading bundle info…</p>
-      <pre id="live-paper-bundle-info">{}</pre>
+      <p id="live-paper-loading">Loading bundle info…</p>
+      <div id="live-paper-bundle-header" hidden></div>
+      <details id="live-paper-bundle-diagnostics" hidden>
+        <summary>Bundle diagnostics</summary>
+        <pre id="live-paper-bundle-info">{}</pre>
+      </details>
     </section>
   </main>
 {% endblock %}

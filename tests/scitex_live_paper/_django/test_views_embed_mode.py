@@ -3,8 +3,9 @@
 Host apps (``scitex-hub`` project view, ``scitex-writer`` preview,
 ``scitex-scholar``) iframe the live-paper viewer into their own page
 chrome. The viewer responds to ``?embed=1`` with a stripped-down
-template (no header, no subtitle, no status pre) that drops cleanly
-into a host iframe.
+template (no header chrome) that drops cleanly into a host iframe
+while keeping the SPA status-block IDs so the frontend boots
+identically.
 
 All collaborators are real:
 - Django ``RequestFactory`` builds the request — same lever Django's
@@ -279,3 +280,57 @@ def test_both_shells_share_bundle_info_pre_id__assert_id_live_paper_bundle_info_
     assert 'id="live-paper-bundle-info"' in embed_body
 
 
+
+
+def test_both_shells_share_loading_id__assert_id_live_paper_loading(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-loading"' in default_body
+
+
+def test_both_shells_share_loading_id__assert_id_live_paper_loading_2(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-loading"' in embed_body
+
+
+def test_both_shells_share_header_id__assert_id_live_paper_bundle_header(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-bundle-header"' in default_body
+
+
+def test_both_shells_share_header_id__assert_id_live_paper_bundle_header_2(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-bundle-header"' in embed_body
+
+
+def test_both_shells_share_diagnostics_id__assert_id_live_paper_bundle_diagnostics(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-bundle-diagnostics"' in default_body
+
+
+def test_both_shells_share_diagnostics_id__assert_id_live_paper_bundle_diagnostics_2(rf):
+    # Arrange
+    default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
+    # Act
+    embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
+    # Assert
+    assert 'id="live-paper-bundle-diagnostics"' in embed_body
