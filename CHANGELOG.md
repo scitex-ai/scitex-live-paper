@@ -14,7 +14,7 @@ URL patterns / `bundle-info` JSON shape. Internal modules
 (`_django` internals, `_renderer` internals, `_types` internals)
 may change without a changelog entry.
 
-## [Unreleased]
+## [0.2.8] - 2026-10-22
 
 ### Added
 
@@ -22,6 +22,9 @@ may change without a changelog entry.
   across Python/CLI/MCP/Skills/Web) with §6 MCP↔Python parity pins
   (`tests/scitex_live_paper/test__mcp_server.py`) and docs-sync pins
   (`tests/custom/test_goal_docs_sync.py`).
+- Viewer boot chrome (beta-1): rendered bundle header (stage, journal,
+  DOI, manuscript, claim count) replaces the raw JSON dump; diagnostics
+  collapsed; stale loading label cleared.
 
 ### Fixed
 
