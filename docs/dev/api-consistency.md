@@ -61,6 +61,22 @@ path, extras, and fixture paths are pinned by
 `tests/custom/test_goal_docs_sync.py`. Update prose and pins
 together.
 
+**R8 — Extras pass through, SPA falls back.** The web API nests
+non-core claim fields under ``extras`` (loader passthrough — the
+package never extends the clew claim shape). SPA modules read the
+top level with an ``extras`` fallback (``pickAnchor()``,
+``extras?.figure_id``, reason tooltips). Enforced by
+``tests/scitex_live_paper/_django/handlers/test_pdf_overlay.py``
+(pickAnchor/exports pins + fixture page-1 coherence) and
+``tests/scitex_live_paper/_django/test_views_text_annotation.py``
+(tooltip pins).
+
+**R9 — Runtime artifacts stay out of the tree.** The Archive action
+persists ``live-paper-events.json`` next to the served bundle — a
+runtime sidecar, never committed. Enforced by `.gitignore` +
+``tests/custom/test_goal_docs_sync.py`` (ignore-pin +
+no-sidecar-in-fixtures).
+
 ## Audit map (run from the repo root)
 
 ```bash

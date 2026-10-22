@@ -74,11 +74,15 @@ This emits the full M1 site layout (see `_cli.render_site`):
 ```
 
 Open `index.html` straight from `file://` — every asset is vendored,
-no server required:
+no server required (static content reads fine; the live PDF viewer
+needs module scripts, so browsers restrict it to `http(s)` — serve
+the directory for the full viewer):
 
 ```bash
 xdg-open /tmp/live-paper-site/index.html   # Linux
 open    /tmp/live-paper-site/index.html    # macOS
+# Full viewer with live PDF over local http instead:
+# python -m http.server --directory /tmp/live-paper-site 8000
 ```
 
 Library-mode call (same site, programmatic):
@@ -180,6 +184,7 @@ reference for future handler additions — new endpoints land in the
 | `src/scitex_live_paper/bundle.py`          | Bundle loader (`load`, `Bundle`, `Claim`, `BundleError`) |
 | `src/scitex_live_paper/_renderer/`         | Per-surface renderers (viewer, claims, dag, index) + vendored assets |
 | `src/scitex_live_paper/_django/`           | Django app (M3 shipped): SPA shell + `HANDLERS` API dispatcher + SDK `serve` launcher |
+| `src/.../_django/static/live_paper/js/`  | SPA modules: `viewer.js` boot chrome + detail-on-anchor, overlays (`pickAnchor` extras fallback), claim detail + DAG, re-verify (reason tooltips), archive sidecar |
 | `src/scitex_live_paper/ports/`             | Ports/events contract (§2–§4): protocols, registry, entry-point discovery, conformance kit |
 | `src/scitex_live_paper/_mcp_server.py`     | MCP tools projecting the Python API (+ `skills_list`/`skills_get` pair) |
 | `tests/scitex_live_paper/fixtures/bundle-min/` | Minimal accepted-bundle fixture                   |

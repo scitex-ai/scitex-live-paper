@@ -16,6 +16,15 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-10-22
+
+### Fixed
+
+- Static M1 viewer: PDF.js URL is module-relative (`./pdfjs/…`, resolved
+  against `assets/viewer.js`) — the bare `assets/…` specifier never
+  resolved, so the vendored viewer stayed blank over http. Quickstart
+  notes the file:// module-script restriction.
+
 ## [0.2.11] - 2026-10-22
 
 ### Fixed

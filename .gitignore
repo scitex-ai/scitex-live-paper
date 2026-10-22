@@ -17,3 +17,7 @@ htmlcov/
 GITIGNORED/
 .DS_Store
 .worktrees/
+
+# Runtime archive sidecars (CCT 3000): the Archive action persists the
+# session event log next to the served bundle. Never commit these.
+live-paper-events.json
