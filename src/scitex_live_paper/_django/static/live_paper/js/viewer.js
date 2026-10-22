@@ -34,6 +34,7 @@ import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
 import { renderArchiveButton } from "./archive.js";
 import { isMissingPaper, renderEmptyState } from "./empty-state.js";
+import { hideLoading } from "./_utils.js";
 
 // PDF.js vendor bundle lives next to this module under staticfiles
 // (live_paper/pdfjs/). Resolve it from `import.meta.url` — never from
@@ -66,6 +67,7 @@ async function boot(rootEl) {
   // against). Guidance now, viewer later.
   const emptyReason = rootEl.getAttribute("data-empty-reason") || "";
   if (emptyReason) {
+    hideLoading(rootEl);
     renderEmptyState(rootEl, emptyReason);
     return;
   }
@@ -131,6 +133,7 @@ async function boot(rootEl) {
     // Missing paper (unpinned bundle, resolver 404) gets guidance,
     // not a raw JSON dump — same empty state as the mount wrapper.
     if (isMissingPaper(String((err && err.message) || err))) {
+      hideLoading(rootEl);
       renderEmptyState(rootEl, String((err && err.message) || err));
     } else {
       setStatus({ error: String(err) });

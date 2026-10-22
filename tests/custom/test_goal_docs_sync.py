@@ -234,3 +234,14 @@ def test_scheduler_lockfile_ignored():
     text = _read(".gitignore")
     # Assert
     assert ".claude/scheduled_tasks.lock" in text
+
+
+def test_empty_state_clears_loading_line():
+    # Arrange — dev screenshot showed a stuck "Loading bundle info…"
+    # above the empty state.
+    # Act
+    viewer = (
+        ROOT / "src/scitex_live_paper/_django/static/live_paper/js/viewer.js"
+    ).read_text(encoding="utf-8")
+    # Assert
+    assert "hideLoading(rootEl)" in viewer
