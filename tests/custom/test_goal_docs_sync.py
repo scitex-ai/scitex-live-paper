@@ -218,3 +218,11 @@ def test_api_consistency_doc_declares_sidecar_rule():
     text = _read("docs/dev/api-consistency.md")
     # Assert
     assert "live-paper-events.json" in text
+
+
+def test_quickstart_notes_http_for_live_viewer():
+    # Arrange
+    # Act
+    text = _read("docs/dev-quickstart.md")
+    # Assert
+    assert "http.server" in text

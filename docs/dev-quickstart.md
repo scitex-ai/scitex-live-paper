@@ -74,11 +74,15 @@ This emits the full M1 site layout (see `_cli.render_site`):
 ```
 
 Open `index.html` straight from `file://` — every asset is vendored,
-no server required:
+no server required (static content reads fine; the live PDF viewer
+needs module scripts, so browsers restrict it to `http(s)` — serve
+the directory for the full viewer):
 
 ```bash
 xdg-open /tmp/live-paper-site/index.html   # Linux
 open    /tmp/live-paper-site/index.html    # macOS
+# Full viewer with live PDF over local http instead:
+# python -m http.server --directory /tmp/live-paper-site 8000
 ```
 
 Library-mode call (same site, programmatic):
