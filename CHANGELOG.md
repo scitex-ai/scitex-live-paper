@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-10-22
+
+### Fixed
+
+- Empty state hides the stale "Loading bundle info…" line (was stuck
+  above the guidance); help-text quote closed.
+
 ## [0.2.12] - 2026-10-22
 
 ### Fixed
