@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-10-22
+
+### Added
+
+- PDF anchor click opens the claim detail pane (beta-4): provenance
+  + live DAG, the same pane sidebar rows open.
+
 ## [0.2.9] - 2026-10-22
 
 ### Added

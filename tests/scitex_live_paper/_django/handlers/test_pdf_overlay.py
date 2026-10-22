@@ -770,3 +770,19 @@ def test_css_popup_bounded_by_viewport():
     text = _css_file().read_text(encoding="utf-8")
     # Assert
     assert "100vw" in text
+
+
+def test_viewer_imports_claim_detail_module():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "claim-details.js" in text
+
+
+def test_viewer_opens_detail_on_anchor_claim_event():
+    # Arrange
+    # Act
+    text = _module_file("viewer.js").read_text(encoding="utf-8")
+    # Assert
+    assert "live-paper:claim" in text and "renderClaimDetail" in text
