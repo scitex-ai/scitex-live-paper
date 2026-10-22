@@ -710,3 +710,63 @@ def test_viewer_picker_targets_header_slot_class():
     text = _module_file("viewer.js").read_text(encoding="utf-8")
     # Assert
     assert "stx-app-header__slot--project-selector" in text
+
+
+def test_claim_overlays_exports_pick_anchor():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
+    assert "export function pickAnchor" in text
+
+
+def test_claim_overlays_falls_back_to_extras_anchor():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
+    assert "extras?.anchor" in text
+
+
+def test_claim_overlays_falls_back_to_extras_figure_id():
+    # Arrange
+    # Act
+    text = _module_file("claim-overlays.js").read_text(encoding="utf-8")
+    # Assert
+    assert "extras?.figure_id" in text
+
+
+def test_bundle_accepted_anchors_target_page_one():
+    # Arrange — the accepted fixture ships a single-page placeholder
+    # PDF, so every anchor must resolve to a rendered page. Resolved
+    # from this file (not the installed package) so the pin holds in
+    # any checkout, editable or not.
+    import json
+
+    fixture = (
+        Path(__file__).resolve().parent.parent.parent
+        / "fixtures/bundle-accepted/claims.json"
+    )
+    # Act
+    claims = json.loads(fixture.read_text(encoding="utf-8"))
+    if isinstance(claims, dict):
+        claims = claims.get("claims", [])
+    pages = [c["anchor"]["page"] for c in claims if "anchor" in c]
+    # Assert
+    assert pages != [] and all(p == 1 for p in pages)
+
+
+def test_css_constrains_evidence_popup_svg():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert ".lp-evidence-popup svg" in text
+
+
+def test_css_popup_bounded_by_viewport():
+    # Arrange
+    # Act
+    text = _css_file().read_text(encoding="utf-8")
+    # Assert
+    assert "100vw" in text

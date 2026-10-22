@@ -32,7 +32,7 @@ export function classFor(status) {
 export function groupClaimsByPage(claims) {
   const out = new Map();
   for (const c of claims || []) {
-    const p = c?.anchor?.page;
+    const p = pickAnchor(c)?.page;
     if (!Number.isInteger(p)) continue;
     if (!out.has(p)) out.set(p, []);
     out.get(p).push(c);
@@ -54,8 +54,18 @@ export function pdfBboxToCssRect(viewport, bbox) {
   return { left, top, w, h };
 }
 
+/**
+ * Anchor resolution: the web API nests non-core claim fields under
+ * ``extras`` (forward-compat passthrough — the loader never extends
+ * the clew claim shape), so the SPA reads ``claim.anchor`` with an
+ * ``extras.anchor`` fallback. Same for ``figure_id`` below.
+ */
+export function pickAnchor(claim) {
+  return claim?.anchor ?? claim?.extras?.anchor ?? null;
+}
+
 export function paintClaimAnchor(overlayEl, viewport, claim) {
-  const a = claim?.anchor;
+  const a = pickAnchor(claim);
   if (!a || !Array.isArray(a.bbox) || a.bbox.length !== 4) return null;
   const rect = pdfBboxToCssRect(viewport, a.bbox);
 
@@ -73,10 +83,12 @@ export function paintClaimAnchor(overlayEl, viewport, claim) {
 
   // Figure claims are port-backed evidence targets (contract §4).
   // The port-events bus listens for [data-lp-port] clicks at the
-  // root and fetches api/port/figure/<id>.
-  if (claim.figure_id) {
+  // root and fetches api/port/figure/<id>. figure_id rides
+  // claim.extras (loader passthrough), same as the anchor above.
+  const figureId = claim.figure_id ?? claim?.extras?.figure_id ?? null;
+  if (figureId) {
     el.setAttribute("data-lp-port", "figure");
-    el.setAttribute("data-lp-target", claim.figure_id);
+    el.setAttribute("data-lp-target", figureId);
   }
 
   el.addEventListener("click", () => {
