@@ -21,3 +21,6 @@ GITIGNORED/
 # Runtime archive sidecars (CCT 3000): the Archive action persists the
 # session event log next to the served bundle. Never commit these.
 live-paper-events.json
+
+# Runtime lock state (Claude Code scheduler) — never commit or publish.
+.claude/scheduled_tasks.lock

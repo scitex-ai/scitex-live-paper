@@ -35,13 +35,20 @@ export async function fetchOrNull(url) {
   }
 }
 
+export function hideLoading(rootEl) {
+  const scope = rootEl || document;
+  const loading = scope.querySelector
+    ? scope.querySelector("#live-paper-loading")
+    : document.getElementById("live-paper-loading");
+  if (loading) loading.hidden = true;
+}
+
 export function setStatus(payload) {
-  // Beta-1 chrome: the loading line is replaced by a rendered bundle
+  // The loading line is replaced by a rendered bundle
   // header; the raw JSON moves into the collapsed diagnostics
   // <details>. textContent only — bundle fields are server data, never
   // markup.
-  const loading = document.getElementById("live-paper-loading");
-  if (loading) loading.hidden = true;
+  hideLoading();
   const header = document.getElementById("live-paper-bundle-header");
   const diagnostics = document.getElementById(
     "live-paper-bundle-diagnostics"

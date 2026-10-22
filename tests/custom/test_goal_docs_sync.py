@@ -226,3 +226,22 @@ def test_quickstart_notes_http_for_live_viewer():
     text = _read("docs/dev-quickstart.md")
     # Assert
     assert "http.server" in text
+
+
+def test_scheduler_lockfile_ignored():
+    # Arrange — PID lockfiles must never be committed or published.
+    # Act
+    text = _read(".gitignore")
+    # Assert
+    assert ".claude/scheduled_tasks.lock" in text
+
+
+def test_empty_state_clears_loading_line():
+    # Arrange — dev screenshot showed a stuck "Loading bundle info…"
+    # above the empty state.
+    # Act
+    viewer = (
+        ROOT / "src/scitex_live_paper/_django/static/live_paper/js/viewer.js"
+    ).read_text(encoding="utf-8")
+    # Assert
+    assert "hideLoading(rootEl)" in viewer
