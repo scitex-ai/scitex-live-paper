@@ -2,10 +2,12 @@
 {# Embed-mode SPA shell — minimal, no header/footer chrome.
 
    Renders the SAME #live-paper-root + assets as `viewer.html` so the
-   frontend boots identically, but strips the standalone-page header /
-   subtitle / status-pre markup. Hosts (scitex-hub project view,
+   frontend boots identically, but strips the standalone-page header
+   chrome. Hosts (scitex-hub project view,
    scitex-writer preview, scitex-scholar) iframe this template so the
-   viewer drops cleanly into their own page chrome.
+   viewer drops cleanly into their own page chrome. The status block
+   IDs (loading / header / diagnostics / bundle-info pre) are kept so
+   `viewer.js` boots identically in both shells.
 
    Selection lever: query string `?embed=1` (or `?embed=true`).
    Future PR (#2): `BundleContext.options.embed_mode` plumbed through
@@ -19,7 +21,14 @@
 </head>
 <body class="live-paper-embed">
   <main id="live-paper-root" data-api-base="/{{ api_base }}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
-    <pre id="live-paper-bundle-info">{}</pre>
+    <section class="live-paper-status">
+      <p id="live-paper-loading">Loading bundle info…</p>
+      <div id="live-paper-bundle-header" hidden></div>
+      <details id="live-paper-bundle-diagnostics" hidden>
+        <summary>Bundle diagnostics</summary>
+        <pre id="live-paper-bundle-info">{}</pre>
+      </details>
+    </section>
   </main>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
   <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>

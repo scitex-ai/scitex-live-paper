@@ -76,4 +76,9 @@ Known environment notes (not code defects): `audit-cli` reports
 points at another checkout; `install-cross-package-gate` refuses
 with `'scitex-live-paper' not in ECOSYSTEM` — the PS-140 gate file
 is then updated by hand to the auditor's computed list (see its
-header). Both are recorded, not worked around in code.
+header). When serving or testing a worktree here, pin it
+explicitly — `PYTHONPATH=<worktree>/src` (absolute; background
+shells do not inherit a foreground `export`) — and verify with
+`python -c "import scitex_live_paper; print(scitex_live_paper.__file__)"`
+before believing any browser or curl result. All recorded, not
+worked around in code.
