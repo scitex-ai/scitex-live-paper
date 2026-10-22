@@ -139,8 +139,8 @@ per-claim button + the sticky "Re-verify all" at the top.
 ## 4. Local end-to-end (standalone server)
 
 ```bash
-# 1. Set up a bundle. Real ones live under tests/fixtures/.
-export BUNDLE_DIR=$PWD/tests/fixtures/bundle-accepted
+# 1. Set up a bundle. Real ones live under tests/scitex_live_paper/fixtures/.
+export BUNDLE_DIR=$PWD/tests/scitex_live_paper/fixtures/bundle-accepted
 
 # 2. Boot the server.
 scitex-live-paper serve "$BUNDLE_DIR" --port 8765

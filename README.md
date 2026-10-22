@@ -84,6 +84,7 @@ pip install scitex-live-paper           # CLI + library only
 | Extra | Pulls | For |
 |-------|-------|-----|
 | `django` | `django>=4.2` | standalone `serve` + `scitex-hub` mount |
+| `server` | `django>=4.2` + `scitex-sdk[gui]` | `serve` via the SDK workspace shell (superset of `django`) |
 | `clew` | `scitex-clew>=0.1.0` | live re-verify (M2) |
 | `mcp` | `fastmcp>=2.0` | MCP server for agents |
 | `test` | `pytest>=8.0` | test suite |
@@ -127,7 +128,7 @@ flowchart TD
 | Hash-linked provenance graph | `scitex-clew` | reads `clew.dag()` / `clew.verify_claim()` outputs |
 | Manuscript bundle layout | `scitex-writer` | ingests the bundle as-is |
 | Acceptance + re-review verdicts | `scitex-agentic-journal` | receives accepted bundle, surfaces badge |
-| Auth / Django app surface | `scitex-hub` | mounted on `/viewer-v2/` |
+| Auth / Django app surface | `scitex-hub` | mounted on `/apps/live-paper/` (M3 shipped) |
 
 <sub><b>Table 2.</b> Ownership boundaries — who owns what.</sub>
 
@@ -137,7 +138,7 @@ flowchart TD
 |-----------|--------|------|
 | **M1** | shipped | Read-only static-site renderer for an accepted bundle (CLI) |
 | **M2** | shipped | Live re-verify (`api/claim/verify` + `api/claims/verify` + SPA Re-verify button) — see [runbook](docs/dev/m2-reverify-runbook.md) |
-| M3 | in flight (hub-side) | Mount as Django app on `scitex-hub` `/apps/live-paper/<paper_id>/` |
+| M3 | shipped | Django app on `scitex-hub` at `/apps/live-paper/` + standalone SDK GUI app (`serve`, 0.2.x) |
 | M4 | pending | Re-review badge fed from `scitex-agentic-journal` |
 | M5 | future | Public DOI landing page (sandbox → Zenodo → JaLC) |
 
@@ -162,19 +163,26 @@ loaded = bundle.load("./bundle/")
 <summary><strong>CLI</strong></summary>
 
 `scitex-live-paper render ./bundle/ --out ./site/` emits the static
-site; `scitex-live-paper serve ./bundle/` boots the standalone Django
-dev server (requires the `[django]` extra); `python -m
-scitex_live_paper` works too.
+site; `scitex-live-paper serve ./bundle/` boots the standalone SDK
+GUI app pinned to a bundle (requires the `[server]` extra); `python -m
+scitex_live_paper` works too. Agent-facing surfaces: `scitex-live-paper mcp`
+(FastMCP tools projecting the Python API, `[mcp]` extra) and the
+`scitex.livepaper.renderers` entry-point group + conformance kit for
+external figure/snippet/claim-graph adapters — see
+[consumer guide](docs/dev/consumer-integration-guide.md).
 
 </details>
 
 <details>
 <summary><strong>Django app</strong></summary>
 
-Mounted under `scitex-hub` at `/viewer-v2/` (M3): SPA shell +
+Mounted under `scitex-hub` at `/apps/live-paper/` (M3 shipped): SPA shell +
 `<path:endpoint>` API dispatcher backed by the `HANDLERS` registry.
 Host apps inject per-request bundle resolution via
-`scitex_live_paper.mount(resolver=...)`.
+`scitex_live_paper.mount(resolver=...)`. The same engine also runs
+standalone: `scitex-live-paper serve ./bundle/` boots the SDK
+workspace shell (`scitex_sdk.app.embed.run_standalone`) for local
+use, demo, and testability.
 
 </details>
 
