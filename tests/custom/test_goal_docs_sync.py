@@ -226,3 +226,11 @@ def test_quickstart_notes_http_for_live_viewer():
     text = _read("docs/dev-quickstart.md")
     # Assert
     assert "http.server" in text
+
+
+def test_scheduler_lockfile_ignored():
+    # Arrange — PID lockfiles must never be committed or published.
+    # Act
+    text = _read(".gitignore")
+    # Assert
+    assert ".claude/scheduled_tasks.lock" in text
