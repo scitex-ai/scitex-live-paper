@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-10-22
+
+### Fixed
+
+- Re-verify failure reason surfaces as a hover tooltip on the status
+  pill (was console-only), in both single and bulk paths (beta-5).
+
 ## [0.2.10] - 2026-10-22
 
 ### Added
