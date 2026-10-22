@@ -265,3 +265,19 @@ def test_viewer_js_still_exposes_window_pdfviewer_global():
     text = _viewer_js()
     # Assert
     assert "window.LivePaperPDFViewer" in text
+
+
+def test_reverify_surfaces_failure_reason_as_tooltip():
+    # Arrange — the failure reason was console-only (beta-5 gap).
+    # Act
+    text = _viewer_js()
+    # Assert
+    assert "statusBadge.title" in text
+
+
+def test_reverify_all_surfaces_failure_reason_as_tooltip():
+    # Arrange
+    # Act
+    text = _viewer_js()
+    # Assert
+    assert "badge.title" in text

@@ -110,13 +110,16 @@ export async function reverifyClaim(rowEl, claimId, pinnedCommit, apiBase) {
     const payload = await res.json();
 
     let nextStatus;
+    let statusNote = "";
     if (res.status === 200 && payload.ok === true) {
       nextStatus = payload.status || "verified";
     } else if (res.status === 200 && payload.fallback === true) {
       nextStatus = payload.status || "stale";
+      statusNote = payload.reason || "";
       console.info("[live-paper] re-verify fallback:", payload.reason);
     } else {
       nextStatus = "error";
+      statusNote = payload.reason || payload.error || ("HTTP " + res.status);
       console.error("[live-paper] re-verify failed", res.status, payload);
     }
 
@@ -124,12 +127,16 @@ export async function reverifyClaim(rowEl, claimId, pinnedCommit, apiBase) {
     if (statusBadge) {
       statusBadge.dataset.status = nextStatus;
       statusBadge.textContent = nextStatus;
+      // Beta-5: the reason was console-only — hover now tells the user why.
+      if (statusNote) statusBadge.title = String(statusNote).slice(0, 240);
+      else statusBadge.removeAttribute("title");
     }
   } catch (err) {
     console.error("[live-paper] re-verify network error", err);
     if (statusBadge) {
       statusBadge.dataset.status = "error";
       statusBadge.textContent = "error";
+      statusBadge.title = String((err && err.message) || err).slice(0, 240);
     }
   } finally {
     if (btn) {
