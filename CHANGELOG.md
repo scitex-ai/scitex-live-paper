@@ -16,6 +16,19 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-10-24
+
+### Added
+
+- Anchored-comments provider (`GET/POST /api/comments`, sidecar
+  persist, overlay markers, badges, detail-pane section) and the
+  consumer translator layer (`ports.translate_consumer_payload`).
+
+### Fixed
+
+- Overlay paints before text/annotation layers; MNIST figure axis
+  follows the data.
+
 ## [0.2.15] - 2026-10-24
 
 ### Fixed
