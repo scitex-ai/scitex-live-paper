@@ -18,6 +18,22 @@ may change without a changelog entry.
 
 ### Added
 
+- Static export mounts the canonical SDK AppHeader (operator
+  header-parity rule): the four `.j2` pages render
+  `[data-stx-app-header]` with the SDK CSS/JS vendored into
+  `assets/` (mounts over `http(s)`; `file://` keeps a static
+  fallback title line). New `--project-label` on `render` feeds the
+  header's project slot. Custom `<header class="live-paper-header">`
+  duplicates retired from templates + CSS. Pins in
+  `tests/scitex_live_paper/_renderer/test_sdk_header_parity.py`.
+- `example-project-mnist` seed bundle
+  (`examples/example-project-mnist/`): computed MNIST demo —
+  logistic-regression + kNN test accuracies with claim anchors over
+  the accuracy figure, DAG, provenance — for the shared example
+  project (writer / live-paper / agentic-journal). Regenerate with
+  `examples/make_example_project_mnist.py`. Pins in
+  `tests/examples/test_example_project_mnist.py`; quickstart
+  documents the Hub `?working_dir=` serving path.
 - Leaf API-consistency rules (`docs/dev/api-consistency.md`, R1–R7
   across Python/CLI/MCP/Skills/Web) with §6 MCP↔Python parity pins
   (`tests/scitex_live_paper/test__mcp_server.py`) and docs-sync pins
