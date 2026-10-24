@@ -672,6 +672,8 @@ body {
 @media print {
   .lp-overlay,
   .lp-claim-anchor,
+  .lp-comment-marker,
+  .lp-comment-popup,
   .lp-evidence-popup,
   .live-paper-claims,
   .lp-evidence-close,
@@ -689,4 +691,116 @@ body {
     max-width: none;
     padding: 0;
   }
+}
+
+/* Anchored comments (provider item 4): region markers over the PDF,
+// count badges on claim anchors, and the detail-pane section. */
+.lp-comment-marker {
+  position: absolute;
+  z-index: 3;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--lp-border);
+  background: var(--lp-accent, #8250df);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.lp-comment-count {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--lp-accent, #8250df);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lp-comment-popup {
+  position: absolute;
+  z-index: 4;
+  max-width: 280px;
+  background: var(--lp-bg, #fff);
+  border: 1px solid var(--lp-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.lp-comment-popup-item {
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.lp-comments-title {
+  margin: 12px 0 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lp-comments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lp-comments-item {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--lp-border);
+  border-radius: 4px;
+}
+
+.lp-comments-head {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--lp-muted);
+}
+
+.lp-comment-author {
+  font-weight: 600;
+}
+
+.lp-comment-body {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+}
+
+.lp-comments-form {
+  margin-top: 8px;
+}
+
+.lp-comments-input {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+}
+
+.lp-comments-form-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.lp-comments-author {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+}
+
+.lp-comments-submit {
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lp-comments-error {
+  color: #cf222e;
+  font-size: 12px;
 }
