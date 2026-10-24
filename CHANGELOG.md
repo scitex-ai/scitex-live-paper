@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-10-24
+
+### Fixed
+
+- Harness-proof the MNIST generator test: drop ambient `PYTHONPATH`
+  for the generator subprocess (agent/harness venvs shadow PIL ABI).
+
 ## [0.2.14] - 2026-10-24
 
 ### Added
