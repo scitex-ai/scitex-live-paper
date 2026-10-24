@@ -10,7 +10,7 @@
       "source_session": "sess_train",
       "source_file": "examples/make_example_project_mnist.py",
       "source_hash": null,
-      "registered_at": "2026-10-24T07:39:07Z",
+      "registered_at": "2026-10-24T22:47:34Z",
       "verified_at": null,
       "status": "registered",
       "anchor": {
@@ -32,7 +32,7 @@
       "source_session": "sess_train",
       "source_file": "examples/make_example_project_mnist.py",
       "source_hash": null,
-      "registered_at": "2026-10-24T07:39:07Z",
+      "registered_at": "2026-10-24T22:47:34Z",
       "verified_at": null,
       "status": "registered",
       "anchor": {
@@ -54,7 +54,7 @@
       "source_session": "sess_train",
       "source_file": "examples/make_example_project_mnist.py",
       "source_hash": null,
-      "registered_at": "2026-10-24T07:39:07Z",
+      "registered_at": "2026-10-24T22:47:34Z",
       "verified_at": null,
       "status": "registered"
     }

@@ -18,6 +18,14 @@ may change without a changelog entry.
 
 ### Added
 
+- Anchored-comments provider (prompt-10 provider item): `GET/POST
+  /api/comments` with `live-paper-comments.json` sidecar persist;
+  overlay region markers, per-claim count badges, and a list + add
+  form in the claim detail pane (`comments.js`).
+- Consumer translator layer (`ports.translate_consumer_payload`):
+  thin intake normalizing writer/journal-style payloads (comment
+  bodies, port aliases, claim refs) into canonical comment / port
+  actions. Pure function, pinned by contract tests.
 - Static export mounts the canonical SDK AppHeader (operator
   header-parity rule): the four `.j2` pages render
   `[data-stx-app-header]` with the SDK CSS/JS vendored into
@@ -41,6 +49,11 @@ may change without a changelog entry.
 
 ### Fixed
 
+- Overlay paints before the text/annotation layers in the PDF viewer:
+  a slow figure-page text layer can no longer starve claim anchors
+  and comment markers (found live on the MNIST figure page).
+- MNIST accuracy figure: axis floor follows the data (was fixed 0.9
+  with values below it) and value labels sit above the bars.
 - Docs drift: README M3 shipped at `/apps/live-paper/`, `[server]`
   extra + `scitex.livepaper.renderers` group documented;
   quickstart/runbook/demo fixture paths moved to
