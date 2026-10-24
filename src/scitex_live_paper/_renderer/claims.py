@@ -33,6 +33,8 @@ except ImportError as exc:  # pragma: no cover - defensive
 
 from scitex_live_paper.bundle import Bundle, Claim
 
+from ._sdk_header import copy_sdk_header_assets, header_context
+
 __all__ = [
     "ClaimsArtifacts",
     "render_claims_sidebar",
@@ -92,6 +94,7 @@ def render_claims_sidebar(
     *,
     title: str | None = None,
     viewer_url: str = "viewer.html",
+    project_label: str | None = None,
 ) -> ClaimsArtifacts:
     """Render the M1 claims sidebar page for *bundle* into *out_dir*.
 
@@ -121,6 +124,11 @@ def render_claims_sidebar(
 
     css_dest = _copy_into(out_dir, "assets/claims.css", _CLAIMS_CSS)
     js_dest = _copy_into(out_dir, "assets/claims.js", _CLAIMS_JS)
+    # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
+    # site so the component mounts over http(s). file:// keeps the static
+    # fallback title line (module scripts don't run there — documented in
+    # docs/dev-quickstart.md).
+    copy_sdk_header_assets(out_dir)
 
     # Pre-shape claims for the template. We DO NOT redefine status;
     # we pass the raw clew status string through as data-status so the
@@ -152,6 +160,7 @@ def render_claims_sidebar(
         css_url="assets/claims.css",
         js_url="assets/claims.js",
         total_claims=len(rows),
+        **header_context(project_label=project_label),
     )
     claims_html = out_dir / "claims.html"
     claims_html.write_text(html, encoding="utf-8")

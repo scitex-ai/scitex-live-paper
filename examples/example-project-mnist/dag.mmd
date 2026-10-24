@@ -1,0 +1,9 @@
+graph LR
+    S1[Source<br/>OpenML mnist_784 v1] --> I1[Input<br/>70k images]
+    I1 --> P1[Processing<br/>seeded split]
+    P1 --> O1[Output<br/>train/test]
+    O1 --> P2[Processing<br/>logreg + kNN train]
+    P2 --> O2[Output<br/>test accuracies]
+    O2 --> C1[Claim<br/>mnist_logreg_accuracy]
+    O2 --> C2[Claim<br/>mnist_knn_accuracy]
+    O2 --> C3[Claim<br/>mnist_model_comparison]

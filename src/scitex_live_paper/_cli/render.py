@@ -43,6 +43,7 @@ def render_site(
     out_dir: str | Path,
     *,
     title: str | None = None,
+    project_label: str | None = None,
 ) -> RenderResult:
     """Render a bundle directory into a self-contained static site.
 
@@ -57,6 +58,9 @@ def render_site(
     title
         Optional shared page title; defaults to ``"Live Paper"`` for the
         landing page and ``"Live Paper — <surface>"`` for the others.
+    project_label
+        Optional project name shown as static text in the SDK header's
+        project slot (static export has no project provider).
 
     Returns
     -------
@@ -71,21 +75,25 @@ def render_site(
         loaded,
         out_dir,
         title=title or "Live Paper — Viewer",
+        project_label=project_label,
     )
     claims = render_claims_sidebar(
         loaded,
         out_dir,
         title=title or "Live Paper — Claims",
+        project_label=project_label,
     )
     dag = render_dag(
         loaded,
         out_dir,
         title=title or "Live Paper — DAG",
+        project_label=project_label,
     )
     index = render_index(
         loaded,
         out_dir,
         title=title,
+        project_label=project_label,
     )
 
     return RenderResult(
@@ -130,10 +138,17 @@ def render_site(
     default=None,
     help="Optional shared page title (defaults to 'Live Paper').",
 )
-def render_cmd(bundle_path: str, out_dir: str, title: str | None) -> None:
+@click.option(
+    "--project-label",
+    "project_label",
+    default=None,
+    help="Optional project name shown as static text in the SDK header "
+    "project slot (static export has no project provider).",
+)
+def render_cmd(bundle_path: str, out_dir: str, title: str | None, project_label: str | None) -> None:
     """Render BUNDLE_PATH into a self-contained static site under --out."""
     try:
-        result = render_site(bundle_path, out_dir, title=title)
+        result = render_site(bundle_path, out_dir, title=title, project_label=project_label)
     except bundle_module.BundleError as exc:
         # Surface bundle-layout errors with a clean exit code (no traceback).
         raise click.ClickException(str(exc)) from exc

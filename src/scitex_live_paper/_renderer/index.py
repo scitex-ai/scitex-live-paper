@@ -27,6 +27,8 @@ except ImportError as exc:  # pragma: no cover - defensive
 
 from scitex_live_paper.bundle import Bundle
 
+from ._sdk_header import copy_sdk_header_assets, header_context
+
 __all__ = ["IndexArtifacts", "render_index"]
 
 _RENDERER_DIR = Path(__file__).resolve().parent
@@ -66,6 +68,7 @@ def render_index(
     viewer_url: str = "viewer.html",
     claims_url: str = "claims.html",
     dag_url: str = "dag.html",
+    project_label: str | None = None,
 ) -> IndexArtifacts:
     """Render the M1 landing page for *bundle* into *out_dir*.
 
@@ -92,6 +95,11 @@ def render_index(
     (out_dir / "assets").mkdir(exist_ok=True)
 
     css_dest = _copy_into(out_dir, "assets/index.css", _INDEX_CSS)
+    # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
+    # site so the component mounts over http(s). file:// keeps the static
+    # fallback title line (module scripts don't run there — documented in
+    # docs/dev-quickstart.md).
+    copy_sdk_header_assets(out_dir)
 
     env = _jinja_env()
     template = env.get_template("index.html.j2")
@@ -117,6 +125,7 @@ def render_index(
         paper_state_pinned_commit=paper_state.pinned_commit,
         show_verification_badge=paper_state.show_verification_badge,
         re_verify_enabled=paper_state.re_verify_enabled,
+        **header_context(project_label=project_label),
     )
     index_html = out_dir / "index.html"
     index_html.write_text(html, encoding="utf-8")

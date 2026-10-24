@@ -4,17 +4,26 @@
 <meta charset="UTF-8">
 <title>{{ title|default('Live Paper — DAG') }}</title>
 <meta name="generator" content="scitex-live-paper">
+<link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
 </head>
 <body class="live-paper">
-<header class="live-paper-header">
-  <h1 class="live-paper-title">{{ title|default('Live Paper — DAG') }}</h1>
-  <p class="live-paper-subtitle">Clew provenance graph · mermaid v{{ mermaid_version }} (vendored)</p>
-</header>
+{# Canonical SDK AppHeader (header-parity rule): one header row built by
+   the component; page subtitles live in <main>. #}
+<div data-stx-app-header
+     data-app-title="SciTeX Live Paper"
+     data-app-version="{{ app_version }}">
+  {# file:// fallback: module scripts (SDK component) only run over
+     http(s); this line keeps a title row where they don't. Hidden the
+     moment the component mounts (see CSS). #}
+  <p class="lp-static-header-fallback">SciTeX Live Paper{% if project_label %} · {{ project_label }}{% endif %}</p>
+  {% if project_label %}<span data-lp-static-project>{{ project_label }}</span>{% endif %}
+</div>
 
 <main class="lp-dag-shell"
       data-viewer-url="{{ viewer_url }}"
       data-claims-url="{{ claims_url }}">
+  <p class="live-paper-subtitle">Clew provenance graph · mermaid v{{ mermaid_version }} (vendored)</p>
 
   {% if has_dag %}
   <pre class="mermaid" id="lp-dag-source">{{ dag_source }}</pre>
@@ -34,6 +43,8 @@
 </footer>
 
 <script id="lp-provenance-map" type="application/json">{{ provenance_map|tojson }}</script>
+<script type="module" src="{{ sdk_header_js_url }}"></script>
+<script type="module" src="{{ sdk_header_slot_js_url }}"></script>
 <script src="{{ mermaid_url }}"></script>
 <script type="module" src="{{ js_url }}"></script>
 </body>
