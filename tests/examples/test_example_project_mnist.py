@@ -11,6 +11,7 @@ enough to regenerate.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -21,6 +22,17 @@ from scitex_live_paper import bundle as bundle_module
 EXAMPLES = Path(__file__).resolve().parents[2] / "examples"
 BUNDLE = EXAMPLES / "example-project-mnist"
 GENERATOR = EXAMPLES / "make_example_project_mnist.py"
+
+
+def _clean_subprocess_env() -> dict[str, str]:
+    """Subprocess env without ambient ``PYTHONPATH`` shadowing.
+
+    Host harnesses (CI containers, agent runtimes) may inject their
+    own ``PYTHONPATH``; the generator must import the *project*
+    interpreter's own site-packages (matplotlib/PIL ABI), so the
+    inherited entry is dropped for the child.
+    """
+    return {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
 
 EXPECTED_CLAIM_IDS = {
     "mnist_logreg_accuracy",
@@ -35,6 +47,7 @@ def test_generator_help_lists_quick_mode():
         capture_output=True,
         text=True,
         timeout=60,
+        env=_clean_subprocess_env(),
     )
     assert completed.returncode == 0
     assert "--quick" in completed.stdout
