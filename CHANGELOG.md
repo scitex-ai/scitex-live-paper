@@ -16,6 +16,16 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-10-24
+
+### Added
+
+- Static export mounts the canonical SDK AppHeader (header-parity):
+  `[data-stx-app-header]` + vendored SDK CSS/JS; new `--project-label`;
+  custom header duplicates retired.
+- `example-project-mnist` seed bundle: computed MNIST demo for the
+  shared example project (writer / live-paper / agentic-journal).
+
 ## [0.2.13] - 2026-10-22
 
 ### Fixed
