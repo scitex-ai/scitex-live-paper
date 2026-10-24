@@ -34,6 +34,8 @@ except ImportError as exc:  # pragma: no cover - defensive
 
 from scitex_live_paper.bundle import Bundle
 
+from ._sdk_header import copy_sdk_header_assets, header_context
+
 __all__ = ["PDFJS_VERSION", "ViewerArtifacts", "render_viewer"]
 
 # Vendored PDF.js build version (see _renderer/assets/pdfjs/README.md).
@@ -93,6 +95,7 @@ def render_viewer(
     out_dir: str | Path,
     *,
     title: str | None = None,
+    project_label: str | None = None,
 ) -> ViewerArtifacts:
     """Render the M1 PDF.js viewer page for *bundle* into *out_dir*.
 
@@ -106,6 +109,10 @@ def render_viewer(
         overwritten so the renderer is idempotent.
     title
         Optional page title; defaults to ``"Live Paper — Viewer"``.
+    project_label
+        Optional project name shown as static text in the SDK header's
+        project slot. Static export has no project provider, so there is
+        no interactive picker — the slot stays empty when this is None.
 
     Returns
     -------
@@ -121,6 +128,11 @@ def render_viewer(
     # 1. Copy the static, file-sourced artefacts.
     css_dest = _copy_into(out_dir, "assets/viewer.css", _VIEWER_CSS)
     js_dest = _copy_into(out_dir, "assets/viewer.js", _VIEWER_JS)
+    # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
+    # site so the component mounts over http(s). file:// keeps the static
+    # fallback title line (module scripts don't run there — documented in
+    # docs/dev-quickstart.md).
+    copy_sdk_header_assets(out_dir)
     pdfjs_main_dest = _copy_into(
         out_dir, f"assets/pdfjs/{_PDFJS_MAIN}", _PDFJS_DIR / _PDFJS_MAIN
     )
@@ -153,6 +165,7 @@ def render_viewer(
         css_url="assets/viewer.css",
         js_url="assets/viewer.js",
         pdfjs_version=PDFJS_VERSION,
+        **header_context(project_label=project_label),
     )
     viewer_html = out_dir / "viewer.html"
     viewer_html.write_text(html, encoding="utf-8")
