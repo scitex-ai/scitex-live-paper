@@ -22,6 +22,10 @@ The ``HANDLERS`` mapping is the *single source of truth* for what the
                         ``scitex-live-paper.event-log/v1`` sidecar; stored
                         verbatim as ``live-paper-events.json`` in the bundle
                         directory next to ``manuscript.pdf``)
+- ``api/comments``  — anchored-comments provider (GET lists the
+                        ``live-paper-comments.json`` sidecar; POST appends
+                        one validated comment anchored to a claim id,
+                        a page+bbox region, or a quoted passage)
 
 Extend this dict when new endpoints land; do NOT inline endpoint
 logic in ``views.py``.
@@ -32,6 +36,7 @@ from __future__ import annotations
 from typing import Callable, Dict
 
 from .claims import handle_claims
+from .comments import handle_comments
 from .core import bundle_info, ping
 from .dag import handle_dag
 from .dashboard import handle_dashboard
@@ -52,6 +57,7 @@ HANDLERS: Dict[str, HandlerFn] = {
     "api/claim/verify":   handle_reverify,
     "api/claims/verify":  handle_reverify_all,
     "api/event-log":      handle_event_log,
+    "api/comments":       handle_comments,
 }
 # fmt: on
 

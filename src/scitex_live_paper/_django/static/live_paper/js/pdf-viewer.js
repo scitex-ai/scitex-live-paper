@@ -5,6 +5,7 @@
 // directly with zero API changes.
 
 import { groupClaimsByPage, paintPageOverlays } from "./claim-overlays.js";
+import { groupComments, paintCommentMarkers } from "./comments.js";
 
 export class PDFViewer {
   constructor(options) {
@@ -16,12 +17,27 @@ export class PDFViewer {
     this.fitMode = "width";
     this.canvases = [];
     this.claimsByPage = new Map();
+    this.commentCounts = new Map();
+    this.commentsByPage = new Map();
     this.container.classList.add("pdf-viewer-host");
   }
 
   /** Pin the claims whose anchors paint as overlay regions. */
   setClaims(claims) {
     this.claimsByPage = groupClaimsByPage(claims);
+  }
+
+  /**
+   * Pin comments for overlay badges + region markers. Claim-anchored
+   * notes become count badges on their claim's anchor button;
+   * page-anchored notes become ✎ markers (see paintCommentMarkers).
+   */
+  setComments(comments) {
+    const { byClaim, byPage } = groupComments(comments);
+    this.commentCounts = new Map(
+      Array.from(byClaim.entries(), ([id, list]) => [id, list.length])
+    );
+    this.commentsByPage = byPage;
   }
 
   async load(docType) {
@@ -93,6 +109,32 @@ export class PDFViewer {
 
       await page.render({ canvasContext: ctx, viewport }).promise;
 
+      // CCT 3000 overlay: claim-anchor regions from anchor bboxes.
+      // Paint FIRST, right after the canvas: the overlay is the
+      // product (claims + comments), while the text/annotation layers
+      // below are enhancements. A slow or hanging text layer on a
+      // figure-heavy page must never starve the overlay.
+      try {
+        paintPageOverlays(pageWrap, viewport, this.claimsByPage.get(pageNum) || []);
+        paintCommentMarkers(pageWrap, viewport, this.commentsByPage.get(pageNum) || []);
+        // Comment-count badges ride the claim anchors (provider
+        // item 4): readers see which claims carry discussion.
+        for (const [claimId, count] of this.commentCounts) {
+          const anchor = pageWrap.querySelector(
+            `.lp-overlay button[data-claim-id="${CSS.escape(claimId)}"]`
+          );
+          if (anchor && !anchor.querySelector(":scope > .lp-comment-count")) {
+            const badge = document.createElement("span");
+            badge.className = "lp-comment-count";
+            badge.textContent = `✎${count}`;
+            badge.title = `${count} comment${count === 1 ? "" : "s"}`;
+            anchor.appendChild(badge);
+          }
+        }
+      } catch (err) {
+        console.warn("[pdf-viewer] overlay page %d failed", pageNum, err);
+      }
+
       // PR (c): text-layer for native browser Ctrl-F + text selection.
       try {
         await this._renderTextLayer(page, viewport, pageWrap);
@@ -105,15 +147,6 @@ export class PDFViewer {
         await this._renderAnnotationLayer(page, viewport, pageWrap);
       } catch (err) {
         console.warn("[pdf-viewer] annotation-layer page %d failed", pageNum, err);
-      }
-
-      // CCT 3000 overlay: claim-anchor regions from anchor bboxes.
-      // Re-painted on every render so zoom / fit-width keeps the
-      // rects aligned with the canvas underneath.
-      try {
-        paintPageOverlays(pageWrap, viewport, this.claimsByPage.get(pageNum) || []);
-      } catch (err) {
-        console.warn("[pdf-viewer] overlay page %d failed", pageNum, err);
       }
     }
   }

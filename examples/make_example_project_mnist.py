@@ -167,17 +167,19 @@ def manuscript(out_pdf: Path, X_train, y_train, results: dict, versions: dict) -
         ax = fig.add_axes([0.15, 0.55, 0.7, 0.3])
         names = ["Logistic\nregression", f"kNN\n(k={KNN_K})"]
         vals = [results["logreg"], results["knn"]]
-        bars = ax.bar(names, vals, color=["#2da44e", "#0969da"])
-        ax.set_ylim(0.9, 1.0)
+        floor = min(0.8, min(vals) - 0.05)
+        bars = ax.bar(names, vals, bottom=floor, color=["#2da44e", "#0967da"])
+        ax.set_ylim(floor, 1.0)
         ax.set_ylabel("Test accuracy")
         ax.set_title("MNIST test accuracy (computed, n=%d)" % N_TEST)
         for b, v in zip(bars, vals):
             ax.text(
                 b.get_x() + b.get_width() / 2,
-                b.get_height() + 0.001,
+                v + 0.004,
                 f"{v:.4f}",
                 ha="center",
-                fontsize=11,
+                va="bottom",
+                fontsize=10,
             )
         fig.text(
             0.1,

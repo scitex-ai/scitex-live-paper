@@ -32,6 +32,7 @@ import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
+import { fetchComments } from "./comments.js";
 import { renderArchiveButton } from "./archive.js";
 import { isMissingPaper, renderEmptyState } from "./empty-state.js";
 import { hideLoading } from "./_utils.js";
@@ -180,6 +181,13 @@ async function boot(rootEl) {
   // sidebar, so sidebar rows and PDF regions never disagree.
   if (claimsPayload && Array.isArray(claimsPayload.claims)) {
     viewer.setClaims(claimsPayload.claims);
+  }
+  // Comment badges + region markers (provider item 4):
+  // best-effort — the viewer works fine with zero comments.
+  try {
+    viewer.setComments(await fetchComments(apiBase));
+  } catch (err) {
+    console.warn("[live-paper] comments boot fetch failed", err);
   }
   await viewer.load();
 }

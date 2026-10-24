@@ -24,6 +24,7 @@ from ._discovery import discover
 from ._figz_adapter import FigzDefaultEntry, FigzFigureAdapter
 from ._fragments import ProvenanceLink, figure_fragment, popup_fragment
 from ._registry import PortNotFound, Registry
+from ._translators import translate_consumer_payload
 
 __all__ = [
     "protocols",
@@ -40,4 +41,5 @@ __all__ = [
     "popup_fragment",
     "PortNotFound",
     "Registry",
+    "translate_consumer_payload",
 ]
