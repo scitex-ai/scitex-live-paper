@@ -16,6 +16,13 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.19] - 2026-11-01
+
+### Added
+
+- Bundle source-backed renderer, host-mount, evidence-port and environment skills in the wheel and expose them through the existing MCP skill tools.
+- Verify installed skill discovery and retrieval, with the canonical skill audit and real demo render commands.
+
 ## [0.2.18] - 2026-11-01
 
 ### Fixed
