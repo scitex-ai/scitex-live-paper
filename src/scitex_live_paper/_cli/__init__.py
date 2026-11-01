@@ -23,6 +23,8 @@ except ImportError as exc:  # pragma: no cover - defensive
         "(or `pip install click>=8.0`)"
     ) from exc
 
+from scitex_dev.cli import skills_click_group
+
 from scitex_live_paper import __version__
 from .help_tree import emit_help_recursive
 from .spec import spec_group_kwargs
@@ -38,6 +40,7 @@ _COMMAND_CATEGORIES = (
     ("Diagnostics", ("info", "validate")),
     ("Introspection", ("list-python-apis",)),
     ("Shell", ("install-shell-completion", "print-shell-completion")),
+    ("Maintenance", ("dev",)),
 )
 
 
@@ -122,6 +125,15 @@ register_hub_manifest(cli)
 register_introspect(cli)
 register_mcp_group(cli)
 register_completion_commands(cli, prog_name="scitex-live-paper")
+
+
+@click.group("dev", **spec_group_kwargs(summary="Package developer maintenance."))
+def dev_group():
+    """Inspect and export this package's developer resources."""
+
+
+dev_group.add_command(skills_click_group(package="scitex-live-paper"))
+cli.add_command(dev_group)
 
 
 def main(argv: list[str] | None = None) -> int:

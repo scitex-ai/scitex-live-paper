@@ -87,6 +87,12 @@ dev = [
 [project.scripts]
 scitex-live-paper = "scitex_live_paper._cli:main"
 
+[project.entry-points."scitex_dev.docs"]
+scitex-live-paper = "scitex_live_paper"
+
+[project.entry-points."scitex_dev.skills"]
+scitex-live-paper = "scitex_live_paper"
+
 [project.entry-points."scitex.livepaper.renderers"]
 figz-default = "scitex_live_paper.ports._figz_adapter:FigzDefaultEntry"
 

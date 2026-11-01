@@ -16,6 +16,7 @@ version. The main workflows are:
   keep this local unless the user authorized wider exposure.
 - `info` reports package metadata; `hub-manifest` exposes the host manifest.
 - `mcp list-tools --json` lists real tool projections; `mcp start` serves them.
+- `dev skills list`, `dev skills get NAME`, and `dev skills install` use the shared Dev dispatcher to read or export the installed package guidance.
 
 `render` overwrites generated output pages. `serve` pins one process-wide
 bundle; multi-user hosts should instead use the per-request mount resolver.
