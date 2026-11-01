@@ -19,9 +19,9 @@ claim model and never defines it.
   <div data-stx-app-header
        data-app-title="SciTeX Live Paper"
        data-app-version="{{ app_version }}">
-    {% scitex_project_picker scope="project" current=current_project %}
+    {% scitex_project_picker scope="project" view_scope=view_scope view_project=view_project %}
   </div>
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>

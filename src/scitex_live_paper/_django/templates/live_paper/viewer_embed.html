@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">
 </head>
 <body class="live-paper-embed">
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>

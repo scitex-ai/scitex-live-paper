@@ -131,6 +131,9 @@ def viewer_page(request) -> HttpResponse:
     else:
         api_base = "api/"
 
+    # A trusted host resolver may bind an authorized request-local SDK view.
+    # It is display context only; resource GETs do not remember navigation.
+    view_selection = getattr(request, "live_paper_view_selection", None)
     html = render_to_string(
         template,
         {
@@ -152,10 +155,8 @@ def viewer_page(request) -> HttpResponse:
                 request, "live_paper_empty_reason", None
             )
             or "",
-            # Project slot of the canonical AppHeader (stats pattern):
-            # the host deep link carries it (?project=<id>); the SPA
-            # moves the picker element into the header slot at boot.
-            "current_project": request.GET.get("project", ""),
+            "view_scope": getattr(view_selection, "scope", None),
+            "view_project": getattr(view_selection, "id", None) or "",
         },
         request=request,
     )

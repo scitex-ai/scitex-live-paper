@@ -80,3 +80,10 @@ Bundle loading distinguishes missing resources (`BundleMissingError`, a
 can map expected absence to a bundle-selection empty state/404; malformed JSON
 or schema failures remain errors. A project directory alone is not a valid
 LivePaper bundle: the leaf loader requires a manuscript plus claims.json.
+
+A trusted Django host resolver can bind `request.live_paper_view_selection`
+to the SDK public `ProjectSelection`. Native full/embed rendering passes its
+canonical pair as `view_scope`/`view_project` and root data attributes; it never
+uses a raw query value as the current-project alias. This request-local view
+is separate from the globally remembered navigation selection and remains
+available for a missing-bundle empty state.
