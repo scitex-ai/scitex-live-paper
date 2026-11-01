@@ -207,12 +207,12 @@ def test_pdf_viewer_exposes_set_claims():
     assert "setClaims" in text
 
 
-def test_pdf_viewer_paints_overlays_per_page():
+def test_pdf_viewer_delegates_overlays_to_public_provider():
     # Arrange
     # Act
     text = _module_file("pdf-viewer.js").read_text(encoding="utf-8")
     # Assert
-    assert "paintPageOverlays" in text
+    assert "createRichPdfViewer" in text
 
 
 # ---------------------------------------------------------------------------

@@ -88,7 +88,11 @@ async function boot(rootEl) {
   }
 
   let pdfjs;
+  let createPdfViewer;
   try {
+    const factoryUrl = rootEl.dataset.pdfFactory;
+    if (!factoryUrl) throw new Error("SDK PDF factory URL missing");
+    ({ createPdfViewer } = await import(factoryUrl));
     pdfjs = await import(pdfjsUrl);
     pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
   } catch (err) {
@@ -175,6 +179,8 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     container: pdfContainer,
     pdfjs: pdfjs,
+    createPdfViewer,
+    workerSrc: pdfjsWorkerUrl,
     apiBase: apiBase,
   });
   // Overlay regions paint from the same claims payload as the

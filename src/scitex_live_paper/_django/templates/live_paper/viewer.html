@@ -14,14 +14,14 @@ mermaid vendor + the viewer orchestrator module.
 The claim model callout stays: the engine consumes scitex-clew's
 claim model and never defines it.
 {% endcomment %}
-{% block extra_css %}<link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">{% endblock %}
 {% block scitex_app_content %}
   <div data-stx-app-header
        data-app-title="SciTeX Live Paper"
        data-app-version="{{ app_version }}">
     {% scitex_project_picker scope="project" current=current_project %}
   </div>
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>
@@ -35,5 +35,5 @@ claim model and never defines it.
 {% block extra_js %}
   <script type="module" src="{% app_static 'scitex_sdk/ui/js/app/app-header.js' %}"></script>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
-  <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
+  <script type="module" src="{% app_static 'live_paper/js/viewer-entry.js' %}"></script>
 {% endblock %}

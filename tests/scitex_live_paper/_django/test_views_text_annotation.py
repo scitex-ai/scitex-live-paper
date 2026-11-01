@@ -49,119 +49,24 @@ def _viewer_css() -> str:
     )
 
 
-# ──────────────────────────────────────────────────────────────────
-# Text layer — drives native Ctrl-F + text selection
-# ──────────────────────────────────────────────────────────────────
+# The SDK now owns PDF.js raster/text/link rendering. Native LP opts in and
+# consumes its own public provider; the actual rendered layers are exercised
+# by check_rich_pdf_browser.py with a cropped/rotated PDF fixture.
+@pytest.mark.parametrize(
+    "contract",
+    [
+        "createRichPdfViewer",
+        "textLayer: true",
+        "linkLayer: true",
+        "options.createPdfViewer",
+    ],
+)
+def test_native_pdf_uses_public_provider_and_sdk_layers(contract):
+    assert contract in _viewer_js()
 
 
-def test_viewer_js_calls_get_text_content():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "getTextContent" in text
-
-
-def test_viewer_js_has_render_text_layer_helper():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "_renderTextLayer" in text
-
-
-def test_viewer_js_probes_textlayer_class_with_fallback__assert_pdfjs_textlayer_in_text():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "pdfjs.TextLayer" in text
-
-
-def test_viewer_js_probes_textlayer_class_with_fallback__assert_pdfjs_rendertextlayer_in():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "pdfjs.renderTextLayer" in text
-
-
-
-
-def test_viewer_js_passes_textContentSource_to_textlayer():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "textContentSource" in text
-
-
-# ──────────────────────────────────────────────────────────────────
-# Annotation layer — links, form fields
-# ──────────────────────────────────────────────────────────────────
-
-
-def test_viewer_js_calls_get_annotations():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "getAnnotations" in text
-
-
-def test_viewer_js_has_render_annotation_layer_helper():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "_renderAnnotationLayer" in text
-
-
-def test_viewer_js_uses_annotation_layer_class_when_available():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "pdfjs.AnnotationLayer" in text
-
-
-def test_viewer_js_annotation_layer_opens_external_links_in_blank():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "externalLinkTarget" in text
-
-
-def test_viewer_js_skips_annotation_layer_when_empty():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "annotations || annotations.length === 0" in text \
-        or "annotations.length === 0" in text
-
-
-# ──────────────────────────────────────────────────────────────────
-# Per-page wrapper — text + annotation overlays share the canvas
-# coordinate space
-# ──────────────────────────────────────────────────────────────────
-
-
-def test_viewer_js_wraps_each_page_in_relative_div():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert 'pageWrap.style.position = "relative"' in text
-
-
-def test_viewer_js_tags_page_wrap_with_data_page_number():
-    # Arrange
-    # Act
-    text = _viewer_js()
-    # Assert
-    assert "pageWrap.dataset.pageNumber" in text
+def test_native_pdf_does_not_duplicate_page_renderer():
+    assert "getTextContent" not in _viewer_js()
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -183,8 +88,6 @@ def test_viewer_css_styles_text_layer__assert_position_absolute_in_text():
     text = _viewer_css()
     # Assert
     assert "position: absolute" in text
-
-
 
 
 def test_viewer_css_styles_text_selection_color():
@@ -209,8 +112,6 @@ def test_viewer_css_styles_annotation_layer_with_pointer_events_none__assert_poi
     text = _viewer_css()
     # Assert
     assert "pointer-events: none" in text
-
-
 
 
 def test_viewer_css_styles_link_annotation_anchor():

@@ -277,7 +277,7 @@ def test_viewer_template_loads_viewer_js_as_module__assert_live_paper_js_viewer_
     # Act
     body = client.get("/").content.decode("utf-8")
     # Assert
-    assert "live_paper/js/viewer.js" in body
+    assert "live_paper/js/viewer-entry.js" in body
 
 
 
@@ -297,7 +297,7 @@ def test_embed_template_loads_viewer_js_as_module__assert_live_paper_js_viewer_j
     # Act
     body = client.get("/?embed=1").content.decode("utf-8")
     # Assert
-    assert "live_paper/js/viewer.js" in body
+    assert "live_paper/js/viewer-entry.js" in body
 
 
 

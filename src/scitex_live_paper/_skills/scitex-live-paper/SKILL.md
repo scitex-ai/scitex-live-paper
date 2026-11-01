@@ -30,3 +30,10 @@ create another claim schema or establish that a claim is verified.
 The source checkout includes `examples/example-project-mnist`, a labeled
 three-page demo with registered claims and regeneration provenance. A Journal
 submission `bundle.yaml` by itself is not a LivePaper bundle directory.
+
+For rich PDF consumers, use the public frontend package returned by
+`scitex_live_paper.get_frontend_package_dir()` and its `./pdf-provider` export.
+The SDK owns raster/text/link layers; the provider owns rich overlay/comment
+lifecycle. Consumers own URL/auth/DTO adapters. Do not import the native
+`pdf-viewer.js` bundle adapter into other applications. See the repository
+`docs/rich-pdf-provider.md` source contract and browser qualification.

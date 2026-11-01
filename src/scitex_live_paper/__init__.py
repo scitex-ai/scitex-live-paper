@@ -41,6 +41,7 @@ from ._types import (
     RendererTheme,
 )
 from .bundle import Bundle, BundleError, Claim
+from ._frontend import get_frontend_package_dir
 
 
 def _import_mount_resolver():
@@ -105,6 +106,7 @@ def mount(resolver):
 
 
 __all__ = [
+    "get_frontend_package_dir",
     "__version__",
     # bundle model — owned upstream by scitex-clew, mirrored here
     "Bundle",

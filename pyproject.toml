@@ -114,7 +114,13 @@ Issues = "https://github.com/ywatanabe1989/scitex-live-paper/issues"
 package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
-scitex_live_paper = ["_skills/scitex-live-paper/*.md"]
+scitex_live_paper = [
+    "_skills/scitex-live-paper/*.md",
+    "package.json",
+    "_django/static/live_paper/js/*.js",
+    "_django/static/live_paper/js/*.d.ts",
+    "_django/static/live_paper/css/*.css",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
