@@ -33,7 +33,8 @@ claim model and never defines it.
   </main>
 {% endblock %}
 {% block extra_js %}
-  <script type="module" src="{% static 'scitex_sdk/ui/js/app/app-header.js' %}"></script>
+  {% comment %}SDK header asset revision: picker adoption bundle SHA-256 prefix.{% endcomment %}
+  <script type="module" src="{% static 'scitex_sdk/ui/js/app/app-header.js' %}?v=c76f059f5da5"></script>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
   <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
 {% endblock %}

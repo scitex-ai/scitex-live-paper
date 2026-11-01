@@ -16,6 +16,9 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+- Pin the shared AppHeader script URL to the picker-adoption asset revision so
+  an ordinary reload fetches the corrected header startup behavior.
+
 ## [0.2.19] - 2026-11-01
 
 ### Added
