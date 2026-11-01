@@ -3,9 +3,12 @@
 //
 // Row click (not on a button) renders a detail pane under the list:
 // claim id/value/status, provenance (source file/hash/session, anchor),
-// then the bundle DAG via `api/dag` rendered with the vendored mermaid
-// UMD bundle (`window.mermaid`). Everything degrades to a message —
+// the bundle DAG via `api/dag` rendered with the vendored mermaid
+// UMD bundle (`window.mermaid`), then the anchored-comments section
+// (`api/comments` list + add form). Everything degrades to a message —
 // never an empty pane.
+
+import { renderCommentSection } from "./comments.js";
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -63,6 +66,16 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
   dagBox.appendChild(el("p", "lp-claim-dag-loading", "Loading DAG…"));
   pane.appendChild(dagBox);
   renderDagPane(dagBox, claim.claim_id, apiBase);
+
+  // Anchored comments (provider item 4): list + add form for this
+  // claim. Best-effort — a comments outage must not break the pane.
+  try {
+    const commentsBox = el("div", "lp-claim-comments-slot");
+    pane.appendChild(commentsBox);
+    void renderCommentSection(commentsBox, claim.claim_id, apiBase);
+  } catch (err) {
+    console.warn("[live-paper] comments section failed:", err);
+  }
 
   sidebarEl.appendChild(pane);
   return pane;

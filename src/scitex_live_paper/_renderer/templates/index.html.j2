@@ -4,11 +4,23 @@
 <meta charset="UTF-8">
 <title>{{ title|default('Live Paper') }}</title>
 <meta name="generator" content="scitex-live-paper">
+<link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
 </head>
 <body class="live-paper" data-paper-stage="{{ paper_state_stage }}">
-<header class="live-paper-header">
-  <h1 class="live-paper-title">{{ title|default('Live Paper') }}</h1>
+{# Canonical SDK AppHeader (header-parity rule): one header row built by
+   the component; the paper-state line + badge live in <main>. #}
+<div data-stx-app-header
+     data-app-title="SciTeX Live Paper"
+     data-app-version="{{ app_version }}">
+  {# file:// fallback: module scripts (SDK component) only run over
+     http(s); this line keeps a title row where they don't. Hidden the
+     moment the component mounts (see CSS). #}
+  <p class="lp-static-header-fallback">SciTeX Live Paper{% if project_label %} · {{ project_label }}{% endif %}</p>
+  {% if project_label %}<span data-lp-static-project>{{ project_label }}</span>{% endif %}
+</div>
+
+<main class="lp-index-shell">
   <p class="live-paper-state-line">
     <span class="lp-paper-state-label" data-paper-stage="{{ paper_state_stage }}">{{ paper_state_label }}</span>
     {% if show_verification_badge %}
@@ -19,9 +31,6 @@
     {% endif %}
   </p>
   <p class="live-paper-subtitle">scitex-live-paper · static site · opens from file://</p>
-</header>
-
-<main class="lp-index-shell">
   <nav class="lp-index-nav" aria-label="Live Paper sections">
     <ul class="lp-index-list">
       <li>
@@ -78,5 +87,8 @@
 <footer class="live-paper-footer">
   <span>scitex-live-paper · M1 read-only renderer · claim model owned upstream by <code>scitex-clew</code></span>
 </footer>
+
+<script type="module" src="{{ sdk_header_js_url }}"></script>
+<script type="module" src="{{ sdk_header_slot_js_url }}"></script>
 </body>
 </html>

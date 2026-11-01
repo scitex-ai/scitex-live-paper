@@ -4,15 +4,25 @@
 <meta charset="UTF-8">
 <title>{{ title|default('Live Paper — Viewer') }}</title>
 <meta name="generator" content="scitex-live-paper">
+<link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
 </head>
 <body class="live-paper">
-<header class="live-paper-header">
-  <h1 class="live-paper-title">{{ title|default('Live Paper') }}</h1>
-  <p class="live-paper-subtitle">PDF.js viewer · claim anchors overlay</p>
-</header>
+{# Canonical SDK AppHeader (header-parity rule): the component builds the
+   one header row (title span, version badge, project slot). The leaf owns
+   only identity via data attributes; page subtitles live in <main>. #}
+<div data-stx-app-header
+     data-app-title="SciTeX Live Paper"
+     data-app-version="{{ app_version }}">
+  {# file:// fallback: module scripts (SDK component) only run over
+     http(s); this line keeps a title row where they don't. Hidden the
+     moment the component mounts (see CSS). #}
+  <p class="lp-static-header-fallback">SciTeX Live Paper{% if project_label %} · {{ project_label }}{% endif %}</p>
+  {% if project_label %}<span data-lp-static-project>{{ project_label }}</span>{% endif %}
+</div>
 
 <main class="live-paper-viewer-shell">
+  <p class="live-paper-subtitle">PDF.js viewer · claim anchors overlay</p>
   <div id="live-paper-pdf-host"
        data-pdf-url="{{ pdf_url }}"
        data-claims-url="{{ claims_url }}"
@@ -24,6 +34,8 @@
   <span>scitex-live-paper · PDF.js v{{ pdfjs_version }} (vendored)</span>
 </footer>
 
+<script type="module" src="{{ sdk_header_js_url }}"></script>
+<script type="module" src="{{ sdk_header_slot_js_url }}"></script>
 <script type="module" src="{{ js_url }}"></script>
 </body>
 </html>

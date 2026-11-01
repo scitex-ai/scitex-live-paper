@@ -16,6 +16,36 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-10-24
+
+### Added
+
+- Anchored-comments provider (`GET/POST /api/comments`, sidecar
+  persist, overlay markers, badges, detail-pane section) and the
+  consumer translator layer (`ports.translate_consumer_payload`).
+
+### Fixed
+
+- Overlay paints before text/annotation layers; MNIST figure axis
+  follows the data.
+
+## [0.2.15] - 2026-10-24
+
+### Fixed
+
+- Harness-proof the MNIST generator test: drop ambient `PYTHONPATH`
+  for the generator subprocess (agent/harness venvs shadow PIL ABI).
+
+## [0.2.14] - 2026-10-24
+
+### Added
+
+- Static export mounts the canonical SDK AppHeader (header-parity):
+  `[data-stx-app-header]` + vendored SDK CSS/JS; new `--project-label`;
+  custom header duplicates retired.
+- `example-project-mnist` seed bundle: computed MNIST demo for the
+  shared example project (writer / live-paper / agentic-journal).
+
 ## [0.2.13] - 2026-10-22
 
 ### Fixed
@@ -61,6 +91,30 @@ may change without a changelog entry.
 
 ### Added
 
+- Anchored-comments provider (prompt-10 provider item): `GET/POST
+  /api/comments` with `live-paper-comments.json` sidecar persist;
+  overlay region markers, per-claim count badges, and a list + add
+  form in the claim detail pane (`comments.js`).
+- Consumer translator layer (`ports.translate_consumer_payload`):
+  thin intake normalizing writer/journal-style payloads (comment
+  bodies, port aliases, claim refs) into canonical comment / port
+  actions. Pure function, pinned by contract tests.
+- Static export mounts the canonical SDK AppHeader (operator
+  header-parity rule): the four `.j2` pages render
+  `[data-stx-app-header]` with the SDK CSS/JS vendored into
+  `assets/` (mounts over `http(s)`; `file://` keeps a static
+  fallback title line). New `--project-label` on `render` feeds the
+  header's project slot. Custom `<header class="live-paper-header">`
+  duplicates retired from templates + CSS. Pins in
+  `tests/scitex_live_paper/_renderer/test_sdk_header_parity.py`.
+- `example-project-mnist` seed bundle
+  (`examples/example-project-mnist/`): computed MNIST demo —
+  logistic-regression + kNN test accuracies with claim anchors over
+  the accuracy figure, DAG, provenance — for the shared example
+  project (writer / live-paper / agentic-journal). Regenerate with
+  `examples/make_example_project_mnist.py`. Pins in
+  `tests/examples/test_example_project_mnist.py`; quickstart
+  documents the Hub `?working_dir=` serving path.
 - Leaf API-consistency rules (`docs/dev/api-consistency.md`, R1–R7
   across Python/CLI/MCP/Skills/Web) with §6 MCP↔Python parity pins
   (`tests/scitex_live_paper/test__mcp_server.py`) and docs-sync pins
@@ -71,6 +125,11 @@ may change without a changelog entry.
 
 ### Fixed
 
+- Overlay paints before the text/annotation layers in the PDF viewer:
+  a slow figure-page text layer can no longer starve claim anchors
+  and comment markers (found live on the MNIST figure page).
+- MNIST accuracy figure: axis floor follows the data (was fixed 0.9
+  with values below it) and value labels sit above the bars.
 - Docs drift: README M3 shipped at `/apps/live-paper/`, `[server]`
   extra + `scitex.livepaper.renderers` group documented;
   quickstart/runbook/demo fixture paths moved to

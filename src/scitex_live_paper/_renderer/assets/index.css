@@ -22,22 +22,30 @@ body.live-paper {
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-.live-paper-header,
-.live-paper-footer {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--lp-border);
-  background: #fff;
-}
+/* Header chrome comes from the canonical SDK AppHeader (header-parity
+   rule) — the leaf renders no <header> of its own. Page subtitles live
+   in <main>. */
 
 .live-paper-footer {
-  border-bottom: 0;
+  padding: 12px 20px;
+  background: #fff;
   border-top: 1px solid var(--lp-border);
   font-size: 12px;
   color: var(--lp-muted);
 }
 
-.live-paper-title { margin: 0; font-size: 18px; font-weight: 600; }
 .live-paper-subtitle { margin: 2px 0 0 0; font-size: 12px; color: var(--lp-muted); }
+
+/* Static-export header fallback: module scripts (SDK AppHeader) only run
+   over http(s), so the component never mounts from file://. The fallback
+   line keeps a title row there; it hides the moment the component mounts
+   ([data-stx-app-header-mounted] is set by the SDK mount). The static
+   project label stays hidden until the slot helper moves it into the
+   SDK project slot. */
+.lp-static-header-fallback { margin: 0; padding: 12px 20px; font-size: 18px; font-weight: 600; background: #fff; border-bottom: 1px solid var(--lp-border); }
+[data-stx-app-header-mounted] .lp-static-header-fallback { display: none; }
+[data-stx-app-header] [data-lp-static-project] { display: none; }
+.stx-app-header__slot--project-selector [data-lp-static-project] { display: inline; }
 
 .lp-index-shell {
   max-width: 960px;

@@ -4,15 +4,24 @@
 <meta charset="UTF-8">
 <title>{{ title|default('Live Paper — Claims') }}</title>
 <meta name="generator" content="scitex-live-paper">
+<link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
 </head>
 <body class="live-paper">
-<header class="live-paper-header">
-  <h1 class="live-paper-title">{{ title|default('Live Paper — Claims') }}</h1>
-  <p class="live-paper-subtitle">{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }} · status colours from <code>clew.VerificationStatus</code></p>
-</header>
+{# Canonical SDK AppHeader (header-parity rule): one header row built by
+   the component; page subtitles live in <main>. #}
+<div data-stx-app-header
+     data-app-title="SciTeX Live Paper"
+     data-app-version="{{ app_version }}">
+  {# file:// fallback: module scripts (SDK component) only run over
+     http(s); this line keeps a title row where they don't. Hidden the
+     moment the component mounts (see CSS). #}
+  <p class="lp-static-header-fallback">SciTeX Live Paper{% if project_label %} · {{ project_label }}{% endif %}</p>
+  {% if project_label %}<span data-lp-static-project>{{ project_label }}</span>{% endif %}
+</div>
 
 <main class="lp-claims-shell" data-viewer-url="{{ viewer_url }}">
+  <p class="live-paper-subtitle">{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }} · status colours from <code>clew.VerificationStatus</code></p>
   {% if claims %}
   <ol class="lp-claims-list" role="list">
     {% for c in claims %}
@@ -64,6 +73,8 @@
   <span>scitex-live-paper · claim model owned upstream by <code>scitex-clew</code></span>
 </footer>
 
+<script type="module" src="{{ sdk_header_js_url }}"></script>
+<script type="module" src="{{ sdk_header_slot_js_url }}"></script>
 <script type="module" src="{{ js_url }}"></script>
 </body>
 </html>

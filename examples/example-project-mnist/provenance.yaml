@@ -1,0 +1,31 @@
+schema: scitex-clew.provenance/v1
+project:
+  name: example-project-mnist
+  commit: null  # regenerated, not versioned upstream
+dataset:
+  name: mnist_784
+  source: OpenML
+  version: 1
+  split:
+    train: 10000
+    test: 2000
+    seed: 0
+    knn_reference: 2000
+sessions:
+  sess_train:
+    role: processing
+    script: examples/make_example_project_mnist.py
+    inputs:
+      - hash: openml:mnist_784:v1
+        path: mnist_784 (OpenML)
+    outputs:
+      - hash: 86d16a4a4cf8951eb3e595da303af7c6b8aebc4f658f09a4c0f1a2eaac401b9a
+        path: manuscript.pdf
+      - hash: b6bad0d93e7796a3fefc25435055d6b7b8a5ceac75c7e6532011ba9d1e8ac155
+        path: claims.json
+environment:
+  scikit-learn: 1.9.1
+  matplotlib: 3.11.2
+  numpy: 2.5.4
+  generated_at: 2026-10-24T22:47:34Z
+  results: {logreg: 0.882500, knn: 0.891000}

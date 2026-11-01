@@ -57,6 +57,23 @@ it into a throwaway site directory:
 scitex-live-paper render tests/scitex_live_paper/fixtures/bundle-min --out /tmp/live-paper-site
 ```
 
+### Prefer realistic example contents? Use `example-project-mnist`
+
+[`examples/example-project-mnist/`](../examples/example-project-mnist/)
+is the seed bundle for the shared `example-project-mnist` example
+project (writer / live-paper / agentic-journal): a computed MNIST
+demo — real MNIST pixels, logistic-regression + kNN test accuracies,
+claim anchors over the accuracy figure. Regenerate it with:
+
+```bash
+python examples/make_example_project_mnist.py  # needs scikit-learn + matplotlib
+scitex-live-paper render examples/example-project-mnist --out /tmp/live-paper-mnist \
+  --project-label example-project-mnist
+```
+
+On SciTeX Hub the same directory is served live at
+`/apps/live-paper/?working_dir=<absolute path to the bundle>`.
+
 This emits the full M1 site layout (see `_cli.render_site`):
 
 ```

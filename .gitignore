@@ -22,5 +22,9 @@ GITIGNORED/
 # session event log next to the served bundle. Never commit these.
 live-paper-events.json
 
+# Runtime comment sidecar (prompt-10 provider item): POST /api/comments
+# persists reader notes next to the served bundle. Never commit these.
+live-paper-comments.json
+
 # Runtime lock state (Claude Code scheduler) — never commit or publish.
 .claude/scheduled_tasks.lock
