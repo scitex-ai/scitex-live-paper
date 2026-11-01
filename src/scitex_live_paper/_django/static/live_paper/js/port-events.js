@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // Port-events bus — DOM side of the contract §3 envelope.
 // Vanilla ES module.
 //
@@ -29,7 +31,7 @@ export function bindPortEvents(rootEl, apiBase) {
     const { port, target } = event.detail || {};
     if (!port || !target) return;
     const url = apiBase + "port/" + encodeURIComponent(port) + "/" + encodeURIComponent(target);
-    fetch(url, { headers: { Accept: "application/json" } })
+    fetch(withBundleContext(url), { headers: { Accept: "application/json" } })
       .then(async (response) => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) {

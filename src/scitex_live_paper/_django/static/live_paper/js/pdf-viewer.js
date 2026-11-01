@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // PDFViewer — ported from scitex_writer/_django/frontend/src/pdf-viewer.ts.
 // Same surface (load / render / clear / setZoom / setFitWidth /
 // renderPlaceholder / zoomPercent) plus PR (c)'s text-layer +
@@ -49,7 +51,7 @@ export class PDFViewer {
       "&t=" +
       Date.now();
     try {
-      const task = this.pdfjs.getDocument({ url });
+      const task = this.pdfjs.getDocument({ url: withBundleContext(url) });
       this.pdfDoc = await task.promise;
       await this.render();
       return true;

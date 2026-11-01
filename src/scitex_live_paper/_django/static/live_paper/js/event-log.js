@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // Event-log sidecar — client-side replay log for the overlay.
 //
 // Per CCT 3000 the archive keeps `manuscript.pdf + event-log sidecar`
@@ -62,7 +64,7 @@ export function downloadSidecar(log, meta, filename) {
 export async function persistSidecar(log, meta, options) {
   const apiBase = (options && options.apiBase) || "/api/";
   const sidecar = exportSidecar(log, meta);
-  const response = await fetch(apiBase + "event-log", {
+  const response = await fetch(withBundleContext(apiBase + "event-log"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sidecar),

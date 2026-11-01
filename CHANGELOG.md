@@ -16,6 +16,12 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.18] - 2026-11-01
+
+### Fixed
+
+- Preserve explicit project and working-directory selectors on same-origin viewer RPC, PDF, comments, port and archive requests, keeping a bundle link independent of another tab's project selection.
+
 ## [0.2.17] - 2026-11-01
 
 ### Fixed

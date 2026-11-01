@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // Anchored comments — client half of `api/comments` (prompt-10 item 4).
 //
 // Live Paper is the comments provider for consumers: notes anchored to
@@ -17,7 +19,7 @@ function el(tag, className, text) {
 
 export async function fetchComments(apiBase) {
   try {
-    const res = await fetch(apiBase + "comments", {
+    const res = await fetch(withBundleContext(apiBase + "comments"), {
       headers: { Accept: "application/json" },
     });
     const body = await res.json().catch(() => ({}));
@@ -33,7 +35,7 @@ export async function postComment(apiBase, { body, target, author, kind }) {
   const comment = { body, target };
   if (author) comment.author = author;
   if (kind) comment.kind = kind;
-  const res = await fetch(apiBase + "comments", {
+  const res = await fetch(withBundleContext(apiBase + "comments"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ comment }),

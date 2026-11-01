@@ -8,8 +8,26 @@ export function normalizeBase(base) {
   return base;
 }
 
+/** Preserve explicit bundle selection on every same-origin API/PDF request.
+ * A host session may select another project in a second tab; the URL's own
+ * project/working_dir selectors must continue to identify this tab's bundle.
+ * Hosts still authorize these selectors on every request.
+ */
+export function withBundleContext(url, pageHref = globalThis.location?.href) {
+  if (!pageHref) return url;
+  const page = new URL(pageHref);
+  const target = new URL(url, page);
+  if (target.origin !== page.origin) return url;
+  for (const key of ["project", "working_dir"]) {
+    if (!target.searchParams.has(key) && page.searchParams.has(key)) {
+      target.searchParams.set(key, page.searchParams.get(key));
+    }
+  }
+  return target.href;
+}
+
 export async function fetchJson(url) {
-  const res = await fetch(url);
+  const res = await fetch(withBundleContext(url));
   const text = await res.text();
   try {
     return JSON.parse(text);
@@ -27,7 +45,7 @@ export async function fetchOrNull(url) {
   // endpoints (e.g. `api/dashboard`) where the caller wants to fall
   // back to a slower path rather than fail the whole boot.
   try {
-    const res = await fetch(url);
+    const res = await fetch(withBundleContext(url));
     if (!res.ok) return null;
     return await res.json();
   } catch (_err) {
