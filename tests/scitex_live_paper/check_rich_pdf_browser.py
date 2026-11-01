@@ -158,7 +158,7 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
         page.evaluate(
             """async()=>{provider.destroy();window.nativeEvents=[];document.querySelector('#root').addEventListener('live-paper:claim',e=>nativeEvents.push(e.detail));window.native=new NativeViewer({container:document.querySelector('#viewer'),createPdfViewer:SDKFactory,pdfjs:nativePdfjs,workerSrc:'/native-worker.mjs',apiBase:'/native/api/'});native.setClaims([{claim_id:'native-claim',claim_value:'Native claim',status:'verified',extras:{anchor:{page:1,bbox:[60,620,240,655]}}}]);native.setComments([{id:'native-seed',body:'Native note',target:{claim_id:'native-claim'}}]);if(!await native.load())throw new Error('Native adapter load failed');}"""
         )
-        assert page.locator(".stx-pdf-text-layer").count() == 2
+        assert page.locator("[data-stx-pdf-layer=text]").count() == 2
         page.get_by_role("button", name="Native claim", exact=True).click()
         assert page.evaluate("nativeEvents[0].id") == "native-claim"
         page.get_by_role("textbox", name="New PDF comment").fill("Native adapter note")
