@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // "Re-verify all" button + bulk dispatcher. POSTs api/claims/verify
 // (PR #N bulk endpoint), then walks the per-claim results back into
 // each row in the claims sidebar. Operator gets immediate feedback
@@ -44,7 +46,7 @@ export async function reverifyAllClaims(btn, pinnedCommit, apiBase) {
     const body = {};
     if (pinnedCommit) body.pinned_commit = pinnedCommit;
 
-    const res = await fetch(apiBase + "claims/verify", {
+    const res = await fetch(withBundleContext(apiBase + "claims/verify"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

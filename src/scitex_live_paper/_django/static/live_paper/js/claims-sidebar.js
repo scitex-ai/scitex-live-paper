@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // Claims sidebar + per-claim Re-verify wire-up. Vanilla ES module.
 // Imports the shared helpers + the bulk Re-verify-all button from the
 // sibling modules so this file stays focused on per-claim rendering.
@@ -102,7 +104,7 @@ export async function reverifyClaim(rowEl, claimId, pinnedCommit, apiBase) {
     const body = { claim_id: claimId };
     if (pinnedCommit) body.pinned_commit = pinnedCommit;
 
-    const res = await fetch(apiBase + "claim/verify", {
+    const res = await fetch(withBundleContext(apiBase + "claim/verify"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

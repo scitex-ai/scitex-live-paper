@@ -1,3 +1,5 @@
+import { withBundleContext } from "./_utils.js";
+
 // Claim detail pane + DAG pane for the sidebar (slice D).
 // Vanilla ES module.
 //
@@ -89,7 +91,7 @@ export function closeClaimDetail(sidebarEl) {
 export async function renderDagPane(dagBox, claimId, apiBase) {
   let body = {};
   try {
-    const res = await fetch(apiBase + "dag", { headers: { Accept: "application/json" } });
+    const res = await fetch(withBundleContext(apiBase + "dag"), { headers: { Accept: "application/json" } });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ("dag request failed: " + res.status));
   } catch (err) {
