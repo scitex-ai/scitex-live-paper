@@ -84,3 +84,34 @@ def test_mcp_server_registers_package_name():
     server = _mcp_server.mcp
     # Assert
     assert server is not None and server.name == "scitex-live-paper"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "SKILL",
+        "01_installation",
+        "02_quick-start",
+        "03_python-api",
+        "04_cli-reference",
+        "05_mcp-tools",
+        "10_mounted-viewer",
+        "20_env-vars",
+    ],
+)
+def test_packaged_skill_resource_is_retrievable(name):
+    # Arrange
+    # Act
+    result = _mcp_server.live_paper_skills_get(name)
+    # Assert
+    assert result["name"] == name and bool(result["markdown"].strip())
+
+
+def test_skills_discovery_includes_packaged_resources():
+    # Arrange
+    # Act
+    names = _mcp_server.live_paper_skills_list()["skills"]
+    # Assert
+    assert {"SKILL", "01_installation", "10_mounted-viewer", "20_env-vars"}.issubset(
+        names
+    )

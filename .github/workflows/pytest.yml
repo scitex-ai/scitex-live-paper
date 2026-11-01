@@ -36,20 +36,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package (no upstream scitex deps)
+      - name: Install package and declared dependencies
         run: |
           python -m pip install --upgrade pip
-          # The runtime requires list pins `scitex-dev` / `scitex-ui`
-          # which are not yet on PyPI; for the test matrix we install
-          # the package WITHOUT its declared deps and then layer on
-          # the minimum runtime + test deps the suite actually needs
-          # (loader uses pyyaml; _django handlers import scitex-logging;
-          # _django settings/templates boot the scitex-sdk workspace
-          # shell, so scitex-sdk[gui] rides along;
-          # renderer/CLI scaffolding stays skipped until those modules
-          # land in their own PRs).
-          python -m pip install --no-deps -e .
-          python -m pip install pytest pyyaml jinja2 click 'django>=4.2' 'scitex-logging>=0.1.0' 'scitex-sdk[gui]>=0.3.7'
+          # Exercise the same declared interface dependencies as the canonical
+          # reusable matrix, including the shared Dev skills dispatcher.
+          python -m pip install -e '.[all,dev]'
 
       - name: Show environment
         run: |
