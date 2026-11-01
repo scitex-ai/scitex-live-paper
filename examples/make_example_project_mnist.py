@@ -36,11 +36,6 @@ import json
 import sys
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
 
 HERE = Path(__file__).resolve().parent
 OUT_DIR = HERE / "example-project-mnist"
@@ -65,6 +60,7 @@ def _utcnow() -> str:
 
 def load_mnist():
     """Real MNIST pixels via OpenML (cached under ~/.cache)."""
+    import numpy as np
     from sklearn.datasets import fetch_openml
 
     mnist = fetch_openml("mnist_784", version=1, parser="auto")
@@ -74,10 +70,17 @@ def load_mnist():
 
 
 def split(X, y):
+    import numpy as np
+
     rng = np.random.RandomState(SEED)
     idx = rng.permutation(len(X))
     X, y = X[idx], y[idx]
-    return X[:N_TRAIN], y[:N_TRAIN], X[N_TRAIN : N_TRAIN + N_TEST], y[N_TRAIN : N_TRAIN + N_TEST]
+    return (
+        X[:N_TRAIN],
+        y[:N_TRAIN],
+        X[N_TRAIN : N_TRAIN + N_TEST],
+        y[N_TRAIN : N_TRAIN + N_TEST],
+    )
 
 
 def train_logreg(X_train, y_train):
@@ -102,6 +105,8 @@ def accuracy(clf, X_test, y_test) -> float:
 
 def manuscript(out_pdf: Path, X_train, y_train, results: dict, versions: dict) -> dict:
     """Render the 3-page demo manuscript. Returns accuracy-axes bboxes (pt)."""
+    import numpy as np
+    import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
     anchors = {}
@@ -195,7 +200,12 @@ def manuscript(out_pdf: Path, X_train, y_train, results: dict, versions: dict) -
         pos = ax.get_position()
         x0, y0 = pos.x0 * PAGE_W_PT, pos.y0 * PAGE_H_PT
         x1, y1 = pos.x1 * PAGE_W_PT, pos.y1 * PAGE_H_PT
-        anchors["accuracy_axes_pt"] = [round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)]
+        anchors["accuracy_axes_pt"] = [
+            round(x0, 1),
+            round(y0, 1),
+            round(x1, 1),
+            round(y1, 1),
+        ]
         acc_png = out_pdf.parent / "figz" / "mnist_accuracy.png"
         fig.savefig(acc_png, dpi=100)
         plt.close(fig)
@@ -213,8 +223,11 @@ def sha256_file(path: Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(OUT_DIR), help="Output bundle dir.")
-    parser.add_argument("--quick", action="store_true",
-                        help="Smoke mode: 1000 train / 200 test (fast, different numbers).")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Smoke mode: 1000 train / 200 test (fast, different numbers).",
+    )
     args = parser.parse_args(argv)
 
     global N_TRAIN, N_TEST, KNN_TRAIN
@@ -225,6 +238,10 @@ def main(argv: list[str] | None = None) -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     import sklearn
+    import matplotlib
+    import numpy as np
+
+    matplotlib.use("Agg")
 
     versions = {
         "sklearn": sklearn.__version__,
@@ -297,7 +314,9 @@ def main(argv: list[str] | None = None) -> int:
             },
         ],
     }
-    (out / "claims.json").write_text(json.dumps(claims, indent=2) + "\n", encoding="utf-8")
+    (out / "claims.json").write_text(
+        json.dumps(claims, indent=2) + "\n", encoding="utf-8"
+    )
 
     (out / "dag.mmd").write_text(
         "graph LR\n"

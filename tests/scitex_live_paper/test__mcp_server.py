@@ -48,7 +48,9 @@ def test_tool_registry_nonempty():
     assert len(names) > 0
 
 
-@pytest.mark.parametrize("tool_name", list(PROJECTIONS) + ["live_paper_skills_list", "live_paper_skills_get"])
+@pytest.mark.parametrize(
+    "tool_name", list(PROJECTIONS) + ["live_paper_skills_list", "live_paper_skills_get"]
+)
 def test_tool_name_uses_live_paper_prefix(tool_name):
     # Arrange
     # Act
@@ -59,12 +61,12 @@ def test_tool_name_uses_live_paper_prefix(tool_name):
 
 @pytest.mark.parametrize("tool_name,target", sorted(PROJECTIONS.items()))
 def test_tool_projects_importable_python_api(tool_name, target):
-    # Arrange (tool must exist in the registry)
-    assert tool_name in _tool_names()
+    # Arrange
+    names = _tool_names()
     # Act
     resolved = _resolve(target)
     # Assert
-    assert callable(resolved)
+    assert (tool_name in names, callable(resolved)) == (True, True)
 
 
 def test_skills_pair_ships_together():
