@@ -68,3 +68,9 @@ the full/embed shell and send it as `X-CSRFToken` with same-origin credentials.
 The comment dispatch explicitly applies Django CSRF protection, including when
 the host uses HttpOnly/session-backed tokens. Missing tokens and foreign origins
 are refused before the sidecar handler. This does not alter other legacy RPCs.
+
+A clean native-provider build uses the tracked root package.json/lock and
+`npm ci && npm run build:frontend` from this checkout, followed by the normal
+Python wheel build. It requires no sibling checkout or untracked staging: the
+native adapter bundles its local module graph and receives the SDK factory at
+runtime via its public versioned asset URL.
