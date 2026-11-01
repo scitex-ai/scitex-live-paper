@@ -16,6 +16,8 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+- Remove the leaf header-border override and use automatic shared asset versions for the header and viewer stylesheet.
+
 - Pin the shared AppHeader script URL to the picker-adoption asset revision so
   an ordinary reload fetches the corrected header startup behavior.
 
