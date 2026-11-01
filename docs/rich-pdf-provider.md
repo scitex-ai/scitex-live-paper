@@ -74,3 +74,9 @@ A clean native-provider build uses the tracked root package.json/lock and
 Python wheel build. It requires no sibling checkout or untracked staging: the
 native adapter bundles its local module graph and receives the SDK factory at
 runtime via its public versioned asset URL.
+
+Bundle loading distinguishes missing resources (`BundleMissingError`, a
+`BundleError` subclass) from malformed existing content (`BundleError`). Hosts
+can map expected absence to a bundle-selection empty state/404; malformed JSON
+or schema failures remain errors. A project directory alone is not a valid
+LivePaper bundle: the leaf loader requires a manuscript plus claims.json.

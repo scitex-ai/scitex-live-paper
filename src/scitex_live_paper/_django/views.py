@@ -40,10 +40,12 @@ except ImportError as exc:  # django absent — the [server]-gated GUI capabilit
         "Install the optional stack: pip install 'scitex-live-paper[server]'"
     ) from exc
 
+from scitex_live_paper.ports._registry import PortNotFound
+
+from ..bundle import BundleMissingError
 from . import services
 from .handlers import HANDLERS
 from .handlers.ports import handle_port
-from scitex_live_paper.ports._registry import PortNotFound
 
 
 def _package_version() -> str:
@@ -222,6 +224,8 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
                 f"HttpResponse, got {type(payload).__name__}"
             )
         return JsonResponse(payload)
+    except BundleMissingError as exc:
+        return JsonResponse({"error": str(exc)}, status=404)
     except Exception as exc:
         log.exception("[live-paper] handler %s raised", endpoint)
         return JsonResponse({"error": str(exc)}, status=500)
