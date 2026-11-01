@@ -377,9 +377,12 @@ async function postComment(apiBase, { body, target, author, kind }) {
   const comment = { body, target };
   if (author) comment.author = author;
   if (kind) comment.kind = kind;
+  const token = document.querySelector('meta[name="live-paper-csrf-token"]')?.content;
+  if (!token || token === "NOTPROVIDED") throw new Error("LivePaper CSRF token missing; reload the viewer");
   const res = await fetch(withBundleContext(apiBase + "comments"), {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRFToken": token },
     body: JSON.stringify({ comment })
   });
   const payload = await res.json().catch(() => ({}));

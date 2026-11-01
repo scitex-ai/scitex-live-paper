@@ -227,6 +227,6 @@ export function movePickerIntoHeaderSlot(rootEl) {
   observer.observe(headerRoot, { childList: true, subtree: true });
 }
 
-// Public global — writer / scholar / hub embed paths can hand their
-// own container in and drive the viewer programmatically.
+// Legacy native-adapter global for existing standalone automation.
+// New consumers use the generic public rich PDF provider, not this adapter.
 window.LivePaperPDFViewer = PDFViewer;

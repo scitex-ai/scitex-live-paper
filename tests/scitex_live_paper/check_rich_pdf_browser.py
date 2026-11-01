@@ -23,7 +23,7 @@ def main():
     sdk = args.sdk_root / "src/scitex_sdk/ui/static/scitex_sdk/ui/js/app/pdf-viewer.js"
     vendor = args.sdk_root / "node_modules/pdfjs-dist/build"
     fixture = repo / "tests/scitex_live_paper/fixtures/rich-provider.pdf"
-    html = """<main id="root"><div id="viewer" style="width:750px;height:480px;overflow:auto"></div></main>
+    html = """<meta name="live-paper-csrf-token" content="native-fixture-token"><main id="root"><div id="viewer" style="width:750px;height:480px;overflow:auto"></div></main>
 <script type="module">
 import {createPdfViewer} from '/sdk.js';import * as pdfjs from '/pdf.mjs';
 import {createRichPdfViewer} from '/modules/pdf-provider.js';
@@ -68,6 +68,9 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
                 assert member.is_relative_to(js)
                 route.fulfill(content_type="text/javascript", body=member.read_bytes())
             elif path == "native/api/comments":
+                assert (
+                    route.request.headers.get("x-csrftoken") == "native-fixture-token"
+                )
                 body = route.request.post_data_json
                 writes.append(body)
                 route.fulfill(
@@ -168,6 +171,11 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
                 }
             }
         ], writes
+        missing = page.evaluate(
+            """async()=>{document.querySelector('meta[name="live-paper-csrf-token"]').remove();try{const {postComment}=await import('/modules/comments.js');await postComment('/native/api/',{body:'Blocked missing token',target:{claim_id:'native-claim'}});return ''}catch(error){return error.message}}"""
+        )
+        assert "CSRF token missing" in missing
+        assert len(writes) == 1
         page.evaluate("native.destroy()")
         assert page.locator("#viewer").evaluate("(el)=>el.childElementCount") == 0
         assert errors == [], errors

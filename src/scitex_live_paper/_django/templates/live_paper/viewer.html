@@ -14,7 +14,7 @@ mermaid vendor + the viewer orchestrator module.
 The claim model callout stays: the engine consumes scitex-clew's
 claim model and never defines it.
 {% endcomment %}
-{% block extra_css %}<link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">{% endblock %}
+{% block extra_css %}<meta name="live-paper-csrf-token" content="{{ csrf_token }}"><link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">{% endblock %}
 {% block scitex_app_content %}
   <div data-stx-app-header
        data-app-title="SciTeX Live Paper"

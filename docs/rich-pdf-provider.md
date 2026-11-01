@@ -62,3 +62,9 @@ region/count rendering, comment create and refusal, read-only/policy guards,
 failed-save draft retention, reload cleanup, native claim events and translated
 comment requests. Its HTTP port fixtures are synthetic, not proof of a deployed
 host's credentials, authorization, persistence or available documents.
+
+Native browser comment POSTs require the `live-paper-csrf-token` DOM token from
+the full/embed shell and send it as `X-CSRFToken` with same-origin credentials.
+The comment dispatch explicitly applies Django CSRF protection, including when
+the host uses HttpOnly/session-backed tokens. Missing tokens and foreign origins
+are refused before the sidecar handler. This does not alter other legacy RPCs.

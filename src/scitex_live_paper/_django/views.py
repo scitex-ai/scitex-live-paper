@@ -33,7 +33,7 @@ try:
         JsonResponse,
     )
     from django.template.loader import render_to_string
-    from django.views.decorators.csrf import csrf_exempt
+    from django.views.decorators.csrf import csrf_exempt, csrf_protect
 except ImportError as exc:  # django absent — the [server]-gated GUI capability only
     raise ImportError(
         "scitex_live_paper._django.views needs Django, which is not installed. "
@@ -199,6 +199,11 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
             {"error": f"unknown endpoint: {endpoint}"},
             status=404,
         )
+
+    if endpoint == "api/comments" and request.method == "POST":
+        # Browser comment mutation must honor the host/session CSRF policy.
+        # Keep the pure business handler and other legacy RPCs unchanged.
+        handler = csrf_protect(handler)
 
     try:
         payload = handler(request)
