@@ -199,10 +199,15 @@ async function boot(rootEl) {
  * when the slot already exists, otherwise once via MutationObserver.
  */
 export function movePickerIntoHeaderSlot(rootEl) {
-  const doc = rootEl.ownerDocument || document;
+  // The Django template places the picker in the header immediately
+  // before the viewer main, not inside that main. Keep placement scoped
+  // to this leaf header so an embedded viewer cannot move a host picker.
+  const headerRoot = rootEl.previousElementSibling;
+  if (!headerRoot?.matches("[data-stx-app-header]")) return;
+  const picker = headerRoot.querySelector("[data-stx-project-picker]");
+  if (!picker) return;
   const move = () => {
-    const picker = rootEl.querySelector("[data-stx-project-picker]");
-    const slot = doc.querySelector(".stx-app-header__slot--project-selector");
+    const slot = headerRoot.querySelector(".stx-app-header__slot--project-selector");
     if (picker && slot && picker.parentElement !== slot) {
       slot.appendChild(picker);
       return true;
@@ -213,7 +218,7 @@ export function movePickerIntoHeaderSlot(rootEl) {
   const observer = new MutationObserver(() => {
     if (move()) observer.disconnect();
   });
-  observer.observe(doc.documentElement, { childList: true, subtree: true });
+  observer.observe(headerRoot, { childList: true, subtree: true });
 }
 
 // Public global — writer / scholar / hub embed paths can hand their

@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.17] - 2026-11-01
+
+### Fixed
+
+- Place the Django project picker in its own canonical SDK header slot instead of searching inside the viewer main.
+- Limit header observation to the owning header and skip absent pickers, avoiding unrelated host DOM subscriptions.
+
+
 ## [0.2.16] - 2026-10-24
 
 ### Added
