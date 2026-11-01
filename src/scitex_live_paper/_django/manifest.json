@@ -9,7 +9,7 @@
   "category": "writing",
   "accent_color": "live-paper",
   "subtitle": "Read-only live paper viewer (PDF.js + claims + DAG)",
-  "about": "Renders an accepted manuscript bundle as a live paper: PDF.js viewer with claim anchors, claims panel, mermaid DAG navigator, verification badge. Consumes the claim model owned by scitex-clew — never defines it.",
+  "about": "Renders an accepted manuscript bundle as a live paper: PDF.js viewer with claim anchors, claims panel, mermaid DAG navigator, verification badge. Consumes the claim model owned by scitex-clew \u2014 never defines it.",
   "description": "scitex-live-paper is the published-side viewer for AI-verifiable research papers. M1 is the read-only static-site renderer; M2 wires the re-verify button (clew.verify_claim against pinned commit); M3 mounts this Django app under /apps/live-paper/ on scitex-hub. The Django app pattern (SPA shell + <path:endpoint> api_dispatch + HANDLERS registry) mirrors scitex_writer._django.",
   "author": "ywatanabe",
   "license": "AGPL-3.0",
@@ -21,7 +21,13 @@
     "M2: re-verify button (calls clew.verify_claim)",
     "M3: mount as Django app on scitex-hub /apps/live-paper/"
   ],
-  "allowed_extensions": [".pdf", ".tex", ".json", ".mmd", ".yaml"],
+  "allowed_extensions": [
+    ".pdf",
+    ".tex",
+    ".json",
+    ".mmd",
+    ".yaml"
+  ],
   "wip": true,
   "standalone": true,
   "standalone_command": "scitex-live-paper serve",
@@ -29,7 +35,11 @@
   "frontend_type": "spa",
   "embedded_package": true,
   "dependencies": {
-    "python": ["scitex-live-paper", "scitex-sdk", "django"]
+    "python": [
+      "scitex-live-paper",
+      "scitex-sdk",
+      "django"
+    ]
   },
   "mount_policy": {
     "login_required": true,
@@ -39,5 +49,9 @@
       "working_dir_param": "working_dir",
       "path_params": []
     }
+  },
+  "scope_capabilities": {
+    "user": false,
+    "project": true
   }
 }
