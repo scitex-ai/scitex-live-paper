@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.2.19"
+version = "0.2.20"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -50,7 +50,7 @@ django = [
 # contracts and mount. Mirrors the scitex-stats [server] extra floor.
 server = [
     "django>=4.2",
-    "scitex-sdk[gui]>=0.3.7",
+    "scitex-sdk[gui]>=0.3.17",
 ]
 mcp = [
     "fastmcp>=2.0",

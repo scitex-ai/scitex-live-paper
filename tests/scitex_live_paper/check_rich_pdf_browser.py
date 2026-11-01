@@ -16,12 +16,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--chromium", required=True)
     parser.add_argument("--sdk-root", type=Path, required=True)
+    parser.add_argument("--pdfjs-root", type=Path)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
     js = repo / "src/scitex_live_paper/_django/static/live_paper/js"
     css = repo / "src/scitex_live_paper/_django/static/live_paper/css/pdf-provider.css"
     sdk = args.sdk_root / "src/scitex_sdk/ui/static/scitex_sdk/ui/js/app/pdf-viewer.js"
-    vendor = args.sdk_root / "node_modules/pdfjs-dist/build"
+    vendor = (args.pdfjs_root or args.sdk_root / "node_modules/pdfjs-dist") / "build"
     fixture = repo / "tests/scitex_live_paper/fixtures/rich-provider.pdf"
     html = """<meta name="live-paper-csrf-token" content="native-fixture-token"><main id="root"><div id="viewer" style="width:750px;height:480px;overflow:auto"></div></main>
 <script type="module">

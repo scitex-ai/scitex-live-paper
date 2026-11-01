@@ -11,8 +11,8 @@ The public browser module is `live_paper/js/pdf-provider.js` (use Django
 `scitex_live_paper.get_frontend_package_dir()` provides
 `@scitex/live-paper/pdf-provider` and `@scitex/live-paper/pdf-provider.css`.
 The helper verifies the `scitex-live-paper.rich-pdf/v1` package/asset contract and
-fails clearly for an older wheel without these assets. This is a source-preview
-contract; an old distribution with the same displayed version is not sufficient.
+fails clearly for an older wheel without these assets. The LivePaper 0.2.20 / SDK 0.3.17 cohort is an unpublished source preview,
+not an official release. Older published wheels do not provide this contract.
 No npm publication is required. Build from the actual provider-capable wheel,
 use its returned directory as a normal npm file dependency or `npm pack` input,
 and retain the generated lockfile. The package exports remain within that wheel.
