@@ -62,11 +62,21 @@ def _viewer_css() -> str:
     ],
 )
 def test_native_pdf_uses_public_provider_and_sdk_layers(contract):
-    assert contract in _viewer_js()
+    # Arrange
+    expected = contract
+    # Act
+    source = _viewer_js()
+    # Assert
+    assert expected in source
 
 
 def test_native_pdf_does_not_duplicate_page_renderer():
-    assert "getTextContent" not in _viewer_js()
+    # Arrange
+    forbidden = "getTextContent"
+    # Act
+    source = _viewer_js()
+    # Assert
+    assert forbidden not in source
 
 
 # ──────────────────────────────────────────────────────────────────
