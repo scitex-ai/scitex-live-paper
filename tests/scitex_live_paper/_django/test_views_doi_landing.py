@@ -258,7 +258,7 @@ def test_doi_landing_match_renders_byte_identical_to_viewer_page__assert_matched
     assert matched.status_code == plain.status_code == 200
 
 
-def test_doi_landing_match_renders_byte_identical_to_viewer_page__assert_matched_content_plain_con(
+def test_doi_landing_match_renders_same_body_except_fresh_masked_csrf_token(
     rf, pinned_accepted_bundle,
 ):
     # Pin: the DOI URL is a pure alternate entry — when it matches,
@@ -271,7 +271,18 @@ def test_doi_landing_match_renders_byte_identical_to_viewer_page__assert_matched
     # Act
     plain = views.viewer_page(plain_request)
     # Assert
-    assert matched.content == plain.content
+    # Django masks each rendered token independently, including for one secret.
+    # Normalize only the exact token meta; all other bytes must still match.
+    import re
+
+    token_meta = rb'(<meta name="live-paper-csrf-token" content=")[A-Za-z0-9]{64}(">)'
+    normalized_match = re.sub(token_meta, rb'\1CSRF_TOKEN\2', matched.content)
+    normalized_plain = re.sub(token_meta, rb'\1CSRF_TOKEN\2', plain.content)
+    assert (
+        len(re.findall(token_meta, matched.content)),
+        len(re.findall(token_meta, plain.content)),
+        normalized_match,
+    ) == (1, 1, normalized_plain)
 
 
 

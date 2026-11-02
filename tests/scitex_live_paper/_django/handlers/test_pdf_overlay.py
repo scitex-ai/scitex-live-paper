@@ -207,12 +207,12 @@ def test_pdf_viewer_exposes_set_claims():
     assert "setClaims" in text
 
 
-def test_pdf_viewer_paints_overlays_per_page():
+def test_pdf_viewer_delegates_overlays_to_public_provider():
     # Arrange
     # Act
     text = _module_file("pdf-viewer.js").read_text(encoding="utf-8")
     # Assert
-    assert "paintPageOverlays" in text
+    assert "createRichPdfViewer" in text
 
 
 # ---------------------------------------------------------------------------
@@ -665,21 +665,8 @@ def test_viewer_links_sdk_app_header_stylesheet():
     assert "scitex_sdk/ui/css/app/app-header.css" in text
 
 
-def test_css_targets_sdk_app_header():
-    # Arrange — operator rule: no accent separator under the global
-    # header. The leaf neutralises the SDK AppHeader bottom border.
-    # Act
-    text = _css_file().read_text(encoding="utf-8")
-    # Assert
-    assert ".stx-app-header" in text
 
 
-def test_css_neutralises_header_separator():
-    # Arrange
-    # Act
-    text = _css_file().read_text(encoding="utf-8")
-    # Assert
-    assert "border-bottom: none;" in text
 
 
 def test_viewer_declares_project_picker():

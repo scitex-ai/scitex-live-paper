@@ -5,8 +5,7 @@ the package's function API (``__all__`` non-class callables plus the
 nested ``bundle_<verb>`` / ``dag_<verb>`` forms) so the §6 parity check
 maps each tool back to a real Python API — no orphan tools, no
 uncovered APIs. ``*_skills_list`` / ``*_skills_get`` are the required
-§5 skills pair; the package ships no ``_skills/`` directory yet, so the
-registry reports itself empty (honestly, not as a stub).
+§5 skills pair; they read the Markdown resources bundled in this package.
 
 Importing this module requires the ``[mcp]`` extra (``fastmcp``). The
 import is guarded: without the extra :data:`mcp` is ``None`` and the
@@ -130,7 +129,9 @@ def live_paper_dag_render_dag(bundle_path: str, out_dir: str) -> dict:
     artifacts = dag_module.render_dag(loaded, out_dir)
     return {
         "out_dir": str(out_dir),
-        "artifacts": [str(getattr(artifacts, f.name)) for f in dataclasses.fields(artifacts)],
+        "artifacts": [
+            str(getattr(artifacts, f.name)) for f in dataclasses.fields(artifacts)
+        ],
     }
 
 
@@ -149,16 +150,17 @@ def live_paper_dag_render_html(bundle_path: str, out_dir: str) -> dict:
     artifacts = dag_module.render_html(loaded, out_dir)
     return {
         "out_dir": str(out_dir),
-        "artifacts": [str(getattr(artifacts, f.name)) for f in dataclasses.fields(artifacts)],
+        "artifacts": [
+            str(getattr(artifacts, f.name)) for f in dataclasses.fields(artifacts)
+        ],
     }
 
 
 def _skills_registry() -> dict:
     """Bundled agent-facing skills (markdown leaves under ``_skills/``).
 
-    The package ships no ``_skills/`` directory yet, so the registry is
-    empty — reported honestly, not stubbed. When skill leaves land,
-    both tools serve them with no interface change.
+    Resources are discovered from this installed package, so consumers do
+    not need a source checkout or a manual skills copy.
     """
     from pathlib import Path
 
@@ -173,8 +175,7 @@ def _skills_registry() -> dict:
 def live_paper_skills_list() -> dict:
     """List the agent-facing skills bundled with this package.
 
-    Required §5 skills pair (with ``live_paper_skills_get``). Empty
-    until the package ships ``_skills/`` leaves.
+    Required §5 skills pair (with ``live_paper_skills_get``).
     """
     return {"skills": sorted(_skills_registry())}
 
@@ -187,7 +188,7 @@ def live_paper_skills_get(name: str) -> dict:
     registry = _skills_registry()
     if name not in registry:
         raise RuntimeError(
-            f"unknown skill {name!r} — this package bundles no _skills/ leaves yet"
+            f"unknown skill {name!r}; available: {', '.join(sorted(registry))}"
         )
     from pathlib import Path
 

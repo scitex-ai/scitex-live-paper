@@ -222,3 +222,7 @@ AGPL-3.0-only. See [LICENSE](LICENSE).
 <p align="center">
   <a href="https://scitex.ai" target="_blank"><img src="docs/scitex-icon-navy-inverted.png" alt="SciTeX" width="40"/></a>
 </p>
+
+The public [rich PDF provider](docs/rich-pdf-provider.md) composes the SDK PDF
+primitive through generic document, overlay, comment, event and mutation ports.
+The native viewer consumes that provider through its bundle adapter.

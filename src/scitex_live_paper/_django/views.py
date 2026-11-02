@@ -33,17 +33,19 @@ try:
         JsonResponse,
     )
     from django.template.loader import render_to_string
-    from django.views.decorators.csrf import csrf_exempt
+    from django.views.decorators.csrf import csrf_exempt, csrf_protect
 except ImportError as exc:  # django absent — the [server]-gated GUI capability only
     raise ImportError(
         "scitex_live_paper._django.views needs Django, which is not installed. "
         "Install the optional stack: pip install 'scitex-live-paper[server]'"
     ) from exc
 
+from scitex_live_paper.ports._registry import PortNotFound
+
+from ..bundle import BundleMissingError
 from . import services
 from .handlers import HANDLERS
 from .handlers.ports import handle_port
-from scitex_live_paper.ports._registry import PortNotFound
 
 
 def _package_version() -> str:
@@ -129,6 +131,9 @@ def viewer_page(request) -> HttpResponse:
     else:
         api_base = "api/"
 
+    # A trusted host resolver may bind an authorized request-local SDK view.
+    # It is display context only; resource GETs do not remember navigation.
+    view_selection = getattr(request, "live_paper_view_selection", None)
     html = render_to_string(
         template,
         {
@@ -150,10 +155,8 @@ def viewer_page(request) -> HttpResponse:
                 request, "live_paper_empty_reason", None
             )
             or "",
-            # Project slot of the canonical AppHeader (stats pattern):
-            # the host deep link carries it (?project=<id>); the SPA
-            # moves the picker element into the header slot at boot.
-            "current_project": request.GET.get("project", ""),
+            "view_scope": getattr(view_selection, "scope", None),
+            "view_project": getattr(view_selection, "id", None) or "",
         },
         request=request,
     )
@@ -200,6 +203,11 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
             status=404,
         )
 
+    if endpoint == "api/comments" and request.method == "POST":
+        # Browser comment mutation must honor the host/session CSRF policy.
+        # Keep the pure business handler and other legacy RPCs unchanged.
+        handler = csrf_protect(handler)
+
     try:
         payload = handler(request)
         # Accept the abstract HttpResponseBase so StreamingHttpResponse
@@ -217,6 +225,8 @@ def api_dispatch(request, endpoint: str) -> HttpResponse:
                 f"HttpResponse, got {type(payload).__name__}"
             )
         return JsonResponse(payload)
+    except BundleMissingError as exc:
+        return JsonResponse({"error": str(exc)}, status=404)
     except Exception as exc:
         log.exception("[live-paper] handler %s raised", endpoint)
         return JsonResponse({"error": str(exc)}, status=500)

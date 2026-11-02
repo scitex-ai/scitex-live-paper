@@ -1,0 +1,29 @@
+/* Rich PDF content styles; consumes host semantic tokens without body effects. */
+.lp-rich-overlay {
+  border: 1px solid var(--border-color, currentColor);
+  background: color-mix(in srgb, var(--text-secondary, currentColor) 12%, transparent);
+  padding: 0;
+  cursor: pointer;
+}
+.lp-rich-overlay[data-status="verified"] { border-color: var(--color-success, var(--status-success, currentColor)); }
+.lp-rich-overlay[data-status="suspect"],
+.lp-rich-overlay[data-status="unsourced"] { border-color: var(--color-warning, var(--status-warning, currentColor)); }
+.lp-rich-overlay[data-status="mismatch"],
+.lp-rich-overlay[data-status="missing"] { border-color: var(--color-error, var(--status-error, currentColor)); }
+.lp-rich-overlay:focus-visible, .lp-rich-comment-marker:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }
+.lp-rich-comment-count { position: absolute; top: 0; right: 0; font-size: 11px; color: var(--text-primary, currentColor); background: var(--bg-secondary, Canvas); }
+.lp-rich-comment-marker { color: var(--text-primary, CanvasText); background: var(--bg-secondary, Canvas); border: 1px solid var(--border-color, currentColor); cursor: pointer; }
+.lp-rich-comments {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(480px, 75vh);
+  overflow: auto;
+  padding: 12px;
+  color: var(--text-primary, CanvasText);
+  background: var(--bg-secondary, Canvas);
+  border: 1px solid var(--border-color, currentColor);
+}
+.lp-rich-comments textarea { box-sizing: border-box; width: 100%; min-height: 72px; color: inherit; background: var(--bg-primary, Canvas); border: 1px solid var(--border-color, currentColor); }
+.lp-rich-comments button { color: inherit; background: var(--bg-tertiary, Canvas); border: 1px solid var(--border-color, currentColor); padding: 4px 8px; cursor: pointer; }
+.lp-rich-comments button:disabled { opacity: 0.6; cursor: default; }
+@media print { .lp-rich-overlays, .lp-rich-comments { display: none !important; } }

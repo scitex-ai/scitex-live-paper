@@ -38,6 +38,7 @@ import pytest
 
 # ===== AUTO-GENERATED: cross-package imports =====
 CROSS_PACKAGE_IMPORTS = [
+    'scitex_dev.cli',
     'scitex_dev.ecosystem',
     'scitex_logging',
     'scitex_sdk',

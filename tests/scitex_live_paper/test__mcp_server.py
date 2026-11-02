@@ -48,7 +48,9 @@ def test_tool_registry_nonempty():
     assert len(names) > 0
 
 
-@pytest.mark.parametrize("tool_name", list(PROJECTIONS) + ["live_paper_skills_list", "live_paper_skills_get"])
+@pytest.mark.parametrize(
+    "tool_name", list(PROJECTIONS) + ["live_paper_skills_list", "live_paper_skills_get"]
+)
 def test_tool_name_uses_live_paper_prefix(tool_name):
     # Arrange
     # Act
@@ -59,12 +61,12 @@ def test_tool_name_uses_live_paper_prefix(tool_name):
 
 @pytest.mark.parametrize("tool_name,target", sorted(PROJECTIONS.items()))
 def test_tool_projects_importable_python_api(tool_name, target):
-    # Arrange (tool must exist in the registry)
-    assert tool_name in _tool_names()
+    # Arrange
+    names = _tool_names()
     # Act
     resolved = _resolve(target)
     # Assert
-    assert callable(resolved)
+    assert (tool_name in names, callable(resolved)) == (True, True)
 
 
 def test_skills_pair_ships_together():
@@ -82,3 +84,34 @@ def test_mcp_server_registers_package_name():
     server = _mcp_server.mcp
     # Assert
     assert server is not None and server.name == "scitex-live-paper"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "SKILL",
+        "01_installation",
+        "02_quick-start",
+        "03_python-api",
+        "04_cli-reference",
+        "05_mcp-tools",
+        "10_mounted-viewer",
+        "20_env-vars",
+    ],
+)
+def test_packaged_skill_resource_is_retrievable(name):
+    # Arrange
+    # Act
+    result = _mcp_server.live_paper_skills_get(name)
+    # Assert
+    assert result["name"] == name and bool(result["markdown"].strip())
+
+
+def test_skills_discovery_includes_packaged_resources():
+    # Arrange
+    # Act
+    names = _mcp_server.live_paper_skills_list()["skills"]
+    # Assert
+    assert {"SKILL", "01_installation", "10_mounted-viewer", "20_env-vars"}.issubset(
+        names
+    )

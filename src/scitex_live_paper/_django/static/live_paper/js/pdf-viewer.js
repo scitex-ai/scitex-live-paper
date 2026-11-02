@@ -1,237 +1,75 @@
-// PDFViewer — ported from scitex_writer/_django/frontend/src/pdf-viewer.ts.
-// Same surface (load / render / clear / setZoom / setFitWidth /
-// renderPlaceholder / zoomPercent) plus PR (c)'s text-layer +
-// annotation-layer extensions. Writer can later import this class
-// directly with zero API changes.
+/** Native bundle adapter for LivePaper's public rich PDF provider.
+ * This is the only place the PDF component knows the native bundle/API DTOs.
+ */
+import { createRichPdfViewer } from "./pdf-provider.js";
+import { withBundleContext } from "./_utils.js";
+import { pickAnchor } from "./claim-overlays.js";
+import { postComment } from "./comments.js";
 
-import { groupClaimsByPage, paintPageOverlays } from "./claim-overlays.js";
-import { groupComments, paintCommentMarkers } from "./comments.js";
+export function toOverlay(claim) {
+  const anchor = pickAnchor(claim);
+  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  return { id: claim.claim_id, page: anchor.page, bbox: anchor.bbox,
+    label: claim.claim_value || claim.claim_id, status: claim.status,
+    readonly: claim.readonly === true || claim.extras?.locked === true,
+    target: { figureId: claim.figure_id ?? claim.extras?.figure_id ?? null } };
+}
+export function toComment(comment) {
+  const { claim_id, ...region } = comment.target || {};
+  return { id: comment.id, body: comment.body, author: comment.author,
+    target: claim_id ? { overlayId: claim_id } : region };
+}
 
 export class PDFViewer {
   constructor(options) {
     this.container = options.container;
-    this.pdfjs = options.pdfjs;
     this.apiBase = options.apiBase;
-    this.pdfDoc = null;
-    this.scale = 1.0;
-    this.fitMode = "width";
-    this.canvases = [];
-    this.claimsByPage = new Map();
-    this.commentCounts = new Map();
-    this.commentsByPage = new Map();
+    this.claims = [];
+    this.comments = [];
     this.container.classList.add("pdf-viewer-host");
-  }
-
-  /** Pin the claims whose anchors paint as overlay regions. */
-  setClaims(claims) {
-    this.claimsByPage = groupClaimsByPage(claims);
-  }
-
-  /**
-   * Pin comments for overlay badges + region markers. Claim-anchored
-   * notes become count badges on their claim's anchor button;
-   * page-anchored notes become ✎ markers (see paintCommentMarkers).
-   */
-  setComments(comments) {
-    const { byClaim, byPage } = groupComments(comments);
-    this.commentCounts = new Map(
-      Array.from(byClaim.entries(), ([id, list]) => [id, list.length])
-    );
-    this.commentsByPage = byPage;
-  }
-
-  async load(docType) {
-    docType = docType || "manuscript";
-    const url =
-      this.apiBase +
-      "pdf?doc_type=" +
-      encodeURIComponent(docType) +
-      "&t=" +
-      Date.now();
-    try {
-      const task = this.pdfjs.getDocument({ url });
-      this.pdfDoc = await task.promise;
-      await this.render();
-      return true;
-    } catch (err) {
-      console.warn("[pdf-viewer] load failed:", err);
-      this.renderPlaceholder("No PDF available.");
-      return false;
-    }
-  }
-
-  clear() {
-    this.pdfDoc = null;
-    this.canvases = [];
-    this.container.innerHTML = "";
-  }
-
-  renderPlaceholder(message) {
-    this.clear();
-    const placeholder = document.createElement("div");
-    placeholder.className = "pdf-placeholder";
-    placeholder.innerHTML =
-      "<p>" + (message || "No PDF available.") + "</p>" +
-      "<p class=\"hint\">The bundle's manuscript.pdf could not be loaded.</p>";
-    this.container.appendChild(placeholder);
-  }
-
-  async render() {
-    if (!this.pdfDoc) return;
-    this.container.innerHTML = "";
-    this.canvases = [];
-    const renderScale =
-      this.fitMode === "width" ? this.computeFitWidthScale() : this.scale;
-
-    for (let pageNum = 1; pageNum <= this.pdfDoc.numPages; pageNum++) {
-      const page = await this.pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: renderScale });
-
-      // Per-page wrapper so the canvas + text overlay + annotation
-      // overlay share the same coordinate space.
-      const pageWrap = document.createElement("div");
-      pageWrap.className = "pdf-page";
-      pageWrap.style.position = "relative";
-      pageWrap.style.width = viewport.width + "px";
-      pageWrap.style.height = viewport.height + "px";
-      pageWrap.dataset.pageNumber = String(pageNum);
-
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.className = "pdf-page-canvas";
-      pageWrap.appendChild(canvas);
-
-      this.container.appendChild(pageWrap);
-      this.canvases.push(canvas);
-
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      // CCT 3000 overlay: claim-anchor regions from anchor bboxes.
-      // Paint FIRST, right after the canvas: the overlay is the
-      // product (claims + comments), while the text/annotation layers
-      // below are enhancements. A slow or hanging text layer on a
-      // figure-heavy page must never starve the overlay.
-      try {
-        paintPageOverlays(pageWrap, viewport, this.claimsByPage.get(pageNum) || []);
-        paintCommentMarkers(pageWrap, viewport, this.commentsByPage.get(pageNum) || []);
-        // Comment-count badges ride the claim anchors (provider
-        // item 4): readers see which claims carry discussion.
-        for (const [claimId, count] of this.commentCounts) {
-          const anchor = pageWrap.querySelector(
-            `.lp-overlay button[data-claim-id="${CSS.escape(claimId)}"]`
-          );
-          if (anchor && !anchor.querySelector(":scope > .lp-comment-count")) {
-            const badge = document.createElement("span");
-            badge.className = "lp-comment-count";
-            badge.textContent = `✎${count}`;
-            badge.title = `${count} comment${count === 1 ? "" : "s"}`;
-            anchor.appendChild(badge);
+    this.provider = createRichPdfViewer({
+      container: this.container,
+      createPdfViewer: options.createPdfViewer,
+      rendererOptions: { pdfjs: options.pdfjs, workerSrc: options.workerSrc,
+        textLayer: true, linkLayer: true },
+      ports: {
+        documents: { resolve: (docType) => ({ id: String(docType || "manuscript"),
+          src: withBundleContext(this.apiBase + "pdf?doc_type=" + encodeURIComponent(docType || "manuscript") + "&t=" + Date.now()) }) },
+        overlays: { list: () => this.claims.map(toOverlay).filter(Boolean) },
+        comments: {
+          list: () => this.comments.map(toComment),
+          create: async (_document, target, body) => {
+            const nativeTarget = target.overlayId ? { claim_id: target.overlayId } : { page: target.page, bbox: target.bbox };
+            const comment = await postComment(this.apiBase, { body, target: nativeTarget });
+            this.comments.push(comment);
+            return toComment(comment);
+          },
+        },
+        events: { emit: (event) => {
+          if (event.type === "overlay-select" && event.overlay) {
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id: event.overlay.id } }));
+            if (event.overlay.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
           }
-        }
-      } catch (err) {
-        console.warn("[pdf-viewer] overlay page %d failed", pageNum, err);
-      }
-
-      // PR (c): text-layer for native browser Ctrl-F + text selection.
-      try {
-        await this._renderTextLayer(page, viewport, pageWrap);
-      } catch (err) {
-        console.warn("[pdf-viewer] text-layer page %d failed", pageNum, err);
-      }
-
-      // PR (c): annotation-layer for PDF-internal links + form fields.
-      try {
-        await this._renderAnnotationLayer(page, viewport, pageWrap);
-      } catch (err) {
-        console.warn("[pdf-viewer] annotation-layer page %d failed", pageNum, err);
-      }
-    }
+          this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
+        } },
+      },
+    });
+    this.provider.renderer.setInteractive(false);
   }
-
-  async _renderTextLayer(page, viewport, pageWrap) {
-    const textContent = await page.getTextContent();
-    const textLayerDiv = document.createElement("div");
-    textLayerDiv.className = "textLayer";
-    textLayerDiv.style.position = "absolute";
-    textLayerDiv.style.top = "0";
-    textLayerDiv.style.left = "0";
-    textLayerDiv.style.width = viewport.width + "px";
-    textLayerDiv.style.height = viewport.height + "px";
-    pageWrap.appendChild(textLayerDiv);
-
-    // PDF.js exposes TextLayer (5.x) or renderTextLayer() (4.x). Probe.
-    if (typeof this.pdfjs.TextLayer === "function") {
-      const layer = new this.pdfjs.TextLayer({
-        textContentSource: textContent,
-        container: textLayerDiv,
-        viewport: viewport,
-      });
-      await layer.render();
-    } else if (typeof this.pdfjs.renderTextLayer === "function") {
-      const task = this.pdfjs.renderTextLayer({
-        textContentSource: textContent,
-        container: textLayerDiv,
-        viewport: viewport,
-      });
-      await task.promise;
-    } else {
-      console.warn("[pdf-viewer] no TextLayer API in PDF.js — text selection/find disabled");
-    }
+  setClaims(claims) { this.claims = claims || []; this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean)); }
+  setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }
+  async load(docType = "manuscript") {
+    try { await this.provider.load(docType); await this.provider.renderer.fitWidth(); return true; }
+    catch (error) { console.warn("[pdf-viewer] load failed:", error); this.renderPlaceholder("No PDF available."); return false; }
   }
-
-  async _renderAnnotationLayer(page, viewport, pageWrap) {
-    const annotations = await page.getAnnotations();
-    if (!annotations || annotations.length === 0) return;
-
-    const annotationLayerDiv = document.createElement("div");
-    annotationLayerDiv.className = "annotationLayer";
-    annotationLayerDiv.style.position = "absolute";
-    annotationLayerDiv.style.top = "0";
-    annotationLayerDiv.style.left = "0";
-    annotationLayerDiv.style.width = viewport.width + "px";
-    annotationLayerDiv.style.height = viewport.height + "px";
-    pageWrap.appendChild(annotationLayerDiv);
-
-    if (typeof this.pdfjs.AnnotationLayer === "function") {
-      const layer = new this.pdfjs.AnnotationLayer({
-        div: annotationLayerDiv,
-        page: page,
-        viewport: viewport.clone({ dontFlip: true }),
-      });
-      layer.render({
-        annotations: annotations,
-        linkService: { externalLinkTarget: 2 /* BLANK */ },
-        renderForms: false,
-      });
-    } else {
-      console.warn("[pdf-viewer] no AnnotationLayer API in PDF.js — links/forms disabled");
-    }
+  clear() { this.container.replaceChildren(); }
+  renderPlaceholder(message = "No PDF available.") {
+    this.clear(); const placeholder = document.createElement("p");
+    placeholder.className = "pdf-placeholder"; placeholder.textContent = message; this.container.append(placeholder);
   }
-
-  computeFitWidthScale() {
-    if (!this.pdfDoc) return 1;
-    const width = this.container.clientWidth - 32; // padding
-    return Math.max(0.4, width / 800); // 800px baseline (same as writer)
-  }
-
-  setZoom(delta) {
-    this.fitMode = "none";
-    this.scale = Math.max(0.4, Math.min(3, this.scale + delta));
-    void this.render();
-  }
-
-  setFitWidth() {
-    this.fitMode = "width";
-    this.scale = 1;
-    void this.render();
-  }
-
-  get zoomPercent() {
-    const effective =
-      this.fitMode === "width" ? this.computeFitWidthScale() : this.scale;
-    return Math.round(effective * 100);
-  }
+  render() { return this.provider.renderer.setScale(this.provider.renderer.getScale()); }
+  setZoom(delta) { return this.provider.renderer.setScale(Math.max(0.4, Math.min(3, this.provider.renderer.getScale() + delta))); }
+  setFitWidth() { return this.provider.renderer.fitWidth(); }
+  get zoomPercent() { return Math.round(this.provider.renderer.getScale() * 100); }
+  destroy() { this.provider.destroy(); }
 }

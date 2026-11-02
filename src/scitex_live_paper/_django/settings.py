@@ -91,6 +91,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     # Standalone serve only (hub/hosts use their own settings): attach
     # the env-pinned bundle context when a request has none, so
     # api/port/* works out of the box with the bundled defaults.

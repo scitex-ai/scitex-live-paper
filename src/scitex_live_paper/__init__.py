@@ -26,6 +26,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _dist_version
 
 from . import bundle, dag, ports
+from ._frontend import get_frontend_package_dir
 from ._types import (
     BundleAccessDenied,
     BundleContext,
@@ -35,12 +36,12 @@ from ._types import (
     BundleSource,
     PaperStage,
     PaperState,
-    ReReviewBadge,
-    ReReviewStatus,
     RendererOptions,
     RendererTheme,
+    ReReviewBadge,
+    ReReviewStatus,
 )
-from .bundle import Bundle, BundleError, Claim
+from .bundle import Bundle, BundleError, BundleMissingError, Claim
 
 
 def _import_mount_resolver():
@@ -105,10 +106,12 @@ def mount(resolver):
 
 
 __all__ = [
+    "get_frontend_package_dir",
     "__version__",
     # bundle model — owned upstream by scitex-clew, mirrored here
     "Bundle",
     "BundleError",
+    "BundleMissingError",
     "Claim",
     # render-time types — the reusable-component public surface
     "BundleContext",

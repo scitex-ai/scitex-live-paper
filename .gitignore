@@ -28,3 +28,6 @@ live-paper-comments.json
 
 # Runtime lock state (Claude Code scheduler) — never commit or publish.
 .claude/scheduled_tasks.lock
+
+# Native viewer bundle toolchain (npm ci).
+node_modules/
