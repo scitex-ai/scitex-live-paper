@@ -42,7 +42,7 @@ import yaml
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from ._types import PaperState, PaperStage
 
-__all__ = ["Bundle", "Claim", "load", "BundleError"]
+__all__ = ["Bundle", "Claim", "load", "BundleError", "BundleMissingError"]
 
 
 # Keys ``state.yaml`` may carry. Anything else is preserved verbatim
@@ -79,6 +79,14 @@ def _default_paper_state() -> "PaperState":
 
 class BundleError(ValueError):
     """Raised when a bundle directory is malformed or missing a required file."""
+
+
+class BundleMissingError(BundleError):
+    """A bundle directory or required manuscript/claims member is absent.
+
+    Remains a BundleError for existing library callers. Hosts can classify
+    expected absence separately from malformed data without parsing messages.
+    """
 
 
 # Fields we deserialise into typed slots. Anything else from clew's
@@ -199,7 +207,7 @@ def _resolve_manuscript(root: Path) -> Path:
     tex = root / "manuscript.tex"
     if tex.exists():
         return tex
-    raise BundleError(
+    raise BundleMissingError(
         f"no manuscript found in {root} (expected manuscript.pdf or manuscript.tex)"
     )
 
@@ -212,7 +220,7 @@ def _load_claims(path: Path) -> tuple[list[Claim], str | None]:
       - a wrapper ``{"schema": "...", "claims": [{...}, ...]}``.
     """
     if not path.exists():
-        raise BundleError(f"claims.json not found at {path}")
+        raise BundleMissingError(f"claims.json not found at {path}")
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -354,7 +362,7 @@ def load(path: str | Path) -> Bundle:
     """
     root = Path(path).expanduser().resolve()
     if not root.is_dir():
-        raise BundleError(f"bundle path is not a directory: {root}")
+        raise BundleMissingError(f"bundle path is not a directory: {root}")
 
     manuscript_path = _resolve_manuscript(root)
     claims, schema_version = _load_claims(root / "claims.json")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.2.19"
+version = "0.2.20"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -50,7 +50,7 @@ django = [
 # contracts and mount. Mirrors the scitex-stats [server] extra floor.
 server = [
     "django>=4.2",
-    "scitex-sdk[gui]>=0.3.7",
+    "scitex-sdk[gui]>=0.3.17",
 ]
 mcp = [
     "fastmcp>=2.0",
@@ -114,7 +114,13 @@ Issues = "https://github.com/ywatanabe1989/scitex-live-paper/issues"
 package-dir = { "" = "src" }
 
 [tool.setuptools.package-data]
-scitex_live_paper = ["_skills/scitex-live-paper/*.md"]
+scitex_live_paper = [
+    "_skills/scitex-live-paper/*.md",
+    "package.json",
+    "_django/static/live_paper/js/*.js",
+    "_django/static/live_paper/js/*.d.ts",
+    "_django/static/live_paper/css/*.css",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

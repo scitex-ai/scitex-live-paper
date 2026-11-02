@@ -562,7 +562,7 @@ def test_viewer_js_still_wires_text_layer():
     # Act
     text = _viewer_js()
     # Assert
-    assert "_renderTextLayer" in text
+    assert "textLayer: true" in text
 
 
 def test_viewer_js_still_wires_annotation_layer():
@@ -570,4 +570,4 @@ def test_viewer_js_still_wires_annotation_layer():
     # Act
     text = _viewer_js()
     # Assert
-    assert "_renderAnnotationLayer" in text
+    assert "linkLayer: true" in text

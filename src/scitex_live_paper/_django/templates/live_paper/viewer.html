@@ -1,5 +1,5 @@
 {% extends "scitex_sdk/app/app_shell.html" %}
-{% load static scitex_project_picker %}
+{% load static scitex_static scitex_project_picker %}
 {% comment %}
 Standalone viewer page inside the canonical SDK app shell (stats
 pattern): host chrome comes from scitex_sdk/app/app_shell.html (hub
@@ -14,14 +14,14 @@ mermaid vendor + the viewer orchestrator module.
 The claim model callout stays: the engine consumes scitex-clew's
 claim model and never defines it.
 {% endcomment %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">{% endblock %}
+{% block extra_css %}<meta name="live-paper-csrf-token" content="{{ csrf_token }}"><link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">{% endblock %}
 {% block scitex_app_content %}
   <div data-stx-app-header
        data-app-title="SciTeX Live Paper"
        data-app-version="{{ app_version }}">
-    {% scitex_project_picker scope="project" current=current_project %}
+    {% scitex_project_picker scope="project" view_scope=view_scope view_project=view_project %}
   </div>
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>
@@ -33,7 +33,7 @@ claim model and never defines it.
   </main>
 {% endblock %}
 {% block extra_js %}
-  <script type="module" src="{% static 'scitex_sdk/ui/js/app/app-header.js' %}"></script>
+  <script type="module" src="{% app_static 'scitex_sdk/ui/js/app/app-header.js' %}"></script>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
-  <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
+  <script type="module" src="{% app_static 'live_paper/js/viewer-entry.js' %}"></script>
 {% endblock %}

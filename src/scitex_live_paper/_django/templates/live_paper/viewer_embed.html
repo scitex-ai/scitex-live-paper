@@ -1,4 +1,4 @@
-{% load static %}<!doctype html>
+{% load static scitex_static %}<!doctype html>
 {# Embed-mode SPA shell — minimal, no header/footer chrome.
 
    Renders the SAME #live-paper-root + assets as `viewer.html` so the
@@ -14,13 +14,15 @@
    the `mount(resolver=...)` middleware also triggers this template. #}
 <html lang="en">
 <head>
+  <meta name="live-paper-csrf-token" content="{{ csrf_token }}">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SciTeX Live Paper (embedded)</title>
-  <link rel="stylesheet" href="{% static 'live_paper/css/viewer.css' %}">
+  <link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}">
+  <link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">
 </head>
 <body class="live-paper-embed">
-  <main id="live-paper-root" data-api-base="/{{ api_base }}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>
@@ -31,6 +33,6 @@
     </section>
   </main>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>
-  <script type="module" src="{% static 'live_paper/js/viewer.js' %}"></script>
+  <script type="module" src="{% app_static 'live_paper/js/viewer-entry.js' %}"></script>
 </body>
 </html>

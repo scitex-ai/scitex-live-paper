@@ -160,7 +160,7 @@ def test_viewer_page_embed_one_links_same_js(rf):
     # Act
     body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
     # Assert
-    assert "live_paper/js/viewer.js" in body
+    assert "live_paper/js/viewer-entry.js" in body
 
 
 def test_viewer_page_embed_one_is_cdn_free(rf):

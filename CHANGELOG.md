@@ -16,6 +16,31 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.20]
+
+### Added
+
+- Public rich-PDF document, overlay, comment, mutation, policy and event ports,
+  with typed frontend exports and a wheel-contained package discovery helper.
+- Native viewer adapter using the SDK renderer for raster, selectable text and
+  links. Consumers supply their own authorized application adapters.
+- Reproducible frontend builds from the installed SDK package; server and
+  frontend integrations require SDK>=0.3.17.
+
+### Fixed
+
+- Enforce CSRF for native comment creation using the page DOM token, including
+  HttpOnly-cookie and session-backed CSRF configurations.
+- Return explicit missing-bundle404 responses and a clear native empty state;
+  malformed existing bundle content remains an error.
+- Keep full/embed authorized request-local project views consistent without
+  treating a raw query alias as header selection or remembering read navigation.
+
+- Remove the leaf header-border override and use automatic shared asset versions for the header and viewer stylesheet.
+
+- Pin the shared AppHeader script URL to the picker-adoption asset revision so
+  an ordinary reload fetches the corrected header startup behavior.
+
 ## [0.2.19] - 2026-11-01
 
 ### Added

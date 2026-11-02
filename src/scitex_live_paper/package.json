@@ -1,0 +1,22 @@
+{
+  "name": "@scitex/live-paper",
+  "version": "0.2.20",
+  "private": true,
+  "type": "module",
+  "scitexRichPdfContract": "scitex-live-paper.rich-pdf/v1",
+  "exports": {
+    "./pdf-provider": {
+      "types": "./_django/static/live_paper/js/pdf-provider.d.ts",
+      "import": "./_django/static/live_paper/js/pdf-provider.js"
+    },
+    "./pdf-provider.css": "./_django/static/live_paper/css/pdf-provider.css"
+  },
+  "files": [
+    "_django/static/live_paper/js/pdf-provider.js",
+    "_django/static/live_paper/js/pdf-provider.d.ts",
+    "_django/static/live_paper/css/pdf-provider.css"
+  ],
+  "peerDependencies": {
+    "@scitex/sdk": ">=0.3.17"
+  }
+}
