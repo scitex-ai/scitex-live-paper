@@ -1,6 +1,6 @@
 {
   "name": "@scitex/live-paper",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "private": true,
   "type": "module",
   "scitexRichPdfContract": "scitex-live-paper.rich-pdf/v1",
