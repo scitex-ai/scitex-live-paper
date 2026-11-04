@@ -16,6 +16,16 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.2.21]
+
+### Fixed
+
+- Declare the canonical SDK base dependency for static AppHeader assets instead
+  of installing the retired `scitex-ui` distribution. Django remains optional;
+  the server extra uses the same qualified SDK>=0.3.22 runtime minimum.
+- Synchronize the Python, frontend package and Django manifest release versions.
+  The frontend rich-PDF protocol and existing SDK>=0.3.17 peer contract are unchanged.
+
 ## [0.2.20]
 
 ### Added
