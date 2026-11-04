@@ -70,7 +70,7 @@ python examples/example_live_paper.py
 ```bash
 uv pip install "scitex-live-paper[all]"
 pip install "scitex-live-paper[all]"
-pip install scitex-live-paper           # CLI + library only
+pip install scitex-live-paper           # CLI + library + canonical SDK assets
 ```
 
 > **Recommended**: `uv pip install scitex-live-paper[all]` —
@@ -200,7 +200,7 @@ use, demo, and testability.
 
 `scitex-live-paper` is part of [**SciTeX**](https://scitex.ai).
 
-Upstream dependencies (this package consumes them; it does not define their models): `scitex-clew` (claim model, DAG, verification), `scitex-writer` (bundle layout + Django viewer pattern), `scitex-hub` (Django host, auth), `scitex-ui` (viewer widgets). Producer: `scitex-agentic-journal` (accepted bundle + re-review verdicts).
+Upstream dependencies (this package consumes them; it does not define their models): `scitex-clew` (claim model, DAG, verification), `scitex-writer` (bundle layout + Django viewer pattern), `scitex-hub` (Django host, auth), `scitex-sdk` (shared AppHeader assets and App/UI contracts). Producer: `scitex-agentic-journal` (accepted bundle + re-review verdicts).
 
 >Four Freedoms for Research
 >
