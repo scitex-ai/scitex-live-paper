@@ -12,11 +12,15 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from scitex_live_paper.evidence import ContractError, schema_path, validate_report
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _reference_provider import EXPECTED_STATES, ref_project, ref_report  # noqa: E402,F401
+from _reference_provider import (  # noqa: E402,F401
+    EXPECTED_FAILURES,
+    EXPECTED_STATES,
+    ref_project,
+    ref_report,
+)
 
 _MUTATIONS = {
     "foreign_state": lambda r: r["claims"][0].__setitem__("state", "verified"),
@@ -26,7 +30,71 @@ _MUTATIONS = {
     "foreign_node_kind": lambda r: r["claims"][0]["graph"]["nodes"][0].__setitem__(
         "kind", "run"
     ),
+    "failure_not_object": lambda r: r["claims"][0]["graph"]["nodes"][0].__setitem__(
+        "failure", "changed"
+    ),
+    "failure_without_kind": lambda r: r["claims"][0]["graph"]["nodes"][0].__setitem__(
+        "failure", {"detail": "x"}
+    ),
+    "failure_kind_not_a_token": lambda r: r["claims"][0]["graph"]["nodes"][
+        0
+    ].__setitem__("failure", {"kind": "Hash Changed!"}),
+    "failure_detail_not_text": lambda r: r["claims"][0]["graph"]["nodes"][
+        0
+    ].__setitem__("failure", {"kind": "changed", "detail": 3}),
 }
+
+
+def _strip_failures(report: dict) -> dict:
+    """The same report as a 1.0.0 provider would write it (no node failure)."""
+    old = copy.deepcopy(report)
+    old["schema_version"] = "1.0.0"
+    for c in old["claims"]:
+        for n in (c.get("graph") or {}).get("nodes", []):
+            n.pop("failure", None)
+    return old
+
+
+def test_reference_provider_marks_exactly_the_nodes_where_evidence_broke(ref_report):
+    # Arrange
+    graphs = {c["claim_id"]: c.get("graph") for c in ref_report["claims"]}
+    # Act
+    marked = {
+        cid: {n["label"]: n["failure"]["kind"] for n in g["nodes"] if n.get("failure")}
+        for cid, g in graphs.items()
+        if g is not None
+    }
+    # Assert
+    assert marked == EXPECTED_FAILURES
+
+
+def test_a_1_0_0_report_without_node_failures_still_validates(ref_report):
+    # Arrange
+    old = _strip_failures(ref_report)
+    # Act
+    validated = validate_report(old)
+    # Assert
+    assert validated["schema_version"] == "1.0.0"
+
+
+def test_a_1_0_0_report_also_conforms_to_the_1_1_json_schema(ref_report):
+    # Arrange
+    jsonschema = pytest.importorskip("jsonschema")
+    old = _strip_failures(ref_report)
+    # Act
+    errors = list(jsonschema.Draft202012Validator(_schema()).iter_errors(old))
+    # Assert
+    assert errors == []
+
+
+def test_an_unknown_failure_kind_token_is_accepted_for_forward_compat(ref_report):
+    # Arrange
+    report = copy.deepcopy(ref_report)
+    report["claims"][0]["graph"]["nodes"][0]["failure"] = {"kind": "stale_run"}
+    # Act
+    validated = validate_report(report)
+    # Assert
+    assert validated["claims"][0]["graph"]["nodes"][0]["failure"]["kind"] == "stale_run"
 
 
 def _schema() -> dict:
@@ -48,7 +116,7 @@ def test_shipped_json_schema_is_a_valid_schema():
     # Act
     jsonschema.Draft202012Validator.check_schema(_schema())
     # Assert
-    assert _schema()["$id"].endswith("/evidence-report/1.0.0")
+    assert _schema()["$id"].endswith("/evidence-report/1.1.0")
 
 
 def test_shipped_json_schema_accepts_a_conforming_report(ref_report):

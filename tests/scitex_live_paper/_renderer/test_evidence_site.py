@@ -8,6 +8,7 @@ never marked; with no provider nothing is marked.
 
 from __future__ import annotations
 
+import json
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -41,6 +42,23 @@ class _Marks(HTMLParser):
             self.found.append(
                 (a.get("data-claim-id"), a.get("data-support"), a.get("title"))
             )
+
+
+class _FailingItems(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.found = []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "li" and "lp-failing-node" in (a.get("class") or "").split():
+            self.found.append((a.get("data-failure"), a.get("data-node-id")))
+
+
+def _failing_items(html: str) -> list:
+    parser = _FailingItems()
+    parser.feed(html)
+    return parser.found
 
 
 def _marks(html: str, tag: str, cls: str) -> list:
@@ -141,6 +159,55 @@ def test_graph_page_draws_the_providers_nodes(ref_site):
     html = (out / packet["supported"][0]["graph_url"]).read_text()
     # Assert
     assert "Processing<br/>scripts/compute.py" in html
+
+
+def test_graph_page_lists_exactly_the_packets_failing_nodes(ref_site):
+    # Arrange
+    out, _result, packet = ref_site
+    # Act
+    listed = {
+        e["claim_id"]: _failing_items((out / e["graph_url"]).read_text())
+        for e in iter_entries(packet)
+    }
+    # Assert
+    assert listed == {
+        e["claim_id"]: [(f["failure"], f["id"]) for f in e["failing_nodes"]]
+        for e in iter_entries(packet)
+    }
+
+
+def test_graph_page_draws_failing_nodes_with_class_and_text_label(ref_site):
+    # Arrange
+    out, _result, packet = ref_site
+    entry = next(e for e in packet["needs_inspection"] if e["claim_id"] == "cohort2")
+    # Act
+    html = (out / entry["graph_url"]).read_text()
+    # Assert
+    assert (
+        "Input<br/>data/input2.csv<br/>\u26a0 CHANGED\"]:::failing" in html
+        and "classDef failing" in html
+        and "stroke-dasharray:12 4 3 4" in html
+    )
+
+
+def test_graph_page_of_a_supported_claim_marks_no_node_failing(ref_site):
+    # Arrange
+    out, _result, packet = ref_site
+    # Act
+    html = (out / packet["supported"][0]["graph_url"]).read_text()
+    # Assert
+    assert (":::failing" not in html, "lp-failing-node" not in html) == (True, True)
+
+
+def test_review_json_carries_failing_nodes(ref_site):
+    # Arrange
+    out, _result, packet = ref_site
+    # Act
+    on_disk = json.loads((out / "review.json").read_text())
+    # Assert
+    assert [e["failing_nodes"] for e in iter_entries(on_disk)] == [
+        e["failing_nodes"] for e in iter_entries(packet)
+    ]
 
 
 def test_review_text_file_agrees_with_the_packet(ref_site):

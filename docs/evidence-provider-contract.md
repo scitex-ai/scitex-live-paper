@@ -15,13 +15,20 @@ no graph connects it, so there is nothing to say about it.
 
 | Artifact | id | version | file |
 |---|---|---|---|
-| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.0.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
-| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.0.0` | produced by `export-review`, documented below |
+| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.1.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
+| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.1.0` | produced by `export-review`, documented below |
 
 Both carry `schema` + `schema_version` (semver). A **minor** bump only adds
 optional fields, so a consumer of `1.x` keeps working. A **major** bump changes
 or removes fields. live-paper accepts any `1.x.y` report and rejects other
-majors with a clear error. Providers should vendor a version-pinned copy of
+majors with a clear error.
+
+| version | adds |
+|---|---|
+| 1.0.0 | states, reasons, sources, minimal graph |
+| 1.1.0 | optional per-node `failure` (where the evidence broke); packet `failing_nodes` |
+
+A 1.0.0 report is a valid 1.1.0 report. Providers should vendor a version-pinned copy of
 the schema and validate their output against it in their own tests, without
 importing live-paper.
 
@@ -44,7 +51,7 @@ so colour is never the only cue. "Needs inspection" means every state except
 ```json
 {
   "schema": "scitex-live-paper.evidence-report",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "provider": {"name": "example-provider", "version": "1.2.3"},
   "project_root": "/abs/path/to/project",
   "claims": [
@@ -63,7 +70,8 @@ so colour is never the only cue. "Needs inspection" means every state except
         "nodes": [
           {"id": "f1", "kind": "input", "label": "data/input.csv", "hash": "2a2b…"},
           {"id": "p1", "kind": "process", "label": "run 2026-11-18 19:38"},
-          {"id": "f2", "kind": "output", "label": "results/results.json", "hash": "2c38…"},
+          {"id": "f2", "kind": "output", "label": "results/results.json", "hash": "2c38…",
+           "failure": {"kind": "mismatched", "detail": "2 in source vs 3 stated"}},
           {"id": "c", "kind": "claim", "label": "n_rows"}
         ],
         "edges": [
@@ -85,6 +93,29 @@ and edges the claim rests on, and nothing else. Node `kind` is one of `claim`,
 `process`, `input`, `output`, `other`. If the key is **omitted**, live-paper
 asks the provider for the graph on demand. If it is `null`, the claim has no
 graph, and `graph_error` may say why.
+
+### Where the evidence broke (1.1.0)
+
+A provider may mark a graph node with `failure: {kind, detail}` to show a
+reviewer **where** a `not_supported` claim's evidence broke. `kind` is a
+short lowercase token. The recommended ones are:
+
+| kind | label shown | meaning |
+|---|---|---|
+| `changed` | ⚠ CHANGED | the node's content differs from what the recorded computation (or registration) saw |
+| `missing` | ⚠ MISSING | the node is absent |
+| `mismatched` | ⚠ MISMATCHED | the node holds a value other than the claim states |
+
+Any other token (e.g. `failed`) is accepted and shown verbatim, so a later
+1.x can add kinds without breaking 1.1 consumers. `detail` is one optional
+plain-language line. Omitting `failure` (or `null`) means the provider
+marks nothing on that node; it does not claim the node is fine.
+
+The graph page draws a failing node with a thick dash-dot outline that no
+other node uses, a colour-blind-safe vermillion, **and** a `⚠ KIND` text
+line, so colour is never the only cue. It also lists the failing nodes in
+words above the graph. `review.json` carries them per claim as
+`failing_nodes` and `review.txt` prints `evidence broke at: …` lines.
 
 ## Connecting a provider
 
@@ -136,10 +167,12 @@ one review packet, so they cannot disagree. A test enforces this.
 
 ## Review packet (what a reviewer reads)
 
-`scitex-live-paper.review-packet` 1.0.0 is the evidence report re-ordered for
+`scitex-live-paper.review-packet` 1.1.0 is the evidence report re-ordered for
 review: `needs_inspection` (ordered as above) and `supported`. Each entry adds
-`label`, `symbol`, `needs_inspection`, and `graph_url` (the claim's page in the
-rendered site). The packet also includes `scope`, `states` (state to label),
+`label`, `symbol`, `needs_inspection`, `graph_url` (the claim's page in the
+rendered site), and (1.1.0) `failing_nodes`: one
+`{id, kind, label, failure, failure_label, detail}` per marked graph node,
+in graph order (empty when none is marked). The packet also includes `scope`, `states` (state to label),
 `counts`, and `provider`.
 
 ## Known providers (examples only)

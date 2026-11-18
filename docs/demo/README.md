@@ -4,7 +4,7 @@
 <!--   open docs/demo/monday-mock.html                # mac -->
 
 `monday-mock.html` is a single-file, zero-dependency, looks-only mock of
-the Live Paper viewer: styled paper sheet, three claim anchors in the clew
+the Live Paper viewer: styled paper sheet, three claim anchors in the claim-status
 palette (verified green / suspect amber / registered gray) with pure-CSS
 hover popups, an inline-SVG provenance mini-graph per sourced claim, a
 labeled figure placeholder, and the claims sidebar.

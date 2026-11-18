@@ -63,7 +63,7 @@ together.
 
 **R8 — Extras pass through, SPA falls back.** The web API nests
 non-core claim fields under ``extras`` (loader passthrough — the
-package never extends the clew claim shape). SPA modules read the
+package never extends the producer's claim shape). SPA modules read the
 top level with an ``extras`` fallback (``pickAnchor()``,
 ``extras?.figure_id``, reason tooltips). Enforced by
 ``tests/scitex_live_paper/_django/handlers/test_pdf_overlay.py``

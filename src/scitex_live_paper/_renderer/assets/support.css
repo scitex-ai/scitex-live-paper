@@ -123,3 +123,32 @@ mark.lp-claim-span sup {
 .lp-claim-evidence p { margin: 4px 0; }
 .lp-claim-evidence-details { margin: 4px 0; padding-left: 18px; font-size: 12px; color: #57606a; }
 
+/* Where the evidence broke (contract 1.1.0 node.failure). The graph draws
+ * failing nodes with a thick dash-dot vermillion outline AND a "⚠ KIND"
+ * text line; this list repeats them in words, so neither colour nor the
+ * graph is the only cue. */
+.lp-claim-evidence-broke {
+  margin: 6px 0;
+  padding: 6px 10px;
+  border: 2px dashed #9e3a00;
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    135deg, #fff4ec, #fff4ec 6px, #ffe6d6 6px, #ffe6d6 12px
+  );
+}
+.lp-claim-evidence-broke-title { font-weight: 600; font-size: 13px; }
+.lp-failing-nodes { margin: 2px 0; padding-left: 18px; font-size: 13px; }
+.lp-failing-nodes li { margin: 2px 0; }
+.lp-failure-badge {
+  display: inline-block;
+  padding: 0 6px;
+  border: 2px solid #9e3a00;
+  border-radius: 3px;
+  background: #fff;
+  color: #7a2c00;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+

@@ -14,7 +14,9 @@ then checks, per registered claim:
                                           then supported
 
 The minimal graph is the producing run with its inputs and output, plus the
-claim node.
+claim node. Nodes where the evidence broke carry ``failure`` (contract 1.1.0):
+``changed`` (hash differs from the run), ``missing`` (file gone), or
+``mismatched`` (the source holds another value than the claim states).
 """
 
 from __future__ import annotations
@@ -102,11 +104,32 @@ class ReferenceProvider:
             )
         return "supported", "value and sources check out against the recorded run", []
 
+    @staticmethod
+    def _failures(root: Path, claim: dict, run: dict) -> dict[str, dict]:
+        """``{file: failure}`` for every recorded file where the evidence broke."""
+        out: dict[str, dict] = {}
+        for p, h in {**run["inputs"], **run["outputs"]}.items():
+            if not (root / p).exists():
+                out[p] = {"kind": "missing", "detail": f"{p} not found"}
+            elif sha256(root / p) != h:
+                out[p] = {"kind": "changed", "detail": "hash differs from the recorded run"}
+        source = claim["source"]
+        if out or not claim.get("pointer"):
+            return out
+        actual = _pointer(json.loads((root / source).read_text()), claim["pointer"])
+        if actual != claim["value"]:
+            out[source] = {
+                "kind": "mismatched",
+                "detail": f"{actual} in source vs {claim['value']} stated",
+            }
+        return out
+
     def _graph(self, root: Path, claim: dict, runs: list[dict]) -> dict | None:
         source = claim.get("source")
         run = self._producer(runs, source) if source else None
         if run is None:
             return None
+        failures = self._failures(root, claim, run)
         nodes = [{"id": "p", "kind": "process", "label": run["script"]}]
         edges = []
         for i, (p, h) in enumerate(sorted(run["inputs"].items())):
@@ -120,6 +143,9 @@ class ReferenceProvider:
                 "hash": run["outputs"][source],
             }
         )
+        for n in nodes:
+            if n["label"] in failures:
+                n["failure"] = failures[n["label"]]
         nodes.append({"id": "c", "kind": "claim", "label": claim["claim_id"]})
         edges += [
             {"source": "p", "target": "o", "kind": "output"},
@@ -170,7 +196,7 @@ class ReferenceProvider:
             claims.append(entry)
         return {
             "schema": "scitex-live-paper.evidence-report",
-            "schema_version": "1.0.0",
+            "schema_version": "1.1.0",
             "provider": {"name": PROVIDER_NAME, "version": "1.0"},
             "project_root": str(root),
             "claims": claims,
@@ -205,6 +231,14 @@ The calibration constant was k = 5 for every run.
 The second cohort summed to 60 units.
 The room temperature was 42 degrees during acquisition.
 """
+
+#: claim_id -> {failing node label: failure kind} for build_project().
+EXPECTED_FAILURES = {
+    "auc": {},
+    "n_rows": {"results/results.json": "mismatched"},
+    "accuracy": {},
+    "cohort2": {"data/input2.csv": "changed"},
+}
 
 #: claim_id -> state the reference provider must report for build_project().
 EXPECTED_STATES = {

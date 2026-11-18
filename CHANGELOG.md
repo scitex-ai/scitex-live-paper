@@ -16,6 +16,27 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.4.0]
+
+### Added
+
+- **Evidence contract 1.1.0: where the evidence broke.** A provider may
+  mark graph nodes with an optional `failure: {kind, detail}`
+  (`changed` / `missing` / `mismatched`, any other token shown verbatim).
+  Backwards compatible: every 1.0.0 report is a valid 1.1.0 report. The
+  claim graph page draws failing nodes with a dash-dot vermillion outline
+  and a `⚠ KIND` label (never colour alone), lists them above the graph,
+  and the node overlay says "Evidence broke here". The review packet
+  (now 1.1.0) adds `failing_nodes` per claim; `review.txt` prints
+  `evidence broke at:` lines and tags failing nodes in edge lists.
+
+### Changed
+
+- Docs (`dev-quickstart.md` bundle-ownership table,
+  `dev/ports-events-contract.md`, `dev/api-consistency.md`,
+  `demo/README.md`) name the bundle producer neutrally instead of a
+  specific provider package.
+
 ## [0.3.0]
 
 ### Added

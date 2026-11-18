@@ -8,6 +8,7 @@ JSON-Schema dependency, and the test suite checks the two agree.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from typing import Any
 from ._states import STATES
 
 __all__ = [
+    "FAILURE_KIND_PATTERN",
     "GRAPH_NODE_KINDS",
     "REPORT_SCHEMA",
     "REPORT_SCHEMA_VERSION",
@@ -28,8 +30,11 @@ __all__ = [
 REPORT_SCHEMA = "scitex-live-paper.evidence-report"
 #: The contract version this release implements. Any ``1.x.y`` report is
 #: accepted (minor bumps only add optional fields).
-REPORT_SCHEMA_VERSION = "1.0.0"
+REPORT_SCHEMA_VERSION = "1.1.0"
 GRAPH_NODE_KINDS = frozenset({"claim", "process", "input", "output", "other"})
+#: A node's ``failure.kind`` (1.1.0) is a short lowercase token. Any token is
+#: accepted so a later 1.x can name new kinds; unknown ones render verbatim.
+FAILURE_KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class EvidenceError(Exception):
@@ -49,6 +54,23 @@ def _fail(where: str, msg: str) -> None:
     raise ContractError(f"evidence report {where}: {msg}")
 
 
+def _check_failure(failure: Any, where: str, node_id: Any) -> None:
+    if failure is None:
+        return
+    if not isinstance(failure, Mapping):
+        _fail(where, f"node {node_id!r}: failure must be an object or null")
+    kind = failure.get("kind")
+    if not isinstance(kind, str) or not FAILURE_KIND_PATTERN.match(kind):
+        _fail(
+            where,
+            f"node {node_id!r}: failure.kind must be a short lowercase token, "
+            f"got {kind!r}",
+        )
+    detail = failure.get("detail")
+    if detail is not None and not isinstance(detail, str):
+        _fail(where, f"node {node_id!r}: failure.detail must be a string or null")
+
+
 def _check_graph(graph: Any, where: str) -> None:
     if not isinstance(graph, Mapping):
         _fail(where, "graph must be an object or null")
@@ -63,6 +85,7 @@ def _check_graph(graph: Any, where: str) -> None:
             _fail(where, "each graph node needs id, kind, label")
         if n["kind"] not in GRAPH_NODE_KINDS:
             _fail(where, f"unknown node kind {n['kind']!r}")
+        _check_failure(n.get("failure"), where, n["id"])
         ids.add(n["id"])
     for e in edges:
         if not isinstance(e, Mapping) or "source" not in e or "target" not in e:
