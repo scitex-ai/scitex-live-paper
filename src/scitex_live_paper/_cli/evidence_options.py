@@ -77,8 +77,27 @@ def evidence_options(fn):
     type=click.Path(dir_okay=False, resolve_path=True),
     help="Write here instead of stdout.",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Build the packet and report what would be written; write nothing.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    "yes",
+    is_flag=True,
+    help="Overwrite an existing --out file without asking.",
+)
 def export_review_cmd(
-    bundle_path, evidence_report, evidence_provider, evidence_root, fmt, out_path
+    bundle_path,
+    evidence_report,
+    evidence_provider,
+    evidence_root,
+    fmt,
+    out_path,
+    dry_run,
+    yes,
 ) -> None:
     """Export the review packet for BUNDLE_PATH (optional with --evidence-report)."""
     from scitex_live_paper import bundle as bundle_module
@@ -119,11 +138,18 @@ def export_review_cmd(
         if fmt == "json"
         else review_text(packet)
     )
-    if out_path:
-        Path(out_path).write_text(text + "\n", encoding="utf-8")
-        click.echo(f"wrote {out_path}")
-    else:
+    if not out_path:
         click.echo(text)
+        return
+    target = Path(out_path)
+    if dry_run:
+        n = len(packet["needs_inspection"]) + len(packet["supported"])
+        click.echo(f"DRY RUN — would write {target} ({n} registered claims, {fmt})")
+        return
+    if target.exists() and not yes:
+        raise click.ClickException(f"{target} exists; pass --yes to overwrite it")
+    target.write_text(text + "\n", encoding="utf-8")
+    click.echo(f"wrote {target}")
 
 
 def register(group) -> None:

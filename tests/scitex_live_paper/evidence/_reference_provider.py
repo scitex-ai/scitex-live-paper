@@ -336,3 +336,58 @@ def install_entry_point(site_dir: Path) -> Path:
         f"{PROVIDER_NAME} = _reference_provider:ReferenceEntry\n"
     )
     return dist
+
+
+# ---------------------------------------------------------------------------
+# Shared pytest fixtures (function-scoped; import them into a test module)
+# ---------------------------------------------------------------------------
+
+import sys as _sys  # noqa: E402
+
+import pytest  # noqa: E402
+
+FIXTURE_PDF = Path(__file__).resolve().parent.parent / "fixtures" / "bundle-min" / "manuscript.pdf"
+
+
+@pytest.fixture
+def ref_project(tmp_path: Path) -> Path:
+    return build_project(tmp_path / "project")
+
+
+@pytest.fixture
+def ref_bundle(tmp_path: Path) -> Path:
+    return write_bundle(tmp_path / "bundle", FIXTURE_PDF)
+
+
+@pytest.fixture
+def ref_report(ref_project: Path) -> dict:
+    return ReferenceProvider().evidence_report(str(ref_project), None, {})
+
+
+@pytest.fixture
+def ref_report_file(tmp_path: Path, ref_report: dict) -> Path:
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(ref_report))
+    return path
+
+
+@pytest.fixture
+def ref_site(tmp_path: Path, ref_bundle: Path, ref_report_file: Path):
+    """(site dir, RenderResult, review packet) rendered from the report file."""
+    from scitex_live_paper._cli.render import render_site
+
+    out = tmp_path / "site"
+    result = render_site(ref_bundle, out, evidence_report=ref_report_file)
+    return out, result, json.loads(result.review_json.read_text())
+
+
+@pytest.fixture
+def ref_installed_provider(tmp_path: Path):
+    """The reference provider, discoverable through real entry-point metadata."""
+    site_dir = tmp_path / "site-packages"
+    install_entry_point(site_dir)
+    _sys.path.insert(0, str(site_dir))
+    try:
+        yield PROVIDER_NAME
+    finally:
+        _sys.path.remove(str(site_dir))
