@@ -35,6 +35,8 @@ const KIND_PREFIXES = [
   ['output', 'Output'],
 ];
 
+const FAILURE_MARK = '⚠';
+
 function kindFromLabel(label) {
   if (!label) return null;
   const head = label.split(/<br\/?>|\n/, 1)[0].trim().toLowerCase();
@@ -57,8 +59,16 @@ function payloadFromLabel(label) {
   // Lines are mermaid-escaped <br/> separated. The second line carries
   // the renderer's per-kind payload: source script for Source /
   // Processing, claim_id for Claim, etc.
-  const parts = label.split(/<br\/?>|\n/).map((s) => s.trim());
+  // A failing node's label ends with a "⚠ KIND" marker (evidence
+  // contract 1.1.0); it is display-only, never part of the payload.
+  const parts = label.split(FAILURE_MARK, 1)[0].split(/<br\/?>|\n/).map((s) => s.trim());
   return parts.slice(1).filter(Boolean).join(' ');
+}
+
+function failureFromLabel(label) {
+  const at = (label || '').indexOf(FAILURE_MARK);
+  if (at < 0) return null;
+  return label.slice(at + FAILURE_MARK.length).split(/<br\/?>|\n/, 1)[0].trim() || null;
 }
 
 function emitClaimEvent(id) {
@@ -94,7 +104,8 @@ function closeOverlay() {
   if (overlay) overlay.setAttribute('hidden', '');
 }
 
-function nodeClickHandler(kind, payload, shell) {
+function nodeClickHandler(kind, payload, shell, failure = null) {
+  const broke = failure ? [['Evidence broke here', failure]] : [];
   return (ev) => {
     ev.preventDefault();
     if (kind === 'claim' && payload) {
@@ -111,6 +122,7 @@ function nodeClickHandler(kind, payload, shell) {
         items: [
           ['Script', payload || '(unknown)'],
           ['Hash', hash || '(no hash recorded)'],
+          ...broke,
         ],
       });
       return;
@@ -123,12 +135,13 @@ function nodeClickHandler(kind, payload, shell) {
         items: [
           ['File', payload || '(unknown)'],
           ['Hash', hash || '(no hash recorded)'],
+          ...broke,
         ],
       });
       return;
     }
     // Unknown kinds: show label only.
-    openOverlay({ title: 'Node', items: [['Label', payload || '(unlabeled)']] });
+    openOverlay({ title: 'Node', items: [['Label', payload || '(unlabeled)'], ...broke] });
   };
 }
 
@@ -140,7 +153,9 @@ function decorateNodes(shell) {
     if (!kind) return;
     node.setAttribute('data-lp-node-kind', kind);
     const payload = payloadFromLabel(label);
-    node.addEventListener('click', nodeClickHandler(kind, payload, shell));
+    const failure = failureFromLabel(label);
+    if (failure) node.setAttribute('data-lp-failure', failure.toLowerCase());
+    node.addEventListener('click', nodeClickHandler(kind, payload, shell, failure));
     node.style.cursor = 'pointer';
   });
 }

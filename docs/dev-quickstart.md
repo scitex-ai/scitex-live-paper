@@ -143,17 +143,17 @@ bundle/
 
 | File             | Schema authority      | Where to read                                                                                       |
 |------------------|-----------------------|-----------------------------------------------------------------------------------------------------|
-| `claims.json`    | **`scitex-clew`**     | [scitex-clew README](https://github.com/ywatanabe1989/scitex-clew#readme) — `Claim`, `VerificationStatus` |
-| `dag.mmd`        | **`scitex-clew`**     | same as above — `clew.dag()` output, mermaid-formatted                                              |
+| `claims.json`    | **bundle producer** (the provenance tool that exported the bundle) | that producer's own documentation — claim records and verification statuses |
+| `dag.mmd`        | **bundle producer**   | same as above — its provenance graph, mermaid-formatted                                             |
 | `figz/`          | **`scitex-writer`**   | [scitex-writer README](https://github.com/ywatanabe1989/scitex-writer#readme) — figure blob layout  |
-| `provenance.yaml`| **`scitex-clew`**     | session / file / hash graph backing each claim's source link                                        |
+| `provenance.yaml`| **bundle producer**   | session / file / hash graph backing each claim's source link                                        |
 
 The in-tree loader (`scitex_live_paper.bundle`) deserialises only the
 fields the renderer needs (`claim_id`, `file_path`, `claim_type`,
 `status`, source hashes, anchors, …) and stashes every other key
-under `Claim.extras`. **Forward-compatible** by design: if `clew`
+under `Claim.extras`. **Forward-compatible** by design: if the producer
 adds a field, it flows through untouched. If the renderer needs to
-*use* a new field, open the upstream issue against `scitex-clew`
+*use* a new field, open the upstream issue against the bundle producer
 first — never invent or extend the claim shape here.
 
 ### Fixture as living spec
@@ -162,7 +162,7 @@ first — never invent or extend the claim shape here.
 canonical minimum bundle: 3 claims (`verified` / `stale` /
 `registered`), a toy mermaid DAG, a placeholder PDF. Its
 [README](../tests/scitex_live_paper/fixtures/bundle-min/README.md) restates the
-boundary: when `clew` bumps the claim schema, refresh the fixture —
+boundary: when the producer bumps the claim schema, refresh the fixture —
 do **not** extend the loader.
 
 ---

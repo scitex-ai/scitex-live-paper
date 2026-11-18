@@ -12,20 +12,29 @@ from collections.abc import Iterator, Mapping
 from typing import Any
 
 from ._contract import validate_report
-from ._states import INSPECTION_ORDER, LABELS, SUPPORTED, SYMBOLS
+from ._states import (
+    FAILURE_SYMBOL,
+    INSPECTION_ORDER,
+    LABELS,
+    SUPPORTED,
+    SYMBOLS,
+    failure_label,
+)
 
 __all__ = [
     "PACKET_SCHEMA",
     "PACKET_SCHEMA_VERSION",
     "SCOPE",
     "build_review_packet",
+    "failing_nodes",
     "find_claim",
     "iter_entries",
     "review_text",
 ]
 
 PACKET_SCHEMA = "scitex-live-paper.review-packet"
-PACKET_SCHEMA_VERSION = "1.0.0"
+#: 1.1.0 adds ``failing_nodes`` per entry (from report node ``failure``).
+PACKET_SCHEMA_VERSION = "1.1.0"
 
 SCOPE = (
     "Registered claims only. Text that is not a registered claim is not "
@@ -36,6 +45,30 @@ SCOPE = (
 def _position(entry: Mapping[str, Any]) -> tuple:
     loc = entry.get("location") or {}
     return (str(loc.get("file") or ""), loc.get("line") or 0, entry["claim_id"])
+
+
+def failing_nodes(graph: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    """The nodes of *graph* the provider marked as where the evidence broke.
+
+    In graph order; each carries the node's id/kind/label plus the failure
+    kind, its plain-language label, and the provider's one-line detail.
+    """
+    out: list[dict[str, Any]] = []
+    for n in (graph or {}).get("nodes") or []:
+        failure = n.get("failure")
+        if not failure:
+            continue
+        out.append(
+            {
+                "id": n["id"],
+                "kind": n["kind"],
+                "label": n["label"],
+                "failure": failure["kind"],
+                "failure_label": failure_label(failure["kind"]),
+                "detail": failure.get("detail"),
+            }
+        )
+    return out
 
 
 def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str, Any]:
@@ -61,6 +94,7 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
         "details": list(claim.get("details") or []),
         "provider_status": claim.get("provider_status"),
         "graph": claim.get("graph"),
+        "failing_nodes": failing_nodes(claim.get("graph")),
         "graph_error": claim.get("graph_error"),
         "graph_url": graph_urls.get(claim["claim_id"]),
     }
@@ -108,6 +142,14 @@ def find_claim(packet: Mapping[str, Any], claim_id: str) -> Mapping[str, Any] | 
     return next((e for e in iter_entries(packet) if e["claim_id"] == claim_id), None)
 
 
+def _text_node_name(node: Mapping[str, Any]) -> str:
+    name = f"{node['kind']}:{node['label']}"
+    failure = node.get("failure")
+    if failure:
+        name += f" [{FAILURE_SYMBOL} {failure_label(failure['kind']).upper()}]"
+    return name
+
+
 def review_text(packet: Mapping[str, Any]) -> str:
     """Plain-text rendering of a review packet (graphs as edge lists)."""
     counts = ", ".join(
@@ -136,13 +178,19 @@ def review_text(packet: Mapping[str, Any]) -> str:
             )
             src = e["source"]
             out.append(f"    source: {src['file']} locator: {src['locator']}")
+            for f in e.get("failing_nodes") or []:
+                detail = f" -- {f['detail']}" if f.get("detail") else ""
+                out.append(
+                    f"    evidence broke at: {FAILURE_SYMBOL} {f['failure_label'].upper()} "
+                    f"{f['kind']}:{f['label']}{detail}"
+                )
             graph = e["graph"]
             if graph is None:
                 out.append(
                     f"    minimal graph: none ({e['graph_error'] or 'not supplied'})"
                 )
                 continue
-            names = {n["id"]: f"{n['kind']}:{n['label']}" for n in graph["nodes"]}
+            names = {n["id"]: _text_node_name(n) for n in graph["nodes"]}
             for edge in graph["edges"]:
                 out.append(f"    {names[edge['source']]} -> {names[edge['target']]}")
         out.append("")
