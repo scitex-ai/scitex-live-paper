@@ -1,27 +1,31 @@
 """Claims sidebar HTML renderer (issue #5).
 
 Emits a standalone ``claims.html`` site page that lists every claim from
-the bundle's ``claims.json`` with its ``scitex_clew.VerificationStatus``
-colour, plus an expandable per-claim panel showing status / hash /
-producing-script link / disabled "Re-verify" stub (the live verify lands
-in M2).
+the bundle's ``claims.json`` with its status colour, plus an expandable
+per-claim panel showing status / hash / producing-script link / disabled
+"Re-verify" stub (the live verify lands in M2).
+
+With a review packet (an evidence provider was given) the page opens with
+the **Needs inspection** list, then the supported claims, and each row
+carries its evidence state and reason (see ``scitex_live_paper.evidence``).
 
 Boundary
 --------
-The colour mapping is **owned upstream by ``scitex-clew``**. This module
-deliberately does *not* hard-code a parallel enum: it labels each row
-with the canonical clew status string (``verified`` / ``stale`` /
-``failed`` / ``registered`` / ...) and lets the CSS look the colour up
-via ``data-status="<value>"``. If a new status appears, only the CSS
-needs a new selector — no Python change here. If the palette itself
-needs to change, raise that upstream in ``scitex-clew``.
+The status vocabulary is **owned upstream by the claim registry** that
+wrote ``claims.json``. This module deliberately does *not* hard-code a
+parallel enum: it labels each row with the status string as written
+(``verified`` / ``stale`` / ``failed`` / ``registered`` / ...) and lets the
+CSS look the colour up via ``data-status="<value>"``. If a new status
+appears, only the CSS needs a new selector — no Python change here.
 """
 
 from __future__ import annotations
 
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 try:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -32,6 +36,7 @@ except ImportError as exc:  # pragma: no cover - defensive
     ) from exc
 
 from scitex_live_paper.bundle import Bundle, Claim
+from scitex_live_paper.evidence import SYMBOLS, iter_entries
 
 from ._sdk_header import copy_sdk_header_assets, header_context
 
@@ -95,6 +100,8 @@ def render_claims_sidebar(
     title: str | None = None,
     viewer_url: str = "viewer.html",
     project_label: str | None = None,
+    review: Mapping[str, Any] | None = None,
+    paper_url: str | None = None,
 ) -> ClaimsArtifacts:
     """Render the M1 claims sidebar page for *bundle* into *out_dir*.
 
@@ -107,6 +114,13 @@ def render_claims_sidebar(
         canonical paths are overwritten — the renderer is idempotent.
     title
         Optional page title; defaults to ``"Live Paper — Claims"``.
+    review
+        Optional reviewer packet (``scitex_live_paper.evidence.build_review_packet``).
+        When given, the page opens with the needs-inspection list, then the
+        supported claims, and every row carries its evidence state. Rows are
+        rendered from this packet only, so page and packet cannot disagree.
+    paper_url
+        Optional link to the highlighted-paper page.
     viewer_url
         URL of the viewer page (default ``"viewer.html"`` for the
         sibling-page layout the CLI emits — issue #7). Used to build
@@ -129,9 +143,11 @@ def render_claims_sidebar(
     # fallback title line (module scripts don't run there — documented in
     # docs/dev-quickstart.md).
     copy_sdk_header_assets(out_dir)
+    if review is not None:
+        _copy_into(out_dir, "assets/support.css", _ASSETS_DIR / "support.css")
 
     # Pre-shape claims for the template. We DO NOT redefine status;
-    # we pass the raw clew status string through as data-status so the
+    # we pass the raw status string through as data-status so the
     # CSS palette (one selector per status) is the only place colours live.
     rows = [
         {
@@ -160,6 +176,13 @@ def render_claims_sidebar(
         css_url="assets/claims.css",
         js_url="assets/claims.js",
         total_claims=len(rows),
+        review=review,
+        paper_url=paper_url,
+        symbols=SYMBOLS,
+        support_by_id=(
+            {e["claim_id"]: e for e in iter_entries(review)} if review else None
+        ),
+        support_css_url="assets/support.css" if review is not None else None,
         **header_context(project_label=project_label),
     )
     claims_html = out_dir / "claims.html"

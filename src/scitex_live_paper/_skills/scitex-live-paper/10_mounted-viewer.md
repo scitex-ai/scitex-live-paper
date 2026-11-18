@@ -29,5 +29,5 @@ existing manuscripts, comments and provenance.
 Verify actual PDF pages, overlays, header placement, and an anchored-comment
 round trip in the deployed browser. Unit tests and provider availability do
 not establish that Writer or Journal has adopted this viewer. Re-verify controls
-may report fallback results when Clew is unavailable; do not call that a real
+may report fallback (`unassessed`) results when no evidence provider is installed; do not call that a real
 scientific verification.

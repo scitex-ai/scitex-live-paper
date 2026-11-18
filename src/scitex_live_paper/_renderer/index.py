@@ -16,6 +16,7 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Mapping
 
 try:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -69,6 +70,8 @@ def render_index(
     claims_url: str = "claims.html",
     dag_url: str = "dag.html",
     project_label: str | None = None,
+    review: Mapping[str, Any] | None = None,
+    paper_url: str | None = None,
 ) -> IndexArtifacts:
     """Render the M1 landing page for *bundle* into *out_dir*.
 
@@ -114,6 +117,8 @@ def render_index(
         dag_url=dag_url,
         css_url="assets/index.css",
         total_claims=len(bundle.claims),
+        review=review,
+        paper_url=paper_url,
         manuscript_filename=bundle.manuscript_path.name,
         has_dag=bool(bundle.dag and bundle.dag.strip()),
         schema_version=bundle.schema_version or "",

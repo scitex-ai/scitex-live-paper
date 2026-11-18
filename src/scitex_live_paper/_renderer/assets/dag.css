@@ -1,9 +1,9 @@
 /* scitex-live-paper / M1 DAG navigator CSS
  *
- * Node-class taxonomy is owned upstream by scitex-clew; we just style
+ * Node-class taxonomy is owned by whoever wrote dag.mmd; we just style
  * what mermaid renders. The taxonomy uses node-label prefixes
  * (Source / Input / Processing / Output / Claim) — we match on those
- * via attribute selectors so a new clew class only needs one new line
+ * via attribute selectors so a new class only needs one new line
  * here, no Python change.
  */
 

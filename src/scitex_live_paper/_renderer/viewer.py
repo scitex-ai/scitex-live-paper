@@ -14,7 +14,8 @@ This module is a **pure renderer**. It does:
   - return the path of the generated ``viewer.html``.
 
 It does **not** validate the claim schema or invent new fields — the
-claim model is owned upstream by ``scitex-clew`` (see ``scitex_live_paper.bundle``).
+claim model is owned upstream by the claim registry that wrote
+claims.json (see ``scitex_live_paper.bundle``).
 """
 
 from __future__ import annotations

@@ -7,9 +7,10 @@ renderer running end-to-end.
 
 > **Before you read this, read the [README](../README.md).** The
 > README pins the **boundary**: `scitex-live-paper` is a thin
-> consumer of the claim model — the `Claim` / `VerificationStatus` /
-> DAG schema is owned upstream by
-> [`scitex-clew`](https://github.com/ywatanabe1989/scitex-clew). This
+> consumer of the claim model — the `Claim` / status / DAG schema is
+> owned upstream by the claim registry that produces `claims.json`,
+> and evidence states come from an evidence provider through the
+> [evidence-provider contract](evidence-provider-contract.md). This
 > doc deliberately does **not** re-document those schemas.
 
 ---
@@ -24,9 +25,9 @@ cd scitex-live-paper
 git switch develop
 python -m venv .venv && source .venv/bin/activate
 pip install -e '.[test]'
-# To exercise the M2 live re-verify path end-to-end, also pull
-# scitex-clew (the upstream owner of `verify_claim()`):
-# pip install -e '.[test,django,clew]'
+# To exercise the M2 live re-verify path end-to-end, add Django and
+# install any package that implements the evidence-provider contract:
+# pip install -e '.[test,django]'
 ```
 
 The `[project.scripts]` entry registers a console script, so:
@@ -132,8 +133,8 @@ file-level contract.
 ```
 bundle/
 ├── manuscript.pdf      (or manuscript.tex — PDF preferred in M1)
-├── claims.json         # claim list — schema owned by scitex-clew
-├── dag.mmd             # mermaid DAG source — owned by scitex-clew
+├── claims.json         # claim list — schema owned by the upstream claim registry
+├── dag.mmd             # mermaid DAG source — owned by the upstream claim registry
 ├── figz/               # figure blobs (figz / pltz)  — owned by scitex-writer
 └── provenance.yaml     # hash-linked artefacts
 ```

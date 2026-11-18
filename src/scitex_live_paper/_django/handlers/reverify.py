@@ -1,37 +1,39 @@
-"""M2 re-verify endpoints — single (``api/claim/verify``) + bulk (``api/claims/verify``).
+"""Re-verify endpoints — single (``api/claim/verify``) + bulk (``api/claims/verify``).
 
-Both call ``scitex_clew.verify_claim(claim_id_or_location)`` — a single
-positional argument — and read the nested ``result["claim"]["status"]``
-that clew returns.
+Both ask an **evidence provider** for the current evidence state of
+registered claims, through the provider-neutral contract in
+:mod:`scitex_live_paper.evidence` (``docs/evidence-provider-contract.md``).
+live-paper imports no provider: the provider is found through the ports
+seam (:func:`~scitex_live_paper.evidence.find_provider`) and its answer is
+collected and validated by :func:`~scitex_live_paper.evidence.collect_report`.
 
-clew is git-agnostic: ``verify_claim`` re-hashes the claim's source file
-against the CURRENT on-disk state of clew's project. It does NOT take a
-commit and does NOT check out git. ``pinned_commit`` is therefore
-METADATA only here — to re-verify against a specific commit, the
-host/deployment is responsible for checking out that commit before
-serving. These handlers never mutate the working tree.
+Configuration (environment, read per request):
 
-clew resolves its own store; live-paper passes no store argument and
-holds no opinion about where it lives. ``SCITEX_CLEW_DB_PATH`` used to
-select a per-project store file and is retired — clew has no database
-file, and ``SCITEX_STORE_DSN`` is the one switch, owned by clew.
+- ``SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER`` — the provider's entry-point
+  name. Unset → the single installed provider.
+- ``SCITEX_LIVE_PAPER_EVIDENCE_ROOT`` — the project the claims belong to.
+  Unset → the bundle root.
 
-Boundary unchanged: ``scitex-clew`` owns the claim model + the verify
-operation. These handlers are thin pass-throughs. When ``scitex-clew``
-is not installed the response degrades gracefully — the operator's
-SPA button surfaces a clear "not available" status rather than a 500,
-so the badge stays meaningful even on a base install.
+The provider assesses the CURRENT on-disk state of that project.
+``pinned_commit`` is METADATA only here: it is validated and echoed back as
+``verified_against``, never passed to the provider. To re-verify against a
+specific commit the host/deployment checks that commit out before serving.
+These handlers never mutate the working tree.
 
-The bulk endpoint shares the same fallback / error envelope per
-result, so the SPA's "Re-verify all" button can stream per-claim
-status updates as the response comes back.
+With no provider installed the response degrades gracefully (``ok: false``,
+``status: "unassessed"``, ``fallback: true``) rather than a 500, so the SPA
+badge stays meaningful on a base install. The bulk endpoint uses the same
+per-result envelope and collects ONE report for all target claims, so the
+SPA's "Re-verify all" button gets every per-claim state from a single
+provider call.
 """
 
 from __future__ import annotations
 
 import json
-from importlib import import_module
-from typing import Any, List, Mapping, Optional
+import os
+from collections.abc import Mapping, Sequence
+from typing import Any, Dict, List, Optional, Tuple
 
 import scitex_logging as slogging
 
@@ -43,22 +45,30 @@ except ImportError as exc:
         "install with: pip install 'scitex-live-paper[all]'"
     ) from exc
 
+from ...evidence import LABELS, ProviderNotFound, collect_report, find_provider
 from ..services import get_request_bundle_state
 
 log = slogging.getLogger(__name__)
 
-__all__ = ["handle_reverify", "handle_reverify_all"]
+__all__ = [
+    "ENV_EVIDENCE_PROVIDER",
+    "ENV_EVIDENCE_ROOT",
+    "UNASSESSED",
+    "handle_reverify",
+    "handle_reverify_all",
+]
+
+#: Entry-point name of the evidence provider to ask (else the only one).
+ENV_EVIDENCE_PROVIDER = "SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER"
+#: Project root handed to the provider (else the bundle root).
+ENV_EVIDENCE_ROOT = "SCITEX_LIVE_PAPER_EVIDENCE_ROOT"
+#: Status of a claim no provider could assess.
+UNASSESSED = "unassessed"
+_NO_PROVIDER_REASON = "no evidence provider is installed"
 
 
 def handle_reverify(request) -> HttpResponse:
-    """Re-verify a single claim via clew's live ``verify_claim``.
-
-    live-paper verifies the claim against the CURRENT on-disk state of
-    clew's project. To re-verify against a specific commit, the
-    host/deployment is responsible for checking out ``pinned_commit``
-    before serving. This handler never mutates the working tree — ``pinned_commit`` is
-    accepted and echoed back as ``verified_against`` metadata only, and
-    is NOT passed to ``verify_claim``.
+    """Re-verify a single claim through the evidence provider.
 
     Request
     -------
@@ -67,49 +77,34 @@ def handle_reverify(request) -> HttpResponse:
 
         {
             "claim_id":      "claim_a1b2c3d4e5f6",        # required
-            "pinned_commit": "deadbeefcafef00d12345678"   # optional;
-                                                           # defaults to
-                                                           # bundle.paper_state.pinned_commit
+            "pinned_commit": "deadbeefcafef00d12345678"   # optional; defaults
+                                                           # to bundle.paper_state.pinned_commit
         }
 
     Response
     --------
-    On success (``scitex-clew`` available + commit pin available)::
+    On success::
 
         {
             "ok": true,
             "claim_id": "...",
-            "verified_against": "<commit>",               # metadata echo
-            "status": "verified" | "suspect" | "mismatch" | "missing"
-                      | "unsourced",
-                                                           # (clew ≥0.7.0;
-                                                           # "unsourced" is
-                                                           # clew ≥0.8.1 and
-                                                           # is passed through
-                                                           # verbatim — it
-                                                           # renders amber but
-                                                           # is NOT rewritten
-                                                           # to "suspect";
-                                                           # older clews may
-                                                           # return the
-                                                           # pre-rename
-                                                           # "partial")
-            "verified_at": "<ISO-8601>" | null,           # from claim
-            "details": {...}                              # source_verified,
-                                                           # chain_verified,
-                                                           # details list +
-                                                           # rest of claim
+            "verified_against": "<commit>",     # metadata echo
+            "status": "supported" | "not_supported" | "not_checkable"
+                      | "no_evidence_graph",
+            "state":  <same as status>,
+            "label":  "Supported by evidence" | ...,
+            "reason": "<provider's reason>",
+            "verified_at": null,
+            "details": {...}                    # the claim's report entry
         }
 
-    On graceful degradation (``scitex-clew`` not installed)::
+    Claim absent from the provider's report → ``ok: false``,
+    ``status: "not_found"``.
 
-        {
-            "ok": false,
-            "claim_id": "...",
-            "status": "stale",
-            "reason": "scitex-clew not installed",
-            "fallback": true
-        }
+    No provider installed (or the configured one is not installed)::
+
+        {"ok": false, "claim_id": "...", "status": "unassessed",
+         "reason": "no evidence provider is installed", "fallback": true}
 
     Error cases:
 
@@ -117,7 +112,7 @@ def handle_reverify(request) -> HttpResponse:
     - Missing / non-mapping body → 400
     - Missing ``claim_id`` → 400
     - No pinned_commit anywhere (body + bundle.paper_state both empty) → 400
-    - ``clew.verify_claim()`` raised → 500 with the exception message
+    - Provider raised, or its report breaks the contract → 500
     """
     if request.method != "POST":
         return JsonResponse(
@@ -139,81 +134,24 @@ def handle_reverify(request) -> HttpResponse:
             status=400,
         )
 
-    state = get_request_bundle_state(request)
-    bundle = state.bundle
-
-    # Resolve pinned_commit: body wins, then bundle.paper_state.
-    pinned_commit: Optional[str] = body.get("pinned_commit")
-    if not isinstance(pinned_commit, str) or not pinned_commit.strip():
-        pinned_commit = bundle.paper_state.pinned_commit
+    bundle = get_request_bundle_state(request).bundle
+    pinned_commit = _resolve_pinned_commit(body, bundle)
     if not pinned_commit:
-        return JsonResponse(
-            {
-                "error": (
-                    "no pinned_commit available — pass one in the body or "
-                    "set bundle.paper_state.pinned_commit via state.yaml"
-                )
-            },
-            status=400,
-        )
-
-    # Try the real upstream ``scitex-clew`` call. If the package isn't
-    # installed, degrade gracefully with an explicit reason so the SPA
-    # can keep the badge meaningful instead of showing a 500.
-    # Install scitex-clew via the ``[clew]`` optional extra:
-    #   pip install scitex-live-paper[clew]
-    try:
-        clew = import_module("scitex_clew")
-    except ImportError:
-        log.info(
-            "[re-verify] scitex-clew not installed — degrading claim %s to stale "
-            "(install scitex-live-paper[clew] for live re-verify)",
-            claim_id,
-        )
-        return JsonResponse(
-            {
-                "ok": False,
-                "claim_id": claim_id,
-                "status": "stale",
-                "reason": "scitex-clew not installed (install scitex-live-paper[clew])",
-                "fallback": True,
-            }
-        )
-
-    verify_claim = getattr(clew, "verify_claim", None)
-    if not callable(verify_claim):
-        # Defensive: an old/partial clew install without the verify
-        # entry point — surface the same shape as the no-install path.
-        log.warning(
-            "[re-verify] scitex_clew installed but missing verify_claim()",
-        )
-        return JsonResponse(
-            {
-                "ok": False,
-                "claim_id": claim_id,
-                "status": "stale",
-                "reason": "scitex-clew has no verify_claim() — version skew",
-                "fallback": True,
-            }
-        )
+        return _no_pinned_commit()
 
     try:
-        # clew takes a SINGLE positional arg and verifies against the
-        # current on-disk state. pinned_commit is metadata only — the
-        # host owns checkout + store selection (see module docstring).
-        result = verify_claim(claim_id)
+        entries = _collect_entries(bundle, [claim_id])
+    except ProviderNotFound as exc:
+        log.info("[re-verify] %s — claim %s left unassessed", exc, claim_id)
+        return JsonResponse(_fallback(claim_id, exc))
     except Exception as exc:
-        log.exception("[re-verify] clew.verify_claim raised for %s", claim_id)
+        log.exception("[re-verify] evidence provider failed for %s", claim_id)
         return JsonResponse(
-            {
-                "ok": False,
-                "claim_id": claim_id,
-                "error": str(exc),
-            },
+            {"ok": False, "claim_id": claim_id, "error": str(exc)},
             status=500,
         )
 
-    return JsonResponse(_normalize_result(claim_id, pinned_commit, result))
+    return JsonResponse(_envelope(claim_id, pinned_commit, entries.get(claim_id)))
 
 
 def _parse_json_body(request) -> Any:
@@ -226,80 +164,77 @@ def _parse_json_body(request) -> Any:
         return None
 
 
-def _normalize_result(
+def _resolve_pinned_commit(body: Mapping[str, Any], bundle) -> str | None:
+    """Body wins, then ``bundle.paper_state.pinned_commit``."""
+    pinned_commit = body.get("pinned_commit")
+    if not isinstance(pinned_commit, str) or not pinned_commit.strip():
+        pinned_commit = bundle.paper_state.pinned_commit
+    return pinned_commit or None
+
+
+def _no_pinned_commit() -> HttpResponse:
+    return JsonResponse(
+        {
+            "error": (
+                "no pinned_commit available — pass one in the body or "
+                "set bundle.paper_state.pinned_commit via state.yaml"
+            )
+        },
+        status=400,
+    )
+
+
+def _collect_entries(bundle, claim_ids: Sequence[str]) -> dict[str, Mapping[str, Any]]:
+    """One validated report for *claim_ids*, keyed by claim_id.
+
+    Raises :class:`ProviderNotFound` when no (or not the configured)
+    provider is installed; any provider or contract failure propagates.
+    """
+    name = os.environ.get(ENV_EVIDENCE_PROVIDER) or None
+    _, adapter = find_provider(name)
+    project_root = os.environ.get(ENV_EVIDENCE_ROOT) or str(bundle.root)
+    report = collect_report(adapter, project_root, claim_ids=list(claim_ids))
+    return {entry["claim_id"]: entry for entry in report["claims"]}
+
+
+def _fallback(claim_id: str, exc: ProviderNotFound) -> dict[str, Any]:
+    reason = str(exc) or _NO_PROVIDER_REASON
+    return {
+        "ok": False,
+        "claim_id": claim_id,
+        "status": UNASSESSED,
+        "reason": reason,
+        "fallback": True,
+    }
+
+
+def _envelope(
     claim_id: str,
     pinned_commit: str,
-    result: Any,
-) -> Mapping[str, Any]:
-    """Shape clew's return value into our stable response envelope.
-
-    clew's real success shape nests the claim under ``result["claim"]``
-    (with ``status`` + ``verified_at`` inside it) alongside top-level
-    ``source_verified`` / ``chain_verified`` / ``details``. The
-    not-found shape is a flat ``{"status": "not_found", "message": ...}``
-    with NO ``"claim"`` key.
-
-    Forward-compatible: any extra keys clew returns flow through under
-    ``details`` rather than being merged into the top level, so adding
-    fields upstream never silently changes the contract this endpoint
-    promises. ``verified_against`` is the ``pinned_commit`` metadata
-    echo — clew is git-agnostic and never receives it.
-    """
-    if isinstance(result, dict) and "claim" in result:
-        claim = result["claim"]
-        if not isinstance(claim, dict):
-            claim = {}
-        status = str(claim.get("status", ""))
-        # clew 0.7.0 renamed "partial" → "suspect" (same state). A host
-        # running an older clew still emits "partial" — normalize here,
-        # mirroring clew's own read-time behaviour and the bundle
-        # loader's ingest normalization, so the SPA palette only ever
-        # sees the v1.3 vocabulary.
-        if status == "partial":
-            status = "suspect"
-        # Deliberately NOT normalized: clew 0.8.1's "unsourced". It also
-        # renders amber, but it is a real, distinct state rather than an
-        # old name for suspect, so the word must survive to the SPA —
-        # the fold happens in CSS (``--lp-status-unsourced``), never
-        # here. Mapping it to "suspect" on this line would silently
-        # destroy the distinction on the live re-verify path only,
-        # leaving it disagreeing with the bundle-rendered sidebar.
-        verified_at = claim.get("verified_at")
-        # details = every top-level key except "claim", plus every claim
-        # key except the two we promote (status/verified_at). Keep
-        # unknown keys for forward-compat.
-        details: dict = {k: v for k, v in result.items() if k != "claim"}
-        details.update(
-            {k: v for k, v in claim.items() if k not in {"status", "verified_at"}}
-        )
-        return {
-            "ok": True,
-            "claim_id": claim_id,
-            "verified_against": pinned_commit,
-            "status": status,
-            "verified_at": verified_at,
-            "details": details,
-        }
-
-    if isinstance(result, dict) and "status" in result:
-        # not_found case: flat dict, no "claim" key.
+    entry: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Shape one report entry (or its absence) into the SPA's envelope."""
+    if entry is None:
         return {
             "ok": False,
             "claim_id": claim_id,
             "verified_against": pinned_commit,
-            "status": str(result.get("status")),
+            "status": "not_found",
+            "reason": "the evidence provider reported no such registered claim",
             "verified_at": None,
-            "details": result.get("message"),
+            "details": None,
         }
-
-    # Non-dict (e.g. an enum/dataclass from an old clew). Stringify.
+    state = entry["state"]
     return {
         "ok": True,
         "claim_id": claim_id,
         "verified_against": pinned_commit,
-        "status": str(result),
+        "status": state,
+        "state": state,
+        "label": LABELS[state],
+        "reason": entry["reason"],
         "verified_at": None,
-        "details": {},
+        "details": dict(entry),
     }
 
 
@@ -309,15 +244,7 @@ def _normalize_result(
 
 
 def handle_reverify_all(request) -> HttpResponse:
-    """Re-verify every claim in the bundle (or a subset) via clew.
-
-    live-paper verifies each claim against the CURRENT on-disk state of
-    clew's project. To re-verify against a specific commit, the
-    host/deployment is responsible for checking out ``pinned_commit``
-    and pointing clew at the right store via ``SCITEX_STORE_DSN`` before serving.
-    This handler never mutates the working tree — ``pinned_commit`` is
-    accepted and echoed back as ``verified_against`` metadata only, and
-    is NOT passed to ``verify_claim``.
+    """Re-verify every claim in the bundle (or a subset) in ONE provider call.
 
     Request
     -------
@@ -343,9 +270,9 @@ def handle_reverify_all(request) -> HttpResponse:
             ]
         }
 
-    Top-level ``ok`` is True iff EVERY per-claim result succeeded
-    (``result.ok == true``). One fallback or error result flips it to
-    False so the SPA can flag the overall sweep as incomplete.
+    Top-level ``ok`` is True iff EVERY per-claim result succeeded. One
+    fallback, not-found, or error result flips it to False so the SPA can
+    flag the overall sweep as incomplete.
 
     Errors:
 
@@ -353,11 +280,11 @@ def handle_reverify_all(request) -> HttpResponse:
     - Body present but not a JSON object → 400
     - ``claim_ids`` present but not a list of strings → 400
     - No pinned_commit anywhere → 400
-    - No claims to verify (filter empty after intersection with bundle) → 400
+    - No claims to verify (bundle has none and no filter given) → 400
 
-    Per-claim failures (clew raise / unknown claim_id) are folded into
-    the per-result envelope with ``ok=false`` — they do NOT 500 the
-    bulk call, so a single bad claim doesn't kill the sweep.
+    Provider failures (raise / contract violation) and unknown claim ids
+    are folded into the per-result envelopes with ``ok=false`` — they do
+    NOT 500 the bulk call.
     """
     if request.method != "POST":
         return JsonResponse(
@@ -375,7 +302,7 @@ def handle_reverify_all(request) -> HttpResponse:
         )
 
     claim_ids_raw = body.get("claim_ids")
-    claim_ids_filter: Optional[List[str]]
+    claim_ids_filter: list[str] | None
     if claim_ids_raw is None:
         claim_ids_filter = None
     elif isinstance(claim_ids_raw, list) and all(
@@ -388,97 +315,37 @@ def handle_reverify_all(request) -> HttpResponse:
             status=400,
         )
 
-    state = get_request_bundle_state(request)
-    bundle = state.bundle
-
-    pinned_commit: Optional[str] = body.get("pinned_commit")
-    if not isinstance(pinned_commit, str) or not pinned_commit.strip():
-        pinned_commit = bundle.paper_state.pinned_commit
+    bundle = get_request_bundle_state(request).bundle
+    pinned_commit = _resolve_pinned_commit(body, bundle)
     if not pinned_commit:
-        return JsonResponse(
-            {
-                "error": (
-                    "no pinned_commit available — pass one in the body or "
-                    "set bundle.paper_state.pinned_commit via state.yaml"
-                )
-            },
-            status=400,
-        )
+        return _no_pinned_commit()
 
-    # Resolve which claims to verify.
-    bundle_ids = [c.claim_id for c in bundle.claims]
-    if claim_ids_filter is None:
-        target_ids = bundle_ids
-    else:
-        bundle_id_set = set(bundle_ids)
-        target_ids = [cid for cid in claim_ids_filter if cid in bundle_id_set]
-        # Unknown ids are reported per-result rather than failing the call,
-        # so the SPA can show "missing" without losing the other results.
-        missing = [cid for cid in claim_ids_filter if cid not in bundle_id_set]
-    if not target_ids and (claim_ids_filter is None or not claim_ids_filter):
+    target_ids, missing = _split_targets(
+        [c.claim_id for c in bundle.claims], claim_ids_filter
+    )
+    if not target_ids and not claim_ids_filter:
         return JsonResponse(
             {"error": "bundle has no claims to verify"},
             status=400,
         )
 
-    # Probe clew ONCE up-front; share the fallback decision across the
-    # whole sweep so we don't import + raise + log N times.
-    clew, clew_fallback_reason = _probe_clew()
-
-    results: List[Mapping[str, Any]] = []
-    all_ok = True
-
-    if claim_ids_filter is not None:
-        for missing_id in missing:  # noqa: F821 — defined in the else branch above
-            results.append(
-                {
-                    "ok": False,
-                    "claim_id": missing_id,
-                    "status": "unknown",
-                    "reason": "claim_id not found in bundle",
-                }
-            )
-            all_ok = False
-
-    for claim_id in target_ids:
-        if clew is None:
-            results.append(
-                {
-                    "ok": False,
-                    "claim_id": claim_id,
-                    "status": "stale",
-                    "reason": clew_fallback_reason,
-                    "fallback": True,
-                }
-            )
-            all_ok = False
-            continue
-
-        try:
-            # SINGLE positional arg; pinned_commit is metadata only.
-            raw = clew.verify_claim(claim_id)
-            envelope = _normalize_result(claim_id, pinned_commit, raw)
-            results.append(envelope)
-            # A resolved-but-not_found claim normalizes to ok=False; it
-            # must flip the overall sweep to incomplete.
-            if not envelope.get("ok", False):
-                all_ok = False
-        except Exception as exc:
-            log.exception(
-                "[re-verify-all] clew.verify_claim raised for %s", claim_id,
-            )
-            results.append(
-                {
-                    "ok": False,
-                    "claim_id": claim_id,
-                    "error": str(exc),
-                }
-            )
-            all_ok = False
+    # Unknown ids are reported per-result rather than failing the call, so
+    # the SPA can show them without losing the other results.
+    results: list[Mapping[str, Any]] = [
+        {
+            "ok": False,
+            "claim_id": missing_id,
+            "status": "unknown",
+            "reason": "claim_id not found in bundle",
+        }
+        for missing_id in missing
+    ]
+    if target_ids:
+        results.extend(_bulk_results(bundle, target_ids, pinned_commit))
 
     return JsonResponse(
         {
-            "ok": all_ok,
+            "ok": all(r.get("ok", False) for r in results),
             "verified_against": pinned_commit,
             "count": len(results),
             "results": results,
@@ -486,17 +353,31 @@ def handle_reverify_all(request) -> HttpResponse:
     )
 
 
-def _probe_clew() -> tuple[Optional[Any], str]:
-    """Try to import scitex_clew + locate verify_claim. Returns (module|None, reason).
+def _split_targets(
+    bundle_ids: list[str], claim_ids_filter: list[str] | None
+) -> tuple[list[str], list[str]]:
+    """``(ids to verify, requested ids absent from the bundle)``."""
+    if claim_ids_filter is None:
+        return bundle_ids, []
+    known = set(bundle_ids)
+    return (
+        [cid for cid in claim_ids_filter if cid in known],
+        [cid for cid in claim_ids_filter if cid not in known],
+    )
 
-    Reason strings name the ``[clew]`` extra so the operator can copy
-    the install command straight out of the SPA badge / curl output.
-    """
+
+def _bulk_results(
+    bundle, target_ids: list[str], pinned_commit: str
+) -> list[Mapping[str, Any]]:
+    """Per-claim envelopes from ONE report covering every target id."""
     try:
-        clew = import_module("scitex_clew")
-    except ImportError:
-        return None, "scitex-clew not installed (install scitex-live-paper[clew])"
-    verify_claim = getattr(clew, "verify_claim", None)
-    if not callable(verify_claim):
-        return None, "scitex-clew has no verify_claim() — version skew"
-    return clew, ""
+        entries = _collect_entries(bundle, target_ids)
+    except ProviderNotFound as exc:
+        log.info(
+            "[re-verify-all] %s — %d claim(s) left unassessed", exc, len(target_ids)
+        )
+        return [_fallback(cid, exc) for cid in target_ids]
+    except Exception as exc:
+        log.exception("[re-verify-all] evidence provider failed")
+        return [{"ok": False, "claim_id": cid, "error": str(exc)} for cid in target_ids]
+    return [_envelope(cid, pinned_commit, entries.get(cid)) for cid in target_ids]

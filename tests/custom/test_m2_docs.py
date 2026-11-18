@@ -30,12 +30,12 @@ def test_m2_runbook_exists():
     assert (ROOT / "docs/dev/m2-reverify-runbook.md").is_file()
 
 
-def test_runbook_names_the_clew_extra():
+def test_runbook_names_the_evidence_provider_setting():
     # Arrange
     # Act
     text = _read("docs/dev/m2-reverify-runbook.md")
     # Assert
-    assert "scitex-live-paper[clew" in text
+    assert "SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER" in text
 
 
 def test_runbook_documents_both_verify_endpoints__assert_api_claim_verify_in_text():
@@ -54,8 +54,6 @@ def test_runbook_documents_both_verify_endpoints__assert_api_claims_verify_in_te
     assert "api/claims/verify" in text
 
 
-
-
 def test_runbook_documents_re_verify_enabled_gate():
     # Arrange
     # Act
@@ -72,14 +70,12 @@ def test_runbook_documents_graceful_degradation__assert_fallback_in_text():
     assert "fallback" in text
 
 
-def test_runbook_documents_graceful_degradation__assert_stale_in_text():
+def test_runbook_documents_graceful_degradation__assert_unassessed_in_text():
     # Arrange
     # Act
     text = _read("docs/dev/m2-reverify-runbook.md")
     # Assert
-    assert "stale" in text
-
-
+    assert "unassessed" in text
 
 
 def test_runbook_documents_hub_mount_resolver__assert_mount_resolver_in_text():
@@ -96,8 +92,6 @@ def test_runbook_documents_hub_mount_resolver__assert_hub_resolver_in_text():
     text = _read("docs/dev/m2-reverify-runbook.md")
     # Assert
     assert "hub_resolver" in text
-
-
 
 
 # ──────────────────────────────────────────────────────────────────

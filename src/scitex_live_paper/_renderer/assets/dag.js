@@ -4,7 +4,7 @@
  *   the <pre class="mermaid"> source block on DOMContentLoaded.
  * - After mermaid finishes painting, walks the rendered <g class="node">
  *   elements and tags each with a data-lp-node-kind attribute derived
- *   from its label prefix (the clew taxonomy: Source / Input /
+ *   from its label prefix (the node taxonomy: Source / Input /
  *   Processing / Output / Claim). The renderer does NOT redefine that
  *   taxonomy — it just looks at the label text mermaid drew.
  * - Wires clicks:
@@ -26,7 +26,7 @@ const PROVENANCE = (() => {
   }
 })();
 
-// Label prefix → kind. Matches the clew DAG node-class taxonomy.
+// Label prefix → kind. Matches the DAG node-class taxonomy.
 const KIND_PREFIXES = [
   ['claim', 'Claim'],
   ['source', 'Source'],
@@ -115,7 +115,19 @@ function nodeClickHandler(kind, payload, shell) {
       });
       return;
     }
-    // Other kinds — Input / Output / unknown: show label only.
+    if (kind === 'input' || kind === 'output') {
+      // Per-claim evidence graphs embed {file label: hash} for files.
+      const hash = PROVENANCE[payload];
+      openOverlay({
+        title: kind === 'input' ? 'Input file' : 'Output file',
+        items: [
+          ['File', payload || '(unknown)'],
+          ['Hash', hash || '(no hash recorded)'],
+        ],
+      });
+      return;
+    }
+    // Unknown kinds: show label only.
     openOverlay({ title: 'Node', items: [['Label', payload || '(unlabeled)']] });
   };
 }

@@ -121,9 +121,9 @@ def live_paper_dag_render_dag(bundle_path: str, out_dir: str) -> dict:
     Projects ``dag_render_dag`` (``scitex_live_paper.dag.render_dag``).
     Returns the emitted artifact paths.
     """
-    from scitex_live_paper import dag as dag_module
-
     import dataclasses
+
+    from scitex_live_paper import dag as dag_module
 
     loaded = _load_bundle(bundle_path)
     artifacts = dag_module.render_dag(loaded, out_dir)
@@ -142,9 +142,9 @@ def live_paper_dag_render_html(bundle_path: str, out_dir: str) -> dict:
     (``scitex_live_paper.dag.render_html``). Returns the emitted
     artifact paths.
     """
-    from scitex_live_paper import dag as dag_module
-
     import dataclasses
+
+    from scitex_live_paper import dag as dag_module
 
     loaded = _load_bundle(bundle_path)
     artifacts = dag_module.render_html(loaded, out_dir)
@@ -154,6 +154,90 @@ def live_paper_dag_render_html(bundle_path: str, out_dir: str) -> dict:
             str(getattr(artifacts, f.name)) for f in dataclasses.fields(artifacts)
         ],
     }
+
+
+def _review_packet(
+    bundle_path: str | None,
+    evidence_report: str | None,
+    evidence_provider: str | None,
+    evidence_root: str | None,
+) -> dict:
+    """Build the review packet from a report file or an installed provider."""
+    from scitex_live_paper._renderer.evidence_site import resolve_evidence_report
+    from scitex_live_paper.evidence import (
+        EvidenceError,
+        build_review_packet,
+        load_report,
+    )
+
+    try:
+        if bundle_path is None:
+            if evidence_report is None:
+                raise RuntimeError("give bundle_path or evidence_report")
+            report = load_report(evidence_report)
+        else:
+            report = resolve_evidence_report(
+                _load_bundle(bundle_path),
+                report_path=evidence_report,
+                provider=evidence_provider,
+                project_root=evidence_root,
+            )
+            if report is None:
+                raise RuntimeError(
+                    "no evidence source: give evidence_report, evidence_provider "
+                    "or evidence_root"
+                )
+    except EvidenceError as exc:
+        raise RuntimeError(str(exc)) from exc
+    return build_review_packet(report)
+
+
+def live_paper_evidence_review(
+    bundle_path: str | None = None,
+    evidence_report: str | None = None,
+    evidence_provider: str | None = None,
+    evidence_root: str | None = None,
+) -> dict:
+    """Return the review packet: every REGISTERED claim's evidence state.
+
+    Projects ``evidence_build_review_packet``
+    (``scitex_live_paper.evidence.build_review_packet``). The packet
+    (``scitex-live-paper.review-packet`` v1) lists claims needing inspection
+    first (not supported, not checkable, no evidence graph), then the
+    supported ones; each entry carries state, plain-language reason, source
+    + locator and the minimal evidence graph (nodes/edges). Evidence comes
+    from a provider's report file (``evidence_report``) or an installed
+    provider assessing ``evidence_root``. Text that is not a registered
+    claim is not assessed.
+    """
+    return _review_packet(
+        bundle_path, evidence_report, evidence_provider, evidence_root
+    )
+
+
+def live_paper_evidence_claim(
+    claim_id: str,
+    bundle_path: str | None = None,
+    evidence_report: str | None = None,
+    evidence_provider: str | None = None,
+    evidence_root: str | None = None,
+) -> dict:
+    """Return one registered claim's state, reason, source and minimal graph.
+
+    Projects ``evidence_find_claim`` (``scitex_live_paper.evidence.find_claim``)
+    over the same review packet as ``live_paper_evidence_review``.
+    """
+    from scitex_live_paper.evidence import find_claim
+
+    packet = _review_packet(
+        bundle_path, evidence_report, evidence_provider, evidence_root
+    )
+    entry = find_claim(packet, claim_id)
+    if entry is None:
+        raise RuntimeError(
+            f"claim {claim_id!r} is not a registered claim in this packet"
+        )
+    return dict(entry)
 
 
 def _skills_registry() -> dict:
@@ -201,6 +285,8 @@ _TOOL_FUNCS = (
     live_paper_derive_wrapper_manifest,
     live_paper_dag_render_dag,
     live_paper_dag_render_html,
+    live_paper_evidence_review,
+    live_paper_evidence_claim,
     live_paper_skills_list,
     live_paper_skills_get,
 )

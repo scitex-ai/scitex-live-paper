@@ -1,0 +1,125 @@
+/* scitex-live-paper / evidence-support states of REGISTERED claims.
+ *
+ * Four states (scitex_live_paper.evidence), one selector each:
+ *   supported          the provider checked the value and its sources
+ *   not_supported      something the provider checked does not hold
+ *   not_checkable      VALUE_UNCHECKED — registered, value has no locator
+ *   no_evidence_graph  no recorded computation connects it to a source
+ *
+ * Text that is not a registered claim gets NO selector here on purpose:
+ * it is not assessed, so it is never coloured.
+ */
+
+:root {
+  /* Okabe-Ito colour-blind-safe hues; every state ALSO differs in its
+   * underline style and its leading symbol, so colour is never the only
+   * cue (WCAG 1.4.1). */
+  --lp-support-supported: #005a8c;          /* blue,  solid underline  ✓ */
+  --lp-support-supported-bg: #e3f1fa;
+  --lp-support-not_supported: #b34700;      /* vermillion, wavy        ✗ */
+  --lp-support-not_supported-bg: #fde6d8;
+  --lp-support-not_checkable: #7a5400;      /* orange, dashed          ? */
+  --lp-support-not_checkable-bg: #fdf0c8;
+  --lp-support-no_evidence_graph: #4d4d4d;  /* grey, dotted            ∅ */
+  --lp-support-no_evidence_graph-bg: #ececec;
+}
+
+.lp-support-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid currentColor;
+}
+
+[data-support="supported"].lp-support-badge,
+mark.lp-claim-span[data-support="supported"] {
+  color: var(--lp-support-supported);
+  background: var(--lp-support-supported-bg);
+}
+[data-support="not_supported"].lp-support-badge,
+mark.lp-claim-span[data-support="not_supported"] {
+  color: var(--lp-support-not_supported);
+  background: var(--lp-support-not_supported-bg);
+}
+[data-support="not_checkable"].lp-support-badge,
+mark.lp-claim-span[data-support="not_checkable"] {
+  color: var(--lp-support-not_checkable);
+  background: var(--lp-support-not_checkable-bg);
+}
+[data-support="no_evidence_graph"].lp-support-badge,
+mark.lp-claim-span[data-support="no_evidence_graph"] {
+  color: var(--lp-support-no_evidence_graph);
+  background: var(--lp-support-no_evidence_graph-bg);
+}
+
+mark.lp-claim-span {
+  padding: 0 2px;
+  border-radius: 3px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+mark.lp-claim-span[data-support="supported"] { text-decoration-style: solid; }
+mark.lp-claim-span[data-support="not_supported"] { text-decoration-style: wavy; }
+mark.lp-claim-span[data-support="not_checkable"] { text-decoration-style: dashed; }
+mark.lp-claim-span[data-support="no_evidence_graph"] { text-decoration-style: dotted; }
+mark.lp-claim-span a {
+  color: inherit;
+  text-decoration: none;
+}
+mark.lp-claim-span sup {
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.lp-support-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0 20px;
+}
+.lp-needs-inspection { border-left: 4px solid var(--lp-support-not_supported) !important; }
+.lp-support-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; margin: 0 0 12px; }
+.lp-support-summary section {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+.lp-support-summary h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.lp-support-summary ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.lp-support-summary li { margin: 2px 0; }
+.lp-support-reason { color: #57606a; }
+.lp-support-note {
+  font-size: 12px;
+  color: #57606a;
+  margin: 0 0 12px;
+}
+
+.lp-claim-evidence {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin: 8px 0 16px;
+}
+.lp-claim-evidence[data-support="supported"] { border-left-color: var(--lp-support-supported); }
+.lp-claim-evidence[data-support="not_supported"] { border-left-color: var(--lp-support-not_supported); }
+.lp-claim-evidence[data-support="not_checkable"] { border-left-color: var(--lp-support-not_checkable); }
+.lp-claim-evidence[data-support="no_evidence_graph"] { border-left-color: var(--lp-support-no_evidence_graph); }
+.lp-claim-evidence p { margin: 4px 0; }
+.lp-claim-evidence-details { margin: 4px 0; padding-left: 18px; font-size: 12px; color: #57606a; }
+

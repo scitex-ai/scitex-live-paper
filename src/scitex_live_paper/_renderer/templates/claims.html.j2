@@ -6,6 +6,7 @@
 <meta name="generator" content="scitex-live-paper">
 <link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
+{% if support_css_url %}<link rel="stylesheet" href="{{ support_css_url }}">{% endif %}
 </head>
 <body class="live-paper">
 {# Canonical SDK AppHeader (header-parity rule): one header row built by
@@ -21,17 +22,59 @@
 </div>
 
 <main class="lp-claims-shell" data-viewer-url="{{ viewer_url }}">
-  <p class="live-paper-subtitle">{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }} · status colours from <code>clew.VerificationStatus</code></p>
+  <p class="live-paper-subtitle">{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }} · status colours from the status strings in <code>claims.json</code></p>
+  {% if review %}
+  <div class="lp-support-summary" data-review-schema="{{ review.schema }}" data-review-schema-version="{{ review.schema_version }}">
+    <p class="lp-support-note">Evidence state of every <strong>registered</strong> claim, supplied by the evidence provider <code>{{ review.provider.name }}</code>.
+      Text that is not a registered claim is not assessed and is not marked.
+      {% if paper_url %}<a href="{{ paper_url }}">Read the highlighted paper</a> ·{% endif %}
+      <a href="review.json">review.json</a> · <a href="review.txt">review.txt</a></p>
+    <p class="lp-support-legend" aria-label="Legend">
+      {% for state, label in review.states.items() %}<span class="lp-support-badge" data-support="{{ state }}">{{ review.symbols[state] }} {{ label }}: {{ review.counts[state] }}</span>{% endfor %}
+    </p>
+    <section class="lp-needs-inspection" id="needs-inspection" aria-labelledby="needs-inspection-h">
+      <h2 id="needs-inspection-h">Needs inspection ({{ review.needs_inspection|length }})</h2>
+      {% if review.needs_inspection %}
+      <ol class="lp-inspection-list">
+        {% for e in review.needs_inspection %}
+        <li class="lp-inspection-item" data-claim-id="{{ e.claim_id }}" data-support="{{ e.state }}">
+          <span class="lp-support-badge" data-support="{{ e.state }}">{{ e.symbol }} {{ e.label }}</span>
+          <q>{{ e.stated_text }}</q> <code>{{ e.location.file }}:{{ e.location.line }}</code>
+          — <span class="lp-support-reason">{{ e.reason }}</span>
+          {% if e.graph_url %}· <a href="{{ e.graph_url }}">minimal graph</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p>None: every registered claim is supported by evidence.</p>{% endif %}
+    </section>
+    <section class="lp-supported" id="supported" aria-labelledby="supported-h">
+      <h2 id="supported-h">Supported by evidence ({{ review.supported|length }})</h2>
+      {% if review.supported %}
+      <ol class="lp-inspection-list">
+        {% for e in review.supported %}
+        <li class="lp-inspection-item" data-claim-id="{{ e.claim_id }}" data-support="{{ e.state }}">
+          <span class="lp-support-badge" data-support="{{ e.state }}">{{ e.symbol }} {{ e.label }}</span>
+          <q>{{ e.stated_text }}</q> <code>{{ e.location.file }}:{{ e.location.line }}</code>
+          — <span class="lp-support-reason">{{ e.reason }}</span>
+          {% if e.graph_url %}· <a href="{{ e.graph_url }}">minimal graph</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p>None.</p>{% endif %}
+    </section>
+  </div>
+  {% endif %}
   {% if claims %}
   <ol class="lp-claims-list" role="list">
     {% for c in claims %}
-    <li class="lp-claim-row" data-claim-id="{{ c.claim_id }}" data-status="{{ c.status }}">
+    {% set e = support_by_id.get(c.claim_id) if support_by_id else none %}
+    <li class="lp-claim-row" data-claim-id="{{ c.claim_id }}" data-status="{{ c.status }}"{% if e %} data-support="{{ e.state }}"{% endif %}>
       <button class="lp-claim-summary"
               type="button"
               aria-expanded="false"
               aria-controls="panel-{{ loop.index }}">
         <span class="lp-status-dot" data-status="{{ c.status }}" aria-hidden="true"></span>
-        <span class="lp-claim-label">{{ c.label }}</span>
+        <span class="lp-claim-label">{% if e %}<span class="lp-support-badge" data-support="{{ e.state }}">{{ e.symbol }} {{ e.label }}</span> {% endif %}{{ c.label }}</span>
         <span class="lp-claim-type" aria-label="claim type">{{ c.claim_type }}</span>
         <span class="lp-claim-status" aria-label="status">{{ c.status }}</span>
       </button>
@@ -48,6 +91,10 @@
           {% if c.source_hash %}<dt>Hash</dt><dd><code>{{ c.source_hash }}</code></dd>{% endif %}
           {% if c.registered_at %}<dt>Registered</dt><dd>{{ c.registered_at }}</dd>{% endif %}
           {% if c.verified_at %}<dt>Verified</dt><dd>{{ c.verified_at }}</dd>{% endif %}
+          {% if e %}
+          <dt>Evidence</dt><dd data-support="{{ e.state }}">{{ e.label }} — {{ e.reason }}</dd>
+          {% if e.graph_url %}<dt>Minimal graph</dt><dd><a href="{{ e.graph_url }}">minimal evidence graph of {{ c.claim_id }}</a></dd>{% endif %}
+          {% endif %}
         </dl>
 
         <div class="lp-claim-actions">
@@ -70,7 +117,7 @@
 </main>
 
 <footer class="live-paper-footer">
-  <span>scitex-live-paper · claim model owned upstream by <code>scitex-clew</code></span>
+  <span>scitex-live-paper · claim model owned upstream by the claim registry</span>
 </footer>
 
 <script type="module" src="{{ sdk_header_js_url }}"></script>

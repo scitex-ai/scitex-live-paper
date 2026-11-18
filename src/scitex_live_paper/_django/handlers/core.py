@@ -5,7 +5,7 @@ Both return plain mappings; the dispatcher wraps them in ``JsonResponse``.
 ``bundle_info`` goes through :func:`scitex_live_paper._django.services.get_bundle_state`,
 which goes through ``scitex_live_paper.bundle.load()``. The handler does
 not parse ``claims.json`` directly — that would re-document the upstream
-clew schema, which is the one thing this package must never do.
+claim schema, which is the one thing this package must never do.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def bundle_info(request) -> Mapping[str, Any]:
 
     - ``claim_count`` — number of claims in ``claims.json``
     - ``schema`` — the ``"schema"`` key carried by ``claims.json``
-      (owned by ``scitex-clew``; mirrored here, never validated)
+      (owned upstream by the claim registry; mirrored here, never validated)
     - ``manuscript`` — filename of ``manuscript.pdf`` or ``.tex``
     - ``dag_present`` — whether ``dag.mmd`` was non-empty
     - ``bundle_path`` — resolved absolute path of the loaded bundle

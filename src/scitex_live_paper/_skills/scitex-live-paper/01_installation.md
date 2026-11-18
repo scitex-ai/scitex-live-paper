@@ -8,8 +8,9 @@ tags: [scitex-live-paper-installation]
 # Installation
 
 Install `scitex-live-paper` for library/static rendering, `[server]` for the
-Django viewer, `[mcp]` for MCP, or `[all]` for all public extras. `[clew]`
-enables the optional live verification integration. Plotting/training packages
+Django viewer, `[mcp]` for MCP, or `[all]` for all public extras. Live claim re-verification needs an
+evidence provider installed beside it (any package that implements the
+evidence-provider contract); live-paper itself depends on none. Plotting/training packages
 are generator-only dependencies, not needed to read the committed demo.
 
 ```bash

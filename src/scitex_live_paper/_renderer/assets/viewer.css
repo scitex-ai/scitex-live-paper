@@ -1,8 +1,8 @@
 /* scitex-live-paper / M1 viewer CSS
  *
- * Status colours mirror scitex-clew's VerificationStatus semantics:
+ * Status colours map the claim status strings carried in claims.json:
  *   verified → green, stale → orange, failed → red, registered/default → neutral.
- * When clew exposes a canonical mapping, source it from there instead of
+ * When the claim registry exposes a canonical mapping, source it from there instead of
  * hard-coding here. See issue M1-3.
  */
 
@@ -11,7 +11,7 @@
   --lp-fg: #111;
   --lp-muted: #555;
   --lp-border: #d0d7de;
-  /* Overlay tints follow the clew claim palette v1.3 (clew 0.7.0):
+  /* Overlay tints follow the claim status palette v1.3:
    * suspect→amber, mismatch→red, missing→dark red (own hue). */
   --lp-overlay-default: rgba(180, 180, 180, 0.35);
   --lp-overlay-verified: rgba(46, 160, 67, 0.30);

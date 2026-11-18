@@ -8,7 +8,7 @@ flexes for preprint, peer-reviewed, and accepted papers via the
 Public surface (stable):
 
 - :class:`Bundle` / :class:`Claim` / :class:`BundleError` — bundle model
-  (mirrors the upstream ``scitex-clew`` schema; never extends it).
+  (mirrors the upstream ``claims.json`` schema; never extends it).
 - :class:`PaperState` / :data:`PaperStage` — render-time lifecycle metadata.
 - :class:`BundleSource` — source abstraction (directory / Bundle instance /
   resolver callable). Hosts that already have a bundle in memory or a
@@ -108,7 +108,7 @@ def mount(resolver):
 __all__ = [
     "get_frontend_package_dir",
     "__version__",
-    # bundle model — owned upstream by scitex-clew, mirrored here
+    # bundle model — owned upstream by the claim registry that produced claims.json, mirrored here
     "Bundle",
     "BundleError",
     "BundleMissingError",

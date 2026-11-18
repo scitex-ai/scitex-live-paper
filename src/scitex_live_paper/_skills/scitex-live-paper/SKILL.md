@@ -2,7 +2,7 @@
 name: scitex-live-paper
 description: |
   [WHAT] Render manuscript bundles as PDF viewers with claim overlays, comments, provenance pages and injectable evidence ports.
-  [WHEN] Use for LivePaper bundle validation/rendering, mounted viewer context, PDF overlays/comments, or integrating figure/snippet/claim-graph adapters. Scientific verification remains owned by Clew.
+  [WHEN] Use for LivePaper bundle validation/rendering, mounted viewer context, PDF overlays/comments, or integrating figure/snippet/claim-graph adapters. Scientific verification remains owned by the evidence provider.
   [HOW] Install scitex-live-paper; use the bundle and renderer APIs or CLI. Add [server] for the Django viewer and [mcp] for agent tools. Follow the linked task-specific notes.
 tags: [scitex-live-paper]
 primary_interface: python
@@ -16,7 +16,7 @@ interfaces:
 
 # SciTeX Live Paper
 
-The renderer consumes Clew claims and preserves unknown fields; it does not
+The renderer consumes the claims in claims.json and preserves unknown fields; it does not
 create another claim schema or establish that a claim is verified.
 
 - [01_installation.md](01_installation.md) — extras and import checks

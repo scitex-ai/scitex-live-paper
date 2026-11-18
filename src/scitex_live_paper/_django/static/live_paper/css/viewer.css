@@ -225,13 +225,14 @@ body {
 
 /* ──────────────────────────────────────────────────────────────────
  * M2 — claims sidebar + Re-verify button
- * Status colours mirror scitex-clew's VerificationStatus palette
- * (green / orange / red / grey). Hosts can override via
+ * Status colours follow the status strings carried in claims.json
+ * (green / orange / red / grey) plus the provider-neutral evidence
+ * states returned by re-verify. Hosts can override via
  * `--lp-status-*` custom properties.
  * ────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Claim-status palette (clew palette v1.3, clew 0.7.0):
+  /* Claim-status palette for the status strings in claims.json (v1.3):
    * verified→green, suspect→amber, mismatch→red, missing→dark red
    * (own canonical hue a40e26, distinct from mismatch),
    * registered/not_found→grey. Legacy "partial" is normalized to
@@ -243,12 +244,19 @@ body {
   --lp-status-missing: #a40e26;
   --lp-status-registered: #6e7681;
   --lp-status-not_found: #6e7681;
-  /* clew 1.4 "unsourced" folds into the amber bucket. Aliased, not a
+  /* v1.4 "unsourced" folds into the amber bucket. Aliased, not a
    * literal, so it tracks suspect through any future hue change — and
    * so this stays correct even though the dark theme's suspect hex
    * need not equal the static renderer's. */
   --lp-status-unsourced: var(--lp-status-suspect);
-  /* Transient client-side UI states (NOT clew statuses). */
+  /* Evidence states (provider-neutral contract), colour-blind-safe hues.
+   * "unassessed" = no evidence provider was available. */
+  --lp-status-supported: #005a8c;
+  --lp-status-not_supported: #b34700;
+  --lp-status-not_checkable: #7a5400;
+  --lp-status-no_evidence_graph: #4d4d4d;
+  --lp-status-unassessed: #6e7681;
+  /* Transient client-side UI states (NOT claims.json statuses). */
   --lp-status-error: #f85149;
   --lp-status-verifying: #58a6ff;
   --lp-status-fallback: #a0a0b0;
@@ -310,6 +318,21 @@ body {
 .lp-claim[data-status="unsourced"] {
   border-left-color: var(--lp-status-unsourced);
 }
+.lp-claim[data-status="supported"] {
+  border-left-color: var(--lp-status-supported);
+}
+.lp-claim[data-status="not_supported"] {
+  border-left-color: var(--lp-status-not_supported);
+}
+.lp-claim[data-status="not_checkable"] {
+  border-left-color: var(--lp-status-not_checkable);
+}
+.lp-claim[data-status="no_evidence_graph"] {
+  border-left-color: var(--lp-status-no_evidence_graph);
+}
+.lp-claim[data-status="unassessed"] {
+  border-left-color: var(--lp-status-unassessed);
+}
 .lp-claim[data-status="verifying"] {
   border-left-color: var(--lp-status-verifying);
 }
@@ -367,6 +390,21 @@ body {
 }
 .lp-claim-status[data-status="unsourced"] {
   background: var(--lp-status-unsourced);
+}
+.lp-claim-status[data-status="supported"] {
+  background: var(--lp-status-supported);
+}
+.lp-claim-status[data-status="not_supported"] {
+  background: var(--lp-status-not_supported);
+}
+.lp-claim-status[data-status="not_checkable"] {
+  background: var(--lp-status-not_checkable);
+}
+.lp-claim-status[data-status="no_evidence_graph"] {
+  background: var(--lp-status-no_evidence_graph);
+}
+.lp-claim-status[data-status="unassessed"] {
+  background: var(--lp-status-unassessed);
 }
 .lp-claim-status[data-status="verifying"] {
   background: var(--lp-status-verifying);
