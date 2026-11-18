@@ -49,8 +49,17 @@ function kindFromLabel(label) {
 function labelTextOfNode(node) {
   // mermaid 10.x renders text inside <foreignObject> spans OR <text>
   // tspans depending on theme. Concatenate either to recover the label.
+  // Line breaks MUST survive: kindFromLabel keys on the first line, and
+  // htmlLabels render <br/> as an element textContent drops
+  // ("Inputdata/x" instead of "Input\ndata/x").
   const fo = node.querySelector('foreignObject');
-  if (fo && fo.textContent) return fo.textContent;
+  if (fo && fo.textContent) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = fo.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+    return tmp.textContent || '';
+  }
+  const spans = node.querySelectorAll('text tspan');
+  if (spans.length) return Array.from(spans, (s) => s.textContent || '').join('\n');
   const ts = node.querySelector('text');
   return ts ? ts.textContent || '' : '';
 }
