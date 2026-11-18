@@ -4,7 +4,8 @@ live-paper shows which REGISTERED claims are supported by evidence and which
 need inspection, with each claim's minimal evidence graph. It computes none
 of this: an evidence provider does, through the contract documented in
 ``docs/evidence-provider-contract.md`` (report schema
-``scitex-live-paper.evidence-report`` v1, shipped as
+``scitex-live-paper.evidence-report`` v1,
+1.1 adds failing graph nodes; shipped as
 ``evidence-report.schema.json``). live-paper imports no provider; with no
 provider, claims render without a state.
 
@@ -14,6 +15,7 @@ Text that is not a registered claim is never assessed or marked.
 from __future__ import annotations
 
 from ._contract import (
+    FAILURE_KIND_PATTERN,
     GRAPH_NODE_KINDS,
     REPORT_SCHEMA,
     REPORT_SCHEMA_VERSION,
@@ -39,6 +41,8 @@ from ._provider import (
     find_provider,
 )
 from ._states import (
+    FAILURE_LABELS,
+    FAILURE_SYMBOL,
     INSPECTION_ORDER,
     LABELS,
     NO_EVIDENCE_GRAPH,
@@ -47,9 +51,13 @@ from ._states import (
     STATES,
     SUPPORTED,
     SYMBOLS,
+    failure_label,
 )
 
 __all__ = [
+    "FAILURE_KIND_PATTERN",
+    "FAILURE_LABELS",
+    "FAILURE_SYMBOL",
     "GRAPH_NODE_KINDS",
     "INSPECTION_ORDER",
     "LABELS",
@@ -70,6 +78,7 @@ __all__ = [
     "available_providers",
     "build_review_packet",
     "collect_report",
+    "failure_label",
     "find_claim",
     "find_provider",
     "iter_entries",

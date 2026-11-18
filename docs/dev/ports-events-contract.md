@@ -9,7 +9,7 @@
 
 | Piece | Lives today | Role |
 |---|---|---|
-| Manuscript model | `bundle.Bundle` / `Claim` (`bundle.py`) | read-only mirror of the `scitex-clew` schema + `scitex-writer` layout |
+| Manuscript model | `bundle.Bundle` / `Claim` (`bundle.py`) | read-only mirror of the bundle producer's claim schema + `scitex-writer` layout |
 | Render context | `BundleContext` / `BundleSource` / `PaperState` / `RendererOptions` (`_types.py`) | per-render / per-request data the core reads |
 | Mount | `mount(resolver=...)` (`_django/_mount.py`) | host injects per-request resolution; exception→status table |
 | Dispatcher | `api_dispatch` + `HANDLERS` (`_django/`) | core endpoints stay core; port-backed endpoints delegate ( §4 ) |

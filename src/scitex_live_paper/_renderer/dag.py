@@ -35,6 +35,7 @@ except ImportError as exc:  # pragma: no cover - defensive
     ) from exc
 
 from scitex_live_paper.bundle import Bundle
+from scitex_live_paper.evidence import FAILURE_SYMBOL, failure_label
 
 from ._sdk_header import copy_sdk_header_assets, header_context
 
@@ -191,12 +192,17 @@ def claim_graph_filename(claim_id: str) -> str:
     return f"claim-graph-{slug}-{digest}.html"
 
 
-def _mermaid_label(kind: str, text: str) -> str:
+def _mermaid_escape(text: str) -> str:
+    return str(text).replace('"', "#quot;").replace("<", "#lt;").replace(">", "#gt;")
+
+
+def _mermaid_label(kind: str, text: str, failure: str | None = None) -> str:
     # mermaid entity escapes; the kind prefix is what dag.js keys node
     # decoration on (the node taxonomy: Claim / Processing / Input /
-    # Output).
-    safe = str(text).replace('"', "#quot;").replace("<", "#lt;").replace(">", "#gt;")
-    return f'"{kind}<br/>{safe}"'
+    # Output). A failing node gets a LAST line led by FAILURE_SYMBOL, which
+    # dag.js strips from the click payload.
+    tail = f"<br/>{FAILURE_SYMBOL} {_mermaid_escape(failure)}" if failure else ""
+    return f'"{kind}<br/>{_mermaid_escape(text)}{tail}"'
 
 
 _KIND_LABEL = {
@@ -223,7 +229,16 @@ def graph_to_mermaid(
         kind, cls = _KIND_LABEL.get(n["kind"], (n["kind"].title(), "file"))
         if n["kind"] == "claim":
             cls = state or "registered"
-        lines.append(f"  {ids[n['id']]}[{_mermaid_label(kind, n['label'])}]:::{cls}")
+        failure = n.get("failure")
+        marker = None
+        if failure:
+            # Where the evidence broke: own class (thick dash-dot outline,
+            # hatched-look fill) AND a text label, never colour alone.
+            cls = "failing"
+            marker = failure_label(failure["kind"]).upper()
+        lines.append(
+            f"  {ids[n['id']]}[{_mermaid_label(kind, n['label'], marker)}]:::{cls}"
+        )
         if n.get("hash"):
             provenance[str(n["label"])] = str(n["hash"])
     for e in graph["edges"]:
@@ -236,6 +251,10 @@ def graph_to_mermaid(
         "  classDef not_checkable fill:#fdf0c8,stroke:#7a5400,stroke-width:3px,stroke-dasharray:2 2",
         "  classDef no_evidence_graph fill:#ececec,stroke:#4d4d4d,stroke-width:2px",
         "  classDef registered fill:#ececec,stroke:#4d4d4d",
+        # Okabe-Ito vermillion + black text; a dash-dot outline no other
+        # class uses, so the node also differs in pattern, not only hue.
+        "  classDef failing fill:#ffd9c2,stroke:#9e3a00,stroke-width:5px,"
+        "stroke-dasharray:12 4 3 4,color:#000000,font-weight:bold",
     ]
     return "\n".join(lines) + "\n", provenance
 
