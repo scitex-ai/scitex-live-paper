@@ -132,7 +132,7 @@ export function renderError(message) {
 }
 
 export function cssEscape(value) {
-  // Minimal CSS attribute-value escape. clew claim_ids are
+  // Minimal CSS attribute-value escape. claim_ids are
   // alphanumerics + _ + - in practice, but we cover the corner case
   // when the runtime exposes CSS.escape() and fall back to a manual
   // replace otherwise.

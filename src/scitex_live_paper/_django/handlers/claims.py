@@ -10,7 +10,7 @@ branching.
 
 Schema ownership boundary unchanged: this handler is a thin
 projection of ``bundle.claims`` (which is itself a mirror of
-``scitex_clew.Claim``). We do NOT re-document or extend the claim
+the upstream ``claims.json`` records). We do NOT re-document or extend the claim
 schema.
 """
 

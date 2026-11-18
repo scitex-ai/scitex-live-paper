@@ -4,8 +4,8 @@ Reads an accepted manuscript bundle directory laid out as:
 
     bundle/
       manuscript.pdf     (or .tex)
-      claims.json        # schema OWNED by scitex-clew (read-only here)
-      dag.mmd            # mermaid source string (from clew)
+      claims.json        # schema OWNED upstream by the claim registry (read-only here)
+      dag.mmd            # mermaid source string (from the claim registry)
       figz/              # figure blobs (figz / pltz)
       provenance.yaml    # hash-linked artefacts
       state.yaml         # OPTIONAL render-time lifecycle metadata
@@ -18,7 +18,7 @@ Boundary
 `scitex-live-paper` is a **thin consumer** of the claim model. We mirror
 the fields we need to *render* — id / type / status / hash / source link
 — and stash everything else under ``Claim.extras`` so forward-compatible
-fields added by ``scitex-clew`` flow through untouched.
+fields added by the claim registry that produced claims.json flow through untouched.
 
 The ``state.yaml`` convention is owned by **this** package (render-time
 metadata — header label, re-verify pin) and does not extend or modify
@@ -27,7 +27,7 @@ time via :class:`scitex_live_paper.BundleContext`; the value here is
 the bundle's own default.
 
 If a feature requires a new claim field, **open the upstream issue against
-``scitex-clew``** — never invent fields here.
+the claim registry that produces claims.json** — never invent fields here.
 """
 
 from __future__ import annotations
@@ -89,8 +89,8 @@ class BundleMissingError(BundleError):
     """
 
 
-# Fields we deserialise into typed slots. Anything else from clew's
-# Claim.to_dict() flows through into ``Claim.extras`` so future schema
+# Fields we deserialise into typed slots. Anything else in the
+# upstream claim record flows through into ``Claim.extras`` so future schema
 # additions do not break the renderer.
 _CLAIM_TYPED_FIELDS = frozenset(
     {
@@ -111,10 +111,10 @@ _CLAIM_TYPED_FIELDS = frozenset(
 
 @dataclass
 class Claim:
-    """A traceable assertion, mirrored from ``scitex_clew.Claim``.
+    """A traceable assertion, mirrored from a ``claims.json`` record.
 
     This dataclass **mirrors** the upstream shape; it does not define or
-    extend it. Unknown fields are preserved in ``extras`` so a clew
+    extend it. Unknown fields are preserved in ``extras`` so an upstream
     schema bump does not require a release here.
     """
 
@@ -148,11 +148,11 @@ class Claim:
                 raise BundleError(f"claim entry missing required field: {required!r}")
         typed = {k: v for k, v in data.items() if k in _CLAIM_TYPED_FIELDS}
         extras = {k: v for k, v in data.items() if k not in _CLAIM_TYPED_FIELDS}
-        # clew 0.7.0 (palette v1.3) renamed the claim status "partial" to
+        # claims.json status palette v1.3 renamed the claim status "partial" to
         # "suspect" — same semantic state (source verified, chain not).
-        # clew's own read path normalizes legacy rows at read time; a
-        # pre-0.7.0 claims.json is a serialized snapshot, so we apply the
-        # same normalization at ingest (confirmed with the clew owner).
+        # The upstream registry normalizes legacy rows at read time; a
+        # pre-v1.3 claims.json is a serialized snapshot, so we apply the
+        # same normalization at ingest.
         if typed.get("status") == "partial":
             typed["status"] = "suspect"
         return cls(**typed, extras=extras)
@@ -216,7 +216,7 @@ def _load_claims(path: Path) -> tuple[list[Claim], str | None]:
     """Parse ``claims.json`` leniently.
 
     Accepts either:
-      - a bare list ``[{...}, {...}]`` (clew's natural collection shape), or
+      - a bare list ``[{...}, {...}]`` (the natural collection shape), or
       - a wrapper ``{"schema": "...", "claims": [{...}, ...]}``.
     """
     if not path.exists():

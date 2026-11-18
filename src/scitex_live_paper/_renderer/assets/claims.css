@@ -1,6 +1,6 @@
 /* scitex-live-paper / M1 claims sidebar CSS
  *
- * The colour palette mirrors scitex-clew's VerificationStatus semantics
+ * The colour palette maps the claim status strings carried in claims.json
  * via a single attribute selector per status string. To add a new
  * status, add one selector here — never define a parallel enum in
  * Python or JS.
@@ -19,8 +19,8 @@
   --lp-status-registered: #6e7781;
   --lp-status-not_found: #6e7781;
   --lp-status-default: #6e7781;
-  /* clew 1.4 "unsourced" folds into the amber bucket. An ALIAS, not a
-   * literal, so it tracks suspect if that hue ever moves. clew's own
+  /* "unsourced" folds into the amber bucket. An ALIAS, not a
+   * literal, so it tracks suspect if that hue ever moves. The registry's own
    * fine palette gives unsourced its own #b26a00; we deliberately don't
    * use it — the operator asked for one amber "questionable" bucket. */
   --lp-status-unsourced: var(--lp-status-suspect);
@@ -172,11 +172,11 @@ body.live-paper {
   font-size: 13px;
 }
 
-/* Status colours: ONE selector per clew claim status string.
- * Vocabulary owned by scitex-clew (palette v1.3, clew 0.7.0):
+/* Status colours: ONE selector per claim status string.
+ * Vocabulary owned by the claim registry that wrote claims.json (palette v1.3):
  *   verified→green, suspect→amber, mismatch→red, missing→dark red
  *   (own hue, distinct from mismatch), registered/not_found→grey,
- *   unsourced→amber (clew 1.4, folded into the suspect bucket).
+ *   unsourced→amber (folded into the suspect bucket).
  * Legacy "partial" is normalized to "suspect" at bundle ingest.
  * "unsourced" is NOT normalized: it stays the visible label word and
  * folds at the COLOUR layer only, so the sidebar still says which of

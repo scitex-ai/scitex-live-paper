@@ -13,7 +13,7 @@ Importable from the top-level package::
         BundleSource, BundleContext, PaperState, RendererOptions,
     )
 
-Schema authorship boundary is unchanged: ``scitex-clew`` owns the
+Schema authorship boundary is unchanged: the claim registry that produced claims.json owns the
 claim model, ``scitex-writer`` owns the bundle layout, this package
 just renders. ``PaperState`` is *render-time* state — what label to
 show in the header, which re-verify commit to pin against — not a
@@ -341,7 +341,7 @@ class BundleContext:
 #: The four lifecycle stages the paper-level re-review badge flexes for.
 #: Authored by ``scitex-agentic-journal`` (post-review verdict) and
 #: handed in via :class:`BundleContext.re_review_badge`. Distinct from
-#: the *per-claim* status (owned by ``scitex-clew``).
+#: the *per-claim* status (carried in ``claims.json``).
 ReReviewStatus = Literal[
     "verified",       # green — agentic re-review found no issues
     "concerns",       # amber — re-review flagged caveats / weaknesses
@@ -356,7 +356,7 @@ class ReReviewBadge:
 
     Distinct from :class:`PaperState` (lifecycle stage owned by this
     package's render-time metadata) and from each claim's per-status
-    verification chip (owned upstream by ``scitex-clew``). This badge
+    verification chip (carried upstream in ``claims.json``). This badge
     summarises the agentic re-review pass *at the paper level* — a
     single rolled-up verdict the operator sees above the claims sidebar.
 

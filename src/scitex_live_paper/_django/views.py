@@ -88,7 +88,7 @@ def viewer_page(request) -> HttpResponse:
     Two template variants:
 
     - ``live_paper/viewer.html`` — full standalone page with header
-      chrome (subtitle, scitex-clew boundary callout, status pre block).
+      chrome (subtitle, claim-model boundary callout, status pre block).
     - ``live_paper/viewer_embed.html`` — minimal page with no chrome.
       Used when host apps iframe the viewer into their own chrome.
 

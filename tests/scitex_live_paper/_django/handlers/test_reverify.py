@@ -1,60 +1,41 @@
-"""No-mocks tests for M2 re-verify endpoint.
+"""No-mocks tests for the single re-verify endpoint (``api/claim/verify``).
 
-Three classes of test:
+The endpoint asks an evidence provider through the provider-neutral
+contract. Every collaborator is real: a real Django test ``Client``, real
+bundles on disk, and the REAL reference provider (see ``conftest.py``)
+discovered through real entry-point metadata and assessing a real
+project. No ``monkeypatch``, no ``mock.patch``, no fake modules.
 
-1. **Method + body validation** — POST-only, JSON body, required claim_id,
+1. **Method + body validation** — POST-only, JSON object, claim_id,
    pinned_commit fallback chain.
-2. **Graceful degradation** — when ``scitex-clew`` is not installed
-   (the realistic case for fresh installs without the upstream package)
-   the handler returns a labelled fallback response, never a 500.
-3. **clew-installed integration** — when scitex-clew IS importable
-   (real module-state via ``sys.modules`` injection — same lever PR (a)
-   used for the no-django ImportError branch), the handler calls the
-   real ``verify_claim`` and shapes its return into our envelope.
-
-All collaborators are real. No ``monkeypatch``, no ``mock.patch``.
-Real Django test ``Client`` + real bundle fixtures + real
-``sys.modules`` manipulation in yield-fixtures with full restore.
+2. **No provider** — a labelled fallback envelope, never a 500.
+3. **Provider installed** — the claim's evidence state, plain label and
+   reason come back verbatim in the envelope the SPA reads.
+4. **Failures** — unknown claim → ``not_found``; provider raised → 500.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
-import types
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
 pytest.importorskip("django")
 
-from django.test import Client  # noqa: E402
+from scitex_live_paper._django import services
+from scitex_live_paper._django.handlers.reverify import (
+    ENV_EVIDENCE_PROVIDER,
+    ENV_EVIDENCE_ROOT,
+)
+from scitex_live_paper.evidence import LABELS
 
-from scitex_live_paper._django import services  # noqa: E402
+from .conftest import PINNED_COMMIT, ref
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 BUNDLE_MIN = FIXTURES / "bundle-min"
 BUNDLE_ACCEPTED = FIXTURES / "bundle-accepted"
-
-
-@pytest.fixture
-def env_snapshot() -> Iterator[None]:
-    snap = dict(os.environ)
-    try:
-        yield
-    finally:
-        for key in list(os.environ):
-            if key not in snap:
-                del os.environ[key]
-        for key, value in snap.items():
-            os.environ[key] = value
-
-
-@pytest.fixture
-def client() -> Client:
-    return Client()
 
 
 def _pin(path: Path) -> None:
@@ -62,62 +43,12 @@ def _pin(path: Path) -> None:
     services.clear_cache()
 
 
-@pytest.fixture
-def no_scitex_clew() -> Iterator[None]:
-    """Ensure ``import scitex_clew`` raises ImportError for this test.
-
-    Real ``sys.modules`` state manipulation (not ``mock.patch``):
-    write ``None`` to the entry so the next import raises, restore on
-    teardown. Same lever PR (a) used for the no-django CLI branch —
-    pre-approved by the lead.
-    """
-    key = "scitex_clew"
-    sentinel = object()
-    original = sys.modules.get(key, sentinel)
-    sys.modules[key] = None  # type: ignore[assignment]
-    try:
-        yield
-    finally:
-        if original is sentinel:
-            sys.modules.pop(key, None)
-        else:
-            sys.modules[key] = original  # type: ignore[assignment]
-
-
-@pytest.fixture
-def fake_scitex_clew() -> Iterator[types.ModuleType]:
-    """Install a real Python module under ``sys.modules["scitex_clew"]``.
-
-    The module exposes a real ``verify_claim`` function the handler
-    will call. Tests can configure its behaviour by setting attributes
-    on the yielded module (no `mock.patch.object` — direct attribute
-    assignment on a real module). Restored on teardown.
-    """
-    key = "scitex_clew"
-    sentinel = object()
-    original = sys.modules.get(key, sentinel)
-    module = types.ModuleType(key)
-    # Default behaviour: return a real-shaped verified result (nested
-    # "claim" key + top-level source_verified/chain_verified/details).
-    # Tests override.
-    module.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["Source file hash matches", "Chain verified (1 runs)"],
-    }
-    sys.modules[key] = module
-    try:
-        yield module
-    finally:
-        if original is sentinel:
-            sys.modules.pop(key, None)
-        else:
-            sys.modules[key] = original  # type: ignore[assignment]
+def _verify(client, claim_id: str = "auc", **extra):
+    return client.post(
+        "/api/claim/verify",
+        data=json.dumps({"claim_id": claim_id, **extra}),
+        content_type="application/json",
+    )
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -125,7 +56,7 @@ def fake_scitex_clew() -> Iterator[types.ModuleType]:
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_reverify_get_returns_405__assert_response_status_code_405(client, env_snapshot):
+def test_reverify_get_returns_405(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
@@ -134,7 +65,7 @@ def test_reverify_get_returns_405__assert_response_status_code_405(client, env_s
     assert response.status_code == 405
 
 
-def test_reverify_get_returns_405__assert_method_not_allowed_in_bod(client, env_snapshot):
+def test_reverify_get_error_says_method_not_allowed(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.get("/api/claim/verify")
@@ -142,8 +73,6 @@ def test_reverify_get_returns_405__assert_method_not_allowed_in_bod(client, env_
     body = json.loads(response.content)
     # Assert
     assert "method not allowed" in body["error"].lower()
-
-
 
 
 def test_reverify_put_returns_405(client, env_snapshot):
@@ -159,7 +88,9 @@ def test_reverify_empty_body_returns_400(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
-    response = client.post("/api/claim/verify", data="", content_type="application/json")
+    response = client.post(
+        "/api/claim/verify", data="", content_type="application/json"
+    )
     # Assert
     assert response.status_code == 400
 
@@ -168,12 +99,14 @@ def test_reverify_malformed_json_returns_400(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
-    response = client.post("/api/claim/verify", data="not-json{{", content_type="application/json")
+    response = client.post(
+        "/api/claim/verify", data="not-json{{", content_type="application/json"
+    )
     # Assert
     assert response.status_code == 400
 
 
-def test_reverify_non_object_body_returns_400__assert_response_status_code_400(client, env_snapshot):
+def test_reverify_non_object_body_returns_400(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
@@ -186,7 +119,7 @@ def test_reverify_non_object_body_returns_400__assert_response_status_code_400(c
     assert response.status_code == 400
 
 
-def test_reverify_non_object_body_returns_400__assert_json_object_in_body_error(client, env_snapshot):
+def test_reverify_non_object_body_error_names_json_object(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post(
@@ -200,9 +133,7 @@ def test_reverify_non_object_body_returns_400__assert_json_object_in_body_error(
     assert "JSON object" in body["error"]
 
 
-
-
-def test_reverify_missing_claim_id_returns_400__assert_response_status_code_400_2(client, env_snapshot):
+def test_reverify_missing_claim_id_returns_400(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
@@ -215,7 +146,7 @@ def test_reverify_missing_claim_id_returns_400__assert_response_status_code_400_
     assert response.status_code == 400
 
 
-def test_reverify_missing_claim_id_returns_400__assert_claim_id_in_body_error(client, env_snapshot):
+def test_reverify_missing_claim_id_error_names_claim_id(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     response = client.post(
@@ -229,1097 +160,324 @@ def test_reverify_missing_claim_id_returns_400__assert_claim_id_in_body_error(cl
     assert "claim_id" in body["error"]
 
 
-
-
-def test_reverify_empty_claim_id_returns_400(client, env_snapshot):
+def test_reverify_blank_claim_id_returns_400(client, env_snapshot):
     # Arrange
     _pin(BUNDLE_ACCEPTED)
     # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "   "}),
-        content_type="application/json",
-    )
+    response = _verify(client, claim_id="   ")
     # Assert
     assert response.status_code == 400
 
 
-# ──────────────────────────────────────────────────────────────────
-# pinned_commit fallback chain
-# ──────────────────────────────────────────────────────────────────
-
-
-def test_reverify_no_pinned_commit_anywhere_returns_400__assert_response_status_code_400_3(client, env_snapshot, no_scitex_clew):
-    # also doesn't supply one. Handler must 400 with a clear message.
-    # Arrange
+def test_reverify_without_any_pinned_commit_returns_400(client, env_snapshot):
+    # Arrange — bundle-min has no state.yaml pin and the body supplies none
     _pin(BUNDLE_MIN)
     # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
+    response = _verify(client, claim_id="claim_a1b2c3d4e5f6")
     # Assert
     assert response.status_code == 400
 
 
-def test_reverify_no_pinned_commit_anywhere_returns_400__assert_pinned_commit_in_body_err(client, env_snapshot, no_scitex_clew):
-    # also doesn't supply one. Handler must 400 with a clear message.
+def test_reverify_without_any_pinned_commit_error_names_pinned_commit(
+    client, env_snapshot
+):
     # Arrange
     _pin(BUNDLE_MIN)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
+    response = _verify(client, claim_id="claim_a1b2c3d4e5f6")
     # Act
     body = json.loads(response.content)
     # Assert
     assert "pinned_commit" in body["error"]
 
 
-
-
-def test_reverify_body_pinned_commit_wins_over_bundle__assert_response_status_code_200(client, env_snapshot, fake_scitex_clew):
-    # passes a different one. pinned_commit is METADATA only (clew is
-    # git-agnostic and never receives it), so we assert on the
-    # response's verified_against echo, and that the fake was called
-    # with just the claim_id positionally.
+def test_reverify_body_pinned_commit_is_echoed_as_verified_against(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
+    body_commit = "cafebabe0000"
     # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({
-            "claim_id": "claim_a1b2c3d4e5f6",
-            "pinned_commit": "body-supplied-commit",
-        }),
-        content_type="application/json",
-    )
+    body = json.loads(_verify(client, pinned_commit=body_commit).content)
+    # Assert
+    assert body["verified_against"] == body_commit
+
+
+def test_reverify_falls_back_to_bundle_state_pinned_commit(
+    client, evidence_bundle, reference_provider
+):
+    # Arrange
+    # Act
+    body = json.loads(_verify(client).content)
+    # Assert
+    assert body["verified_against"] == PINNED_COMMIT
+
+
+# ──────────────────────────────────────────────────────────────────
+# No provider installed → graceful fallback
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_reverify_without_provider_returns_200(client, evidence_bundle):
+    # Arrange
+    # Act
+    response = _verify(client)
     # Assert
     assert response.status_code == 200
 
 
-def test_reverify_body_pinned_commit_wins_over_bundle__assert_body_verified_against_bod(client, env_snapshot, fake_scitex_clew):
-    # passes a different one. pinned_commit is METADATA only (clew is
-    # git-agnostic and never receives it), so we assert on the
-    # response's verified_against echo, and that the fake was called
-    # with just the claim_id positionally.
+def test_reverify_without_provider_is_not_ok(client, evidence_bundle):
     # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({
-            "claim_id": "claim_a1b2c3d4e5f6",
-            "pinned_commit": "body-supplied-commit",
-        }),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["verified_against"] == "body-supplied-commit"
-
-
-def test_reverify_body_pinned_commit_wins_over_bundle__assert_captured_arg_claim_a1b2c3(client, env_snapshot, fake_scitex_clew):
-    # passes a different one. pinned_commit is METADATA only (clew is
-    # git-agnostic and never receives it), so we assert on the
-    # response's verified_against echo, and that the fake was called
-    # with just the claim_id positionally.
-    # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({
-            "claim_id": "claim_a1b2c3d4e5f6",
-            "pinned_commit": "body-supplied-commit",
-        }),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert captured["arg"] == "claim_a1b2c3d4e5f6"
-
-
-
-
-def test_reverify_falls_back_to_bundle_paper_state_commit__assert_body_verified_against_dea(client, env_snapshot, fake_scitex_clew):
-    # bundle.paper_state.pinned_commit and echo it as metadata.
-    # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["verified_against"] == "deadbeefcafef00d12345678"
-
-
-def test_reverify_falls_back_to_bundle_paper_state_commit__assert_captured_arg_claim_a1b2c3_2(client, env_snapshot, fake_scitex_clew):
-    # bundle.paper_state.pinned_commit and echo it as metadata.
-    # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert captured["arg"] == "claim_a1b2c3d4e5f6"
-
-
-
-
-# ──────────────────────────────────────────────────────────────────
-# Graceful degradation when scitex-clew not installed
-# ──────────────────────────────────────────────────────────────────
-
-
-def test_reverify_without_clew_returns_200_with_fallback_envelope__assert_response_status_code_200_2(client, env_snapshot, no_scitex_clew):
-    # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Assert
-    assert response.status_code == 200
-
-
-def test_reverify_without_clew_returns_200_with_fallback_envelope__assert_body_ok_is_false(client, env_snapshot, no_scitex_clew):
-    # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
     assert body["ok"] is False
 
 
-def test_reverify_without_clew_returns_200_with_fallback_envelope__assert_body_status_stale(client, env_snapshot, no_scitex_clew):
+def test_reverify_without_provider_status_is_unassessed(client, evidence_bundle):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
-    assert body["status"] == "stale"
+    assert body["status"] == "unassessed"
 
 
-def test_reverify_without_clew_returns_200_with_fallback_envelope__assert_body_fallback_is_true(client, env_snapshot, no_scitex_clew):
+def test_reverify_without_provider_marks_fallback(client, evidence_bundle):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
     assert body["fallback"] is True
 
 
-def test_reverify_without_clew_returns_200_with_fallback_envelope__assert_scitex_clew_not_installed(client, env_snapshot, no_scitex_clew):
-    # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert "scitex-clew not installed" in body["reason"]
-
-
-
-
-def test_reverify_without_clew_carries_claim_id_back(client, env_snapshot, no_scitex_clew):
-    # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["claim_id"] == "claim_a1b2c3d4e5f6"
-
-
-def _post_verify_partial_clew(client):
-    """POST /api/claim/verify with a skew clew (no verify_claim).
-
-    Shared Arrange+Act for the partial-clew tests (each test keeps a
-    single assert per STX-TQ007).
-    """
-    key = "scitex_clew"
-    sentinel = object()
-    original = sys.modules.get(key, sentinel)
-    partial = types.ModuleType(key)
-    # NO verify_claim attribute on this module.
-    sys.modules[key] = partial
-    try:
-        _pin(BUNDLE_ACCEPTED)
-        response = client.post(
-            "/api/claim/verify",
-            data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-            content_type="application/json",
-        )
-        return response, json.loads(response.content)
-    finally:
-        if original is sentinel:
-            sys.modules.pop(key, None)
-        else:
-            sys.modules[key] = original  # type: ignore[assignment]
-
-
-def test_reverify_with_partial_clew_status_200(client, env_snapshot):
-    # Arrange: install a clew module that lacks verify_claim() (e.g.
-    # version skew). Handler should degrade gracefully, not 500.
-    # Act
-    response, _body = _post_verify_partial_clew(client)
-    # Assert
-    assert response.status_code == 200
-
-
-def test_reverify_with_partial_clew_falls_back(client, env_snapshot):
+def test_reverify_without_provider_reason_says_none_installed(client, evidence_bundle):
     # Arrange
     # Act
-    _response, body = _post_verify_partial_clew(client)
+    body = json.loads(_verify(client).content)
+    # Assert
+    assert body["reason"] == "no evidence provider is installed"
+
+
+def test_reverify_without_provider_echoes_claim_id(client, evidence_bundle):
+    # Arrange
+    # Act
+    body = json.loads(_verify(client, claim_id="n_rows").content)
+    # Assert
+    assert body["claim_id"] == "n_rows"
+
+
+def test_reverify_configured_provider_not_installed_falls_back(
+    client, evidence_bundle, reference_provider
+):
+    # Arrange
+    os.environ[ENV_EVIDENCE_PROVIDER] = "absent-provider"
+    # Act
+    body = json.loads(_verify(client).content)
     # Assert
     assert body["fallback"] is True
 
 
-def test_reverify_with_partial_clew_missing_verify_claim_falls_back(client, env_snapshot):
+def test_reverify_configured_provider_not_installed_reason_names_it(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
+    os.environ[ENV_EVIDENCE_PROVIDER] = "absent-provider"
     # Act
-    _response, body = _post_verify_partial_clew(client)
+    body = json.loads(_verify(client).content)
     # Assert
-    assert "version skew" in body["reason"]
+    assert "absent-provider" in body["reason"]
 
 
 # ──────────────────────────────────────────────────────────────────
-# Happy path — clew installed, real call, envelope shaping
+# Provider installed → evidence state in the SPA envelope
 # ──────────────────────────────────────────────────────────────────
 
 
-def test_reverify_happy_path_returns_200(client, env_snapshot, fake_scitex_clew):
+def test_reverify_with_provider_returns_200(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
     # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
+    response = _verify(client)
     # Assert
     assert response.status_code == 200
 
 
-def test_reverify_happy_path_envelope_ok_true__assert_body_ok_is_true(client, env_snapshot, fake_scitex_clew):
+@pytest.mark.parametrize("claim_id,state", sorted(ref.EXPECTED_STATES.items()))
+def test_reverify_status_is_the_provider_evidence_state(
+    client, evidence_bundle, reference_provider, claim_id, state
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id=claim_id).content)
+    # Assert
+    assert body["status"] == state
+
+
+def test_reverify_assessed_claim_is_ok_even_when_not_supported(
+    client, evidence_bundle, reference_provider
+):
+    # Arrange
+    # Act
+    body = json.loads(_verify(client, claim_id="n_rows").content)
     # Assert
     assert body["ok"] is True
 
 
-def test_reverify_happy_path_envelope_ok_true__assert_body_claim_id_claim_a1b2c(client, env_snapshot, fake_scitex_clew):
+def test_reverify_state_field_equals_status(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id="accuracy").content)
     # Assert
-    assert body["claim_id"] == "claim_a1b2c3d4e5f6"
+    assert body["state"] == body["status"]
 
 
-def test_reverify_happy_path_envelope_ok_true__assert_body_verified_against_dea_2(client, env_snapshot, fake_scitex_clew):
+def test_reverify_label_is_the_plain_language_label(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id="calib").content)
     # Assert
-    assert body["verified_against"] == "deadbeefcafef00d12345678"
+    assert body["label"] == LABELS["no_evidence_graph"]
 
 
-def test_reverify_happy_path_envelope_ok_true__assert_body_status_verified(client, env_snapshot, fake_scitex_clew):
+def test_reverify_reason_is_the_provider_reason_verbatim(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id="n_rows").content)
     # Assert
-    assert body["status"] == "verified"
+    assert body["reason"] == "value in source differs: 2 in source vs 3 stated"
 
 
-def test_reverify_happy_path_envelope_ok_true__assert_body_verified_at_2026_06(client, env_snapshot, fake_scitex_clew):
+def test_reverify_verified_at_is_null(client, evidence_bundle, reference_provider):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
-    assert body["verified_at"] == "2026-06-13T00:00:00Z"
+    assert body["verified_at"] is None
 
 
-
-
-def test_reverify_details_aggregates_source_and_chain_verified__assert_details_source_verified_i(client, env_snapshot, fake_scitex_clew):
-    # The default fake returns the real shape: top-level source_verified /
-    # chain_verified / details list all land in our `details` dict.
+def test_reverify_details_is_the_claims_report_entry(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
-    details = body["details"]
+    body = json.loads(_verify(client, claim_id="cohort2").content)
     # Assert
-    assert details["source_verified"] is True
+    assert body["details"]["details"] == ["hash changed: data/input2.csv"]
 
 
-def test_reverify_details_aggregates_source_and_chain_verified__assert_details_chain_verified_is(client, env_snapshot, fake_scitex_clew):
-    # The default fake returns the real shape: top-level source_verified /
-    # chain_verified / details list all land in our `details` dict.
+def test_reverify_details_carries_the_minimal_evidence_graph(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
-    details = body["details"]
+    body = json.loads(_verify(client).content)
     # Assert
-    assert details["chain_verified"] is True
+    assert {n["kind"] for n in body["details"]["graph"]["nodes"]} == {
+        "process",
+        "input",
+        "output",
+        "claim",
+    }
 
 
-def test_reverify_details_aggregates_source_and_chain_verified__assert_details_details_source_fi(client, env_snapshot, fake_scitex_clew):
-    # The default fake returns the real shape: top-level source_verified /
-    # chain_verified / details list all land in our `details` dict.
+def test_reverify_named_provider_is_used(client, evidence_bundle, reference_provider):
     # Arrange
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a1b2c3d4e5f6"}),
-        content_type="application/json",
-    )
+    os.environ[ENV_EVIDENCE_PROVIDER] = reference_provider
     # Act
-    body = json.loads(response.content)
-    details = body["details"]
+    body = json.loads(_verify(client).content)
     # Assert
-    assert details["details"] == [
-        "Source file hash matches",
-        "Chain verified (1 runs)",
-    ]
+    assert body["status"] == "supported"
 
 
-
-
-@pytest.mark.parametrize("status", ["verified", "suspect", "mismatch", "missing"])
-def test_reverify_extracts_nested_claim_status__assert_body_ok_is_true_2(client, env_snapshot, fake_scitex_clew, status):
-    # status lives at result["claim"]["status"], NOT top-level.
-    # Vocabulary per clew palette v1.3 (clew 0.7.0).
+def test_reverify_evidence_root_env_points_provider_at_project(
+    client, separate_project, reference_provider
+):
     # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "claim": {
-                "claim_id": claim_id_or_location,
-                "status": status,
-                "verified_at": "2026-06-13T00:00:00Z" if status == "verified" else None,
-            },
-            "source_verified": status in {"verified", "suspect"},
-            "chain_verified": status == "verified",
-            "details": [f"status is {status}"],
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
+    os.environ[ENV_EVIDENCE_ROOT] = str(separate_project)
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
-    assert body["ok"] is True
+    assert body["status"] == "supported"
 
 
-@pytest.mark.parametrize("status", ["verified", "suspect", "mismatch", "missing"])
-def test_reverify_extracts_nested_claim_status__assert_body_status_status(client, env_snapshot, fake_scitex_clew, status):
-    # status lives at result["claim"]["status"], NOT top-level.
-    # Vocabulary per clew palette v1.3 (clew 0.7.0).
+# ──────────────────────────────────────────────────────────────────
+# Failures
+# ──────────────────────────────────────────────────────────────────
+
+
+def test_reverify_claim_absent_from_report_returns_200(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "claim": {
-                "claim_id": claim_id_or_location,
-                "status": status,
-                "verified_at": "2026-06-13T00:00:00Z" if status == "verified" else None,
-            },
-            "source_verified": status in {"verified", "suspect"},
-            "chain_verified": status == "verified",
-            "details": [f"status is {status}"],
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["status"] == status
-
-
-
-
-def test_reverify_normalizes_legacy_partial_to_suspect__assert_body_ok_is_true_3(client, env_snapshot, fake_scitex_clew):
-    # clew 0.7.0 renamed "partial" → "suspect" (same semantic state). A
-    # host running an older clew still emits "partial"; the handler must
-    # surface it as "suspect" so the SPA palette only sees the v1.3
-    # vocabulary (mirrors clew's own read-time normalization).
-    # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "claim": {"claim_id": claim_id_or_location, "status": "partial"},
-            "source_verified": True,
-            "chain_verified": False,
-            "details": ["source ok, chain unverified"],
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["ok"] is True
-
-
-def test_reverify_normalizes_legacy_partial_to_suspect__assert_body_status_suspect(client, env_snapshot, fake_scitex_clew):
-    # clew 0.7.0 renamed "partial" → "suspect" (same semantic state). A
-    # host running an older clew still emits "partial"; the handler must
-    # surface it as "suspect" so the SPA palette only sees the v1.3
-    # vocabulary (mirrors clew's own read-time normalization).
-    # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "claim": {"claim_id": claim_id_or_location, "status": "partial"},
-            "source_verified": True,
-            "chain_verified": False,
-            "details": ["source ok, chain unverified"],
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["status"] == "suspect"
-
-
-
-
-def test_reverify_not_found_result_is_ok_false__assert_response_status_code_200_3(client, env_snapshot, fake_scitex_clew):
-    # clew's not-found shape is flat: {"status": "not_found", "message": ...}
-    # with NO "claim" key. Handler maps it to ok=False, status="not_found".
-    # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "status": "not_found",
-            "message": f"No claim found for '{claim_id_or_location}'",
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_missing"}),
-        content_type="application/json",
-    )
+    response = _verify(client, claim_id="ghost_claim")
     # Assert
     assert response.status_code == 200
 
 
-def test_reverify_not_found_result_is_ok_false__assert_body_ok_is_false_2(client, env_snapshot, fake_scitex_clew):
-    # clew's not-found shape is flat: {"status": "not_found", "message": ...}
-    # with NO "claim" key. Handler maps it to ok=False, status="not_found".
+def test_reverify_claim_absent_from_report_is_not_ok(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "status": "not_found",
-            "message": f"No claim found for '{claim_id_or_location}'",
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_missing"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id="ghost_claim").content)
     # Assert
     assert body["ok"] is False
 
 
-def test_reverify_not_found_result_is_ok_false__assert_body_status_not_found(client, env_snapshot, fake_scitex_clew):
-    # clew's not-found shape is flat: {"status": "not_found", "message": ...}
-    # with NO "claim" key. Handler maps it to ok=False, status="not_found".
+def test_reverify_claim_absent_from_report_status_is_not_found(
+    client, evidence_bundle, reference_provider
+):
     # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "status": "not_found",
-            "message": f"No claim found for '{claim_id_or_location}'",
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_missing"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client, claim_id="ghost_claim").content)
     # Assert
     assert body["status"] == "not_found"
 
 
-def test_reverify_not_found_result_is_ok_false__assert_body_verified_at_is_none(client, env_snapshot, fake_scitex_clew):
-    # clew's not-found shape is flat: {"status": "not_found", "message": ...}
-    # with NO "claim" key. Handler maps it to ok=False, status="not_found".
+def test_reverify_provider_failure_returns_500(
+    client, broken_registry_bundle, reference_provider
+):
     # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "status": "not_found",
-            "message": f"No claim found for '{claim_id_or_location}'",
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_missing"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["verified_at"] is None
-
-
-def test_reverify_not_found_result_is_ok_false__assert_no_claim_found_in_body_de(client, env_snapshot, fake_scitex_clew):
-    # clew's not-found shape is flat: {"status": "not_found", "message": ...}
-    # with NO "claim" key. Handler maps it to ok=False, status="not_found".
-    # Arrange
-    def recorder(claim_id_or_location):
-        return {
-            "status": "not_found",
-            "message": f"No claim found for '{claim_id_or_location}'",
-        }
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_missing"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert "No claim found" in body["details"]
-
-
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_status_not_in_details(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert "status" not in details
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_verified_at_not_in_detail(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert "verified_at" not in details
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_source_verified_i_2(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["source_verified"] is True
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_chain_verified_is_2(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["chain_verified"] is True
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_details_ok(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["details"] == ["ok"]
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_new_top_level_key(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["new_top_level_key"] == "y"
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_source_file_r_csv(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["source_file"] == "r.csv"
-
-
-def test_reverify_extra_claim_keys_flow_through_details__assert_details_extra_future_fiel(client, env_snapshot, fake_scitex_clew):
-    # bundles them into `details` (forward-compatibility — adding fields
-    # upstream doesn't silently change our top-level shape) while still
-    # dropping the promoted status/verified_at.
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: {
-        "claim": {
-            "claim_id": claim_id_or_location,
-            "status": "verified",
-            "verified_at": "2026-06-13T00:00:00Z",
-            "source_file": "r.csv",
-            "extra_future_field": "x",
-        },
-        "source_verified": True,
-        "chain_verified": True,
-        "details": ["ok"],
-        "new_top_level_key": "y",
-    }
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    details = body["details"]
-    # Assert
-    assert details["extra_future_field"] == "x"
-
-
-
-
-def test_reverify_non_dict_clew_return_stringified__assert_body_ok_is_true_4(client, env_snapshot, fake_scitex_clew):
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: "verified"
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["ok"] is True
-
-
-def test_reverify_non_dict_clew_return_stringified__assert_body_status_verified_2(client, env_snapshot, fake_scitex_clew):
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: "verified"
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["status"] == "verified"
-
-
-def test_reverify_non_dict_clew_return_stringified__assert_body_verified_at_is_none_2(client, env_snapshot, fake_scitex_clew):
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: "verified"
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["verified_at"] is None
-
-
-def test_reverify_non_dict_clew_return_stringified__assert_body_details(client, env_snapshot, fake_scitex_clew):
-    # Arrange
-    fake_scitex_clew.verify_claim = lambda claim_id_or_location: "verified"
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Act
-    body = json.loads(response.content)
-    # Assert
-    assert body["details"] == {}
-
-
-
-
-def test_reverify_clew_raises_returns_500_with_message__assert_response_status_code_500(client, env_snapshot, fake_scitex_clew):
-    # Arrange
-    def angry(claim_id_or_location):
-        raise RuntimeError("claim not found in clew DAG")
-    fake_scitex_clew.verify_claim = angry
-    _pin(BUNDLE_ACCEPTED)
-    # Act
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_z"}),
-        content_type="application/json",
-    )
+    response = _verify(client)
     # Assert
     assert response.status_code == 500
 
 
-def test_reverify_clew_raises_returns_500_with_message__assert_body_ok_is_false_3(client, env_snapshot, fake_scitex_clew):
+def test_reverify_provider_failure_is_not_ok(
+    client, broken_registry_bundle, reference_provider
+):
     # Arrange
-    def angry(claim_id_or_location):
-        raise RuntimeError("claim not found in clew DAG")
-    fake_scitex_clew.verify_claim = angry
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_z"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
     assert body["ok"] is False
 
 
-def test_reverify_clew_raises_returns_500_with_message__assert_claim_not_found_in_body_e(client, env_snapshot, fake_scitex_clew):
+def test_reverify_provider_failure_carries_error_message(
+    client, broken_registry_bundle, reference_provider
+):
     # Arrange
-    def angry(claim_id_or_location):
-        raise RuntimeError("claim not found in clew DAG")
-    fake_scitex_clew.verify_claim = angry
-    _pin(BUNDLE_ACCEPTED)
-    response = client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_z"}),
-        content_type="application/json",
-    )
     # Act
-    body = json.loads(response.content)
+    body = json.loads(_verify(client).content)
     # Assert
-    assert "claim not found" in body["error"]
+    assert body["error"]
 
 
-
-
-def test_reverify_calls_clew_with_claim_id_positionally_only__assert_captured_called_is_true(client, env_snapshot, fake_scitex_clew):
-    # clew's real signature is verify_claim(claim_id_or_location) — a SINGLE
-    # positional arg. The handler must NOT pass against=/bundle_root=.
-    # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        captured["called"] = True
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
+def test_reverify_without_project_files_at_root_returns_500(
+    client, separate_project, reference_provider
+):
+    # Arrange — no evidence-root override: the bundle root has no registry
     # Act
-    client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
+    response = _verify(client)
     # Assert
-    assert captured["called"] is True
-
-
-def test_reverify_calls_clew_with_claim_id_positionally_only__assert_captured_arg_claim_a(client, env_snapshot, fake_scitex_clew):
-    # clew's real signature is verify_claim(claim_id_or_location) — a SINGLE
-    # positional arg. The handler must NOT pass against=/bundle_root=.
-    # Arrange
-    captured: dict = {}
-    def recorder(claim_id_or_location):
-        captured["arg"] = claim_id_or_location
-        captured["called"] = True
-        return {"claim": {"status": "verified"}}
-    fake_scitex_clew.verify_claim = recorder
-    _pin(BUNDLE_ACCEPTED)
-    # Act
-    client.post(
-        "/api/claim/verify",
-        data=json.dumps({"claim_id": "claim_a"}),
-        content_type="application/json",
-    )
-    # Assert
-    assert captured["arg"] == "claim_a"
-
-
+    assert response.status_code == 500
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -1330,6 +488,8 @@ def test_reverify_calls_clew_with_claim_id_positionally_only__assert_captured_ar
 def test_handlers_registry_includes_api_claim_verify():
     # Arrange
     from scitex_live_paper._django.handlers import HANDLERS, handle_reverify
+
     # Act
+    handler = HANDLERS["api/claim/verify"]
     # Assert
-    assert HANDLERS["api/claim/verify"] is handle_reverify
+    assert handler is handle_reverify

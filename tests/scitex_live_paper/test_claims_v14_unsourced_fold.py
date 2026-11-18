@@ -32,7 +32,6 @@ from pathlib import Path
 
 from scitex_live_paper import bundle as bundle_module
 from scitex_live_paper._cli import _KNOWN_CLAIM_STATUSES
-from scitex_live_paper._django.handlers.reverify import _normalize_result
 from scitex_live_paper._renderer.claims import render_claims_sidebar
 
 _TESTS_DIR = Path(__file__).resolve().parent
@@ -42,9 +41,9 @@ BUNDLE_MIN = _TESTS_DIR / "fixtures" / "bundle-min"
 
 CLAIMS_CSS = (_SRC / "_renderer" / "assets" / "claims.css").read_text(encoding="utf-8")
 VIEWER_JS = (_SRC / "_renderer" / "assets" / "viewer.js").read_text(encoding="utf-8")
-SPA_CSS = (
-    _SRC / "_django" / "static" / "live_paper" / "css" / "viewer.css"
-).read_text(encoding="utf-8")
+SPA_CSS = (_SRC / "_django" / "static" / "live_paper" / "css" / "viewer.css").read_text(
+    encoding="utf-8"
+)
 
 # The alias both stylesheets must carry. An alias rather than a repeated
 # literal, so the fold tracks suspect through any future hue change.
@@ -225,29 +224,9 @@ def test_clew_grounded_field_survives_as_an_extra(tmp_path: Path):
     assert claim.extras.get("grounded") is False
 
 
-# ---------------------------------------------------------------------------
-# The live re-verify path must agree with the rendered bundle
-# ---------------------------------------------------------------------------
-
-
-def test_reverify_passes_unsourced_through_verbatim():
-    # Arrange: clew's nested success shape carrying the new status
-    result = {"claim": {"status": "unsourced", "verified_at": None}}
-    # Act
-    shaped = _normalize_result("claim_unsourced0001", "abc123", result)
-    # Assert: NOT rewritten to "suspect" -- otherwise a live re-verify
-    # would disagree with the rendered sidebar for the very same claim
-    assert shaped["status"] == "unsourced"
-
-
-def test_reverify_still_normalizes_legacy_partial():
-    # Arrange: the genuine rename must keep being normalized; this is
-    # the contrast that makes the unsourced pass-through deliberate
-    result = {"claim": {"status": "partial", "verified_at": None}}
-    # Act
-    shaped = _normalize_result("claim_x", "abc123", result)
-    # Assert
-    assert shaped["status"] == "suspect"
+# (The live re-verify path no longer returns claims.json statuses: it
+# returns provider-neutral evidence states verbatim — see
+# tests/scitex_live_paper/_django/handlers/test_reverify.py.)
 
 
 # ---------------------------------------------------------------------------

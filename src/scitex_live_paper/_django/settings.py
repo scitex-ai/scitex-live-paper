@@ -12,7 +12,7 @@ defaulting to false with the ALLOWED_HOSTS switch (operator ruling,
 Deviation from scholar (deliberate): ``DATABASES`` stays empty.
 Live-paper is an engine over bundle files on disk — it declares no
 models, and every handler reads the bundle off disk or delegates to
-scitex-clew, which owns its own store. Django's dummy backend makes
+an evidence provider, which owns its own store. Django's dummy backend makes
 any accidental ORM call fail loudly instead of silently succeeding
 against a scratch database nothing else would ever read.
 """

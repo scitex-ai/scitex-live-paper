@@ -9,18 +9,22 @@ claims sidebar (#5).
 Boundary
 --------
 The DAG structure and the node-class taxonomy are **owned upstream by
-``scitex-clew``**. This renderer just paints what the bundle's ``dag.mmd``
-already encodes — it does not add, rewrite, or normalise nodes. If a new
-node class is needed (or an existing one needs a different colour), raise
-the change upstream in ``scitex-clew`` and refresh the fixture; the
-renderer follows.
+whoever produced** ``dag.mmd``. This renderer just paints what the
+bundle's ``dag.mmd`` already encodes — it does not add, rewrite, or
+normalise nodes. Per-claim minimal evidence graphs
+(:func:`render_claim_graph`) likewise draw exactly the nodes and edges the
+evidence provider supplied.
 """
 
 from __future__ import annotations
 
+import hashlib
+import re
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 try:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -37,6 +41,9 @@ from ._sdk_header import copy_sdk_header_assets, header_context
 __all__ = [
     "MERMAID_VERSION",
     "DagArtifacts",
+    "claim_graph_filename",
+    "graph_to_mermaid",
+    "render_claim_graph",
     "render_dag",
     "render_html",
 ]
@@ -111,20 +118,7 @@ def render_dag(
         Resolved paths so the CLI (#7) can wire ``index.html``.
     """
     out_dir = Path(out_dir).expanduser().resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "assets").mkdir(exist_ok=True)
-    (out_dir / "assets" / "mermaid").mkdir(exist_ok=True)
-
-    css_dest = _copy_into(out_dir, "assets/dag.css", _DAG_CSS)
-    js_dest = _copy_into(out_dir, "assets/dag.js", _DAG_JS)
-    # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
-    # site so the component mounts over http(s). file:// keeps the static
-    # fallback title line (module scripts don't run there — documented in
-    # docs/dev-quickstart.md).
-    copy_sdk_header_assets(out_dir)
-    mermaid_dest = _copy_into(
-        out_dir, f"assets/mermaid/{_MERMAID_MAIN}", _MERMAID_DIR / _MERMAID_MAIN
-    )
+    css_dest, js_dest, mermaid_dest = _copy_dag_assets(out_dir)
 
     # Provenance hash lookup: source_file -> source_hash. This lets the
     # DAG overlay show "script + hash" for Source / Processing nodes
@@ -135,10 +129,12 @@ def render_dag(
     template = env.get_template("dag.html.j2")
     html = template.render(
         title=title or "Live Paper — DAG",
+        subtitle=None,
+        claim=None,
         # mermaid expects the raw graph source; pass it through verbatim.
         # NB: the template wraps it in a <pre class="mermaid"> block which
         # mermaid.init() picks up on DOMContentLoaded.
-        dag_source=bundle.dag or "graph LR\n  empty[\"no dag.mmd in bundle\"]",
+        dag_source=bundle.dag or 'graph LR\n  empty["no dag.mmd in bundle"]',
         has_dag=bool(bundle.dag and bundle.dag.strip()),
         css_url="assets/dag.css",
         js_url="assets/dag.js",
@@ -160,12 +156,149 @@ def render_dag(
     )
 
 
+def _copy_dag_assets(out_dir: Path) -> tuple[Path, Path, Path]:
+    """Copy the DAG page's CSS / JS / vendored mermaid into *out_dir*."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "assets" / "mermaid").mkdir(parents=True, exist_ok=True)
+    css_dest = _copy_into(out_dir, "assets/dag.css", _DAG_CSS)
+    js_dest = _copy_into(out_dir, "assets/dag.js", _DAG_JS)
+    # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
+    # site so the component mounts over http(s). file:// keeps the static
+    # fallback title line (module scripts don't run there — documented in
+    # docs/dev-quickstart.md).
+    copy_sdk_header_assets(out_dir)
+    mermaid_dest = _copy_into(
+        out_dir, f"assets/mermaid/{_MERMAID_MAIN}", _MERMAID_DIR / _MERMAID_MAIN
+    )
+    return css_dest, js_dest, mermaid_dest
+
+
+# ---------------------------------------------------------------------------
+# Per-claim minimal evidence graph (from the evidence provider)
+# ---------------------------------------------------------------------------
+
+_SAFE_ID = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def claim_graph_filename(claim_id: str) -> str:
+    """Site-relative file name of a claim's minimal-graph page.
+
+    Claim ids are author-chosen strings; the name keeps a readable slug and
+    adds a short digest so two ids that slug alike never collide.
+    """
+    slug = _SAFE_ID.sub("-", claim_id).strip("-")[:48] or "claim"
+    digest = hashlib.sha256(claim_id.encode("utf-8")).hexdigest()[:8]
+    return f"claim-graph-{slug}-{digest}.html"
+
+
+def _mermaid_label(kind: str, text: str) -> str:
+    # mermaid entity escapes; the kind prefix is what dag.js keys node
+    # decoration on (the node taxonomy: Claim / Processing / Input /
+    # Output).
+    safe = str(text).replace('"', "#quot;").replace("<", "#lt;").replace(">", "#gt;")
+    return f'"{kind}<br/>{safe}"'
+
+
+_KIND_LABEL = {
+    "process": ("Processing", "run"),
+    "input": ("Input", "file"),
+    "output": ("Output", "file"),
+    "claim": ("Claim", None),
+}
+
+
+def graph_to_mermaid(
+    graph: Mapping[str, Any], *, state: str | None = None
+) -> tuple[str, dict[str, str]]:
+    """Mermaid source + ``{node label: hash}`` map for a claim's minimal graph.
+
+    *graph* is a review-packet entry's ``graph`` (contract nodes/edges,
+    supplied by the evidence provider): this draws exactly
+    its nodes and edges, nothing more, so the page and the packet agree.
+    """
+    ids = {n["id"]: f"n{i}" for i, n in enumerate(graph["nodes"])}
+    lines = ["graph LR"]
+    provenance: dict[str, str] = {}
+    for n in graph["nodes"]:
+        kind, cls = _KIND_LABEL.get(n["kind"], (n["kind"].title(), "file"))
+        if n["kind"] == "claim":
+            cls = state or "registered"
+        lines.append(f"  {ids[n['id']]}[{_mermaid_label(kind, n['label'])}]:::{cls}")
+        if n.get("hash"):
+            provenance[str(n["label"])] = str(n["hash"])
+    for e in graph["edges"]:
+        lines.append(f"  {ids[e['source']]} --> {ids[e['target']]}")
+    lines += [
+        "  classDef run fill:#e3f1fa,stroke:#005a8c",
+        "  classDef file fill:#f6f8fa,stroke:#57606a",
+        "  classDef supported fill:#e3f1fa,stroke:#005a8c,stroke-width:3px",
+        "  classDef not_supported fill:#fde6d8,stroke:#b34700,stroke-width:3px,stroke-dasharray:6 3",
+        "  classDef not_checkable fill:#fdf0c8,stroke:#7a5400,stroke-width:3px,stroke-dasharray:2 2",
+        "  classDef no_evidence_graph fill:#ececec,stroke:#4d4d4d,stroke-width:2px",
+        "  classDef registered fill:#ececec,stroke:#4d4d4d",
+    ]
+    return "\n".join(lines) + "\n", provenance
+
+
+def render_claim_graph(
+    entry: Mapping[str, Any],
+    out_dir: str | Path,
+    *,
+    viewer_url: str = "viewer.html",
+    claims_url: str = "claims.html",
+    paper_url: str | None = None,
+    project_label: str | None = None,
+) -> Path:
+    """Render one claim's minimal evidence graph page (``claim-graph-*.html``).
+
+    *entry* is the claim's review-packet entry
+    (:func:`scitex_live_paper.evidence.build_review_packet`). Same page,
+    assets and click wiring as :func:`render_dag`; the graph is the claim's
+    minimal evidence graph instead of the bundle's whole ``dag.mmd``.
+    """
+    out_dir = Path(out_dir).expanduser().resolve()
+    _copy_dag_assets(out_dir)
+    _copy_into(out_dir, "assets/support.css", _ASSETS_DIR / "support.css")
+    claim_id = entry["claim_id"]
+    graph = entry.get("graph")
+    if graph is not None:
+        source, provenance = graph_to_mermaid(graph, state=entry["state"])
+        summary = graph.get("summary")
+    else:
+        source, provenance, summary = "", {}, None
+
+    template = _jinja_env().get_template("dag.html.j2")
+    html = template.render(
+        title=f"Live Paper — evidence graph for {claim_id}",
+        subtitle=(
+            f"Minimal evidence graph of claim {claim_id}"
+            + (f" · {summary}" if summary else "")
+        ),
+        claim=entry,
+        support_css_url="assets/support.css",
+        paper_url=paper_url,
+        dag_source=source,
+        has_dag=bool(source),
+        css_url="assets/dag.css",
+        js_url="assets/dag.js",
+        mermaid_url=f"assets/mermaid/{_MERMAID_MAIN}",
+        mermaid_version=MERMAID_VERSION,
+        viewer_url=viewer_url,
+        claims_url=claims_url,
+        provenance_map=provenance,
+        **header_context(project_label=project_label),
+    )
+    dest = out_dir / claim_graph_filename(claim_id)
+    dest.write_text(html, encoding="utf-8")
+    return dest
+
+
 def _collect_source_hashes(bundle: Bundle) -> dict[str, str]:
     """Build a ``{source_file: source_hash}`` map from the bundle.
 
     Sources of truth, in order:
       1. The claims list — each claim already carries ``source_file`` +
-         ``source_hash`` from clew.
+         ``source_hash`` from the claim registry.
       2. The provenance graph — ``sessions[<sess>].files[<path>].hash``
          shape, if present. Lenient: missing branches are skipped.
     """

@@ -13,7 +13,6 @@ from __future__ import annotations
 import importlib
 
 import pytest
-
 from scitex_live_paper import _mcp_server
 
 # Tool name -> dotted Python API it projects. Mirrors the "Projects ..."
@@ -24,6 +23,8 @@ PROJECTIONS = {
     "live_paper_derive_wrapper_manifest": "scitex_live_paper.derive_wrapper_manifest",
     "live_paper_dag_render_dag": "scitex_live_paper.dag.render_dag",
     "live_paper_dag_render_html": "scitex_live_paper.dag.render_html",
+    "live_paper_evidence_review": "scitex_live_paper.evidence.build_review_packet",
+    "live_paper_evidence_claim": "scitex_live_paper.evidence.find_claim",
 }
 
 
@@ -115,3 +116,23 @@ def test_skills_discovery_includes_packaged_resources():
     assert {"SKILL", "01_installation", "10_mounted-viewer", "20_env-vars"}.issubset(
         names
     )
+
+
+# --- evidence tools: same entry as the review packet --------------------------
+
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parent / "evidence"))
+from _reference_provider import ref_project, ref_report, ref_report_file  # noqa: E402,F401
+
+
+def test_evidence_claim_tool_matches_the_review_tool(ref_report_file):
+    # Arrange
+    review = _mcp_server.live_paper_evidence_review(evidence_report=str(ref_report_file))
+    from scitex_live_paper.evidence import find_claim
+
+    # Act
+    entry = _mcp_server.live_paper_evidence_claim("n_rows", evidence_report=str(ref_report_file))
+    # Assert
+    assert entry == find_claim(review, "n_rows")

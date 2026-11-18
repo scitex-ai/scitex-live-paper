@@ -11,8 +11,8 @@ for the API, data-empty-reason for the empty state, status block for
 the boot payload). extra_js mounts the header component first, then
 mermaid vendor + the viewer orchestrator module.
 
-The claim model callout stays: the engine consumes scitex-clew's
-claim model and never defines it.
+The claim model callout stays: the engine consumes the claim model
+carried in claims.json and never defines it.
 {% endcomment %}
 {% block extra_css %}<meta name="live-paper-csrf-token" content="{{ csrf_token }}"><link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/app-header.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}"><link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">{% endblock %}
 {% block scitex_app_content %}

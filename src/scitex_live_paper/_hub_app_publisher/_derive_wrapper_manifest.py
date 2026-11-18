@@ -131,7 +131,7 @@ _PEP508_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*")
 def _strip_pep508_versions(reqs: Mapping[int, Any] | tuple[str, ...]) -> list[str]:
     """Strip the version specifier off each PEP 508 requirement string.
 
-    ``"scitex-clew>=0.1.0"`` → ``"scitex-clew"``. Used to populate
+    ``"django>=4.2"`` → ``"django"``. Used to populate
     the v2.0.0 ``dependencies.python`` list (which the hub UI shows
     as chips — not pin metadata).
     """
