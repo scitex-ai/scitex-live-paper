@@ -9,7 +9,7 @@ tags: [scitex-live-paper-quick-start]
 
 A bundle is a **directory** containing `manuscript.pdf` (or `.tex`) and
 `claims.json`; optional `dag.mmd`, `provenance.yaml`, `state.yaml` and `figz/`
-carry graph, provenance, lifecycle and figures. Claims mirror Clew fields.
+carry graph, provenance, lifecycle and figures. Claims mirror the upstream claim registry's fields.
 
 From a source checkout, use the committed demo without downloading/training:
 

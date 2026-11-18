@@ -9,8 +9,8 @@
  * file. Paths are passed in as data-* attributes on #live-paper-pdf-host.
  */
 
-/* Claim-status → overlay class. Vocabulary owned by scitex-clew
- * (palette v1.3, clew 0.7.0). registered / not_found fall through to
+/* Claim-status → overlay class. Vocabulary owned by the claim registry
+ * that wrote claims.json (palette v1.3). registered / not_found fall through to
  * the default grey overlay. Legacy "partial" is normalized to
  * "suspect" at bundle ingest, so it never reaches this map. */
 const STATUS_CLASS = {
@@ -18,7 +18,7 @@ const STATUS_CLASS = {
   suspect: "lp-status-suspect",
   mismatch: "lp-status-mismatch",
   missing: "lp-status-missing",
-  // clew 1.4 "unsourced" folds into the amber bucket, so it maps onto
+  // "unsourced" folds into the amber bucket, so it maps onto
   // the SUSPECT class rather than getting one of its own. Here the
   // class is purely a colour selector — the status word itself is
   // rendered verbatim by the sidebar, so folding the hue costs no

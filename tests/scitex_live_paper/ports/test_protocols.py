@@ -8,6 +8,7 @@ from scitex_live_paper.bundle import Bundle, load as load_bundle
 from scitex_live_paper.ports import figure_fragment
 from scitex_live_paper.ports.protocols import (
     CLAIM_GRAPH_PORT,
+    EVIDENCE_PORT,
     FIGURE_PORT,
     PORT_NAMES,
     SNIPPET_PORT,
@@ -31,13 +32,13 @@ class StaticFigure:
         )
 
 
-def test_three_ports_named():
+def test_four_ports_named():
     # Arrange
     names = PORT_NAMES
     # Act
-    expected = (FIGURE_PORT, SNIPPET_PORT, CLAIM_GRAPH_PORT)
+    expected = (FIGURE_PORT, SNIPPET_PORT, CLAIM_GRAPH_PORT, EVIDENCE_PORT)
     # Assert
-    assert (names, set(names)) == (expected, {"figure", "snippet", "claim-graph"})
+    assert (names, set(names)) == (expected, {"figure", "snippet", "claim-graph", "evidence"})
 
 
 def test_adapter_satisfies_figure_protocol_structurally():

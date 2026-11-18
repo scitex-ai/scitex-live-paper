@@ -12,7 +12,7 @@ Targets:
 - `_renderer/dag.py` 172, 178 — provenance traversal `continue` paths
 - `_django/services.py` 144-145 — `_claims_mtime` OSError fallback
 - `_django/handlers/reverify.py` 329 — bulk: empty bundle + no filter
-- `_django/handlers/reverify.py` 409 — bulk: partial clew (version skew)
+- `_django/handlers/reverify.py` — bulk: configured provider not installed
 - `_django/handlers/pdf.py` 79 — manuscript_path None on the Bundle
 
 (Lines `_cli.py` 187 + 200-201 are pragma'd in source — see comments
@@ -23,8 +23,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
-import types
 from pathlib import Path
 from typing import Iterator
 
@@ -296,40 +294,22 @@ def test_bulk_reverify_400_when_bundle_has_no_claims__assert_no_claims_to_verify
 
 
 # ──────────────────────────────────────────────────────────────────
-# _django/handlers/reverify.py 409 — partial clew via the bulk path
+# _django/handlers/reverify.py — bulk: configured provider not installed
 # ──────────────────────────────────────────────────────────────────
 
 
-@pytest.fixture
-def partial_scitex_clew() -> Iterator[types.ModuleType]:
-    """A clew module without a `verify_claim` attribute — version skew."""
-    key = "scitex_clew"
-    sentinel = object()
-    original = sys.modules.get(key, sentinel)
-    module = types.ModuleType(key)
-    # No verify_claim attribute → _probe_clew returns the skew reason
-    sys.modules[key] = module
-    try:
-        yield module
-    finally:
-        if original is sentinel:
-            sys.modules.pop(key, None)
-        else:
-            sys.modules[key] = original  # type: ignore[assignment]
+def _bulk_response_absent_provider():
+    """POST /api/claims/verify naming an evidence provider that is not installed.
 
-
-def _bulk_response_partial_clew():
-    """POST /api/claims/verify with a skew clew (no verify_claim).
-
-    Shared Arrange+Act for the partial-clew bulk tests (each test keeps a
-    single assert per STX-TQ007). Requires the partial_scitex_clew and
-    env_snapshot fixtures from the caller.
+    Shared Arrange+Act for the absent-provider bulk tests (each test keeps a
+    single assert per STX-TQ007). Requires the env_snapshot fixture.
     """
     from django.test import Client
 
     from scitex_live_paper._django import services
 
     os.environ["SCITEX_LIVE_PAPER_BUNDLE"] = str(BUNDLE_ACCEPTED)
+    os.environ["SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER"] = "absent-provider"
     services.clear_cache()
 
     response = Client().post(
@@ -340,36 +320,32 @@ def _bulk_response_partial_clew():
     return response, json.loads(response.content)
 
 
-def test_bulk_reverify_partial_clew_status_200(
-    env_snapshot, partial_scitex_clew,
-):
+def test_bulk_reverify_absent_provider_status_200(env_snapshot):
     # Arrange
     # Act
-    response, _body = _bulk_response_partial_clew()
+    response, _body = _bulk_response_absent_provider()
     # Assert
     assert response.status_code == 200
 
 
-def test_bulk_reverify_partial_clew_top_level_not_ok(
-    env_snapshot, partial_scitex_clew,
-):
+def test_bulk_reverify_absent_provider_top_level_not_ok(env_snapshot):
     # Arrange
     # Act
-    _response, body = _bulk_response_partial_clew()
+    _response, body = _bulk_response_absent_provider()
     # Assert
     assert body["ok"] is False
 
 
-def test_bulk_reverify_partial_clew_per_result_skew_reason(
-    env_snapshot, partial_scitex_clew,
-):
-    """Every per-result entry carries the skew reason from _probe_clew()."""
+def test_bulk_reverify_absent_provider_per_result_names_the_provider(env_snapshot):
+    """Every per-result entry is an unassessed fallback naming the provider."""
     # Arrange
     # Act
-    _response, body = _bulk_response_partial_clew()
+    _response, body = _bulk_response_absent_provider()
     # Assert
     assert all(
-        result["fallback"] is True and "version skew" in result["reason"]
+        result["fallback"] is True
+        and result["status"] == "unassessed"
+        and "absent-provider" in result["reason"]
         for result in body["results"]
     )
 

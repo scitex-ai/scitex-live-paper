@@ -20,7 +20,7 @@ const STATUS_CLASS = {
   suspect: "lp-status-suspect",
   mismatch: "lp-status-mismatch",
   missing: "lp-status-missing",
-  // clew 1.4 "unsourced" folds into the amber bucket (same as the
+  // claims.json 1.4 "unsourced" folds into the amber bucket (same as the
   // static renderer) — colour alias only, status word untouched.
   unsourced: "lp-status-suspect",
 };
@@ -57,7 +57,7 @@ export function pdfBboxToCssRect(viewport, bbox) {
 /**
  * Anchor resolution: the web API nests non-core claim fields under
  * ``extras`` (forward-compat passthrough — the loader never extends
- * the clew claim shape), so the SPA reads ``claim.anchor`` with an
+ * the upstream claim shape), so the SPA reads ``claim.anchor`` with an
  * ``extras.anchor`` fallback. Same for ``figure_id`` below.
  */
 export function pickAnchor(claim) {

@@ -13,11 +13,11 @@ The ``HANDLERS`` mapping is the *single source of truth* for what the
                          see ``docs/research/writer-pdf-viewer-findings.md``)
 - ``api/dag``          — bundle ``dag.mmd`` mermaid source for the SPA
                          DAG pane (JSON 404 when the bundle ships none)
-- ``api/claim/verify``  — M2 re-verify endpoint (calls ``scitex_clew.verify_claim``
-                          against ``bundle.paper_state.pinned_commit``;
-                          degrades gracefully when clew is not installed)
-- ``api/claims/verify`` — M2 bulk re-verify (per-claim envelopes; one bad
-                         claim doesn't 500 the sweep)
+- ``api/claim/verify``  — M2 re-verify endpoint (asks the evidence provider
+                          via ``scitex_live_paper.evidence``; pinned_commit is
+                          metadata; degrades gracefully with no provider)
+- ``api/claims/verify`` — M2 bulk re-verify (one provider report, per-claim
+                         envelopes; one bad claim doesn't 500 the sweep)
 - ``api/event-log`` — CCT 3000 archive sidecar persist (POST a validated
                         ``scitex-live-paper.event-log/v1`` sidecar; stored
                         verbatim as ``live-paper-events.json`` in the bundle

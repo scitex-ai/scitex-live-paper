@@ -39,10 +39,18 @@
           <span>PDF.js viewer with claim-anchor overlay</span>
         </a>
       </li>
+      {% if paper_url %}
       <li>
-        <a class="lp-index-card" href="{{ claims_url }}">
+        <a class="lp-index-card" href="{{ paper_url }}">
+          <strong>Paper</strong>
+          <span>Manuscript with each registered claim marked by its evidence state</span>
+        </a>
+      </li>
+      {% endif %}
+      <li>
+        <a class="lp-index-card" href="{{ claims_url }}{% if review %}#needs-inspection{% endif %}">
           <strong>Claims</strong>
-          <span>{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }} · status palette from scitex-clew</span>
+          <span>{% if review %}Needs inspection: {{ review.needs_inspection|length }} · supported: {{ review.supported|length }}{% else %}{{ total_claims }} claim{{ '' if total_claims == 1 else 's' }}{% endif %}</span>
         </a>
       </li>
       <li>
@@ -85,7 +93,7 @@
 </main>
 
 <footer class="live-paper-footer">
-  <span>scitex-live-paper · M1 read-only renderer · claim model owned upstream by <code>scitex-clew</code></span>
+  <span>scitex-live-paper · M1 read-only renderer · claim model owned upstream by the claim registry</span>
 </footer>
 
 <script type="module" src="{{ sdk_header_js_url }}"></script>

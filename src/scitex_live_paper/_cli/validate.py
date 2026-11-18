@@ -16,8 +16,8 @@ from .spec import spec_command_kwargs
 __all__ = ["validate_cmd", "_validate_bundle", "_KNOWN_CLAIM_STATUSES", "_looks_hex", "register"]
 
 
-# Mirrors scitex-clew's claim-status vocabulary (palette v1.3,
-# clew 0.7.0; ``unsourced`` added by clew 0.8.1 / claims.json 1.4).
+# The status strings carried in claims.json (palette v1.3;
+# ``unsourced`` added in claims.json 1.4).
 # Used by `validate` to flag claims whose status isn't a
 # recognised lifecycle value (a common operator footgun: a hand-edit
 # typo like ``"verfied"``). Legacy "partial" never reaches this check —
@@ -71,7 +71,7 @@ def validate_cmd(bundle_path: str) -> None:
     On top of ``bundle.load()``'s syntactic checks, ``validate`` runs:
 
     - **Claim integrity**: no duplicate ``claim_id``s, every
-      ``status`` string is a known scitex-clew lifecycle value, every
+      ``status`` string is a known claims.json lifecycle value, every
       ``source_hash`` looks hex-shaped.
     - **PaperState sanity**: ``accepted`` / ``published`` stages
       without a ``pinned_commit`` are flagged (badge would show but

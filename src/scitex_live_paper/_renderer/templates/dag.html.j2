@@ -6,6 +6,7 @@
 <meta name="generator" content="scitex-live-paper">
 <link rel="stylesheet" href="{{ sdk_header_css_url }}">
 <link rel="stylesheet" href="{{ css_url }}">
+{% if support_css_url %}<link rel="stylesheet" href="{{ support_css_url }}">{% endif %}
 </head>
 <body class="live-paper">
 {# Canonical SDK AppHeader (header-parity rule): one header row built by
@@ -23,10 +24,29 @@
 <main class="lp-dag-shell"
       data-viewer-url="{{ viewer_url }}"
       data-claims-url="{{ claims_url }}">
-  <p class="live-paper-subtitle">Clew provenance graph · mermaid v{{ mermaid_version }} (vendored)</p>
+  <p class="live-paper-subtitle">{{ subtitle or 'Bundle provenance graph' }} · mermaid v{{ mermaid_version }} (vendored)</p>
+
+  {% if claim %}
+  <section class="lp-claim-evidence" data-support="{{ claim.state }}" data-claim-id="{{ claim.claim_id }}" aria-label="Evidence state">
+    <p class="lp-claim-evidence-state">
+      <span class="lp-support-badge" data-support="{{ claim.state }}">{{ claim.symbol }} {{ claim.label }}</span>
+      <span class="lp-support-reason-text">{{ claim.reason }}</span>
+    </p>
+    <p class="lp-claim-evidence-value">Claim <code>{{ claim.claim_id }}</code>{% if claim.stated_text %}: <q>{{ claim.stated_text }}</q>{% endif %}{% if claim.location.file %} · <code>{{ claim.location.file }}{% if claim.location.line %}:{{ claim.location.line }}{% endif %}</code>{% endif %}</p>
+    <p class="lp-claim-evidence-value">Source <code>{{ claim.source.file or '(none)' }}</code>{% if claim.source.locator %} · locator <code>{{ claim.source.locator|tojson }}</code>{% else %} · no locator{% endif %}{% if claim.provider_status %} · provider verdict <code>{{ claim.provider_status.name }}{% if claim.provider_status.code is not none %} ({{ claim.provider_status.code }}){% endif %}</code>{% endif %}</p>
+    {% if claim.details %}
+    <ul class="lp-claim-evidence-details">
+      {% for d in claim.details %}<li>{{ d }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p class="lp-claim-evidence-value"><a href="{{ claims_url }}">All claims</a>{% if paper_url %} · <a href="{{ paper_url }}#claim-{{ claim.claim_id }}">Show in paper</a>{% endif %}</p>
+  </section>
+  {% endif %}
 
   {% if has_dag %}
   <pre class="mermaid" id="lp-dag-source">{{ dag_source }}</pre>
+  {% elif claim %}
+  <p class="lp-dag-empty">No evidence graph for this claim{% if claim.graph_error %}: <code>{{ claim.graph_error }}</code>{% endif %}.</p>
   {% else %}
   <p class="lp-dag-empty">No <code>dag.mmd</code> in this bundle.</p>
   {% endif %}
@@ -39,7 +59,7 @@
 </main>
 
 <footer class="live-paper-footer">
-  <span>scitex-live-paper · DAG taxonomy owned upstream by <code>scitex-clew</code></span>
+  <span>scitex-live-paper · DAG taxonomy owned upstream by the producer of <code>dag.mmd</code></span>
 </footer>
 
 <script id="lp-provenance-map" type="application/json">{{ provenance_map|tojson }}</script>

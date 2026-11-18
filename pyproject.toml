@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.2.21"
-description = "Interactive, AI-verifiable live rendering of research manuscripts (consumer of scitex-clew claim model). Part of SciTeX."
+version = "0.3.0"
+description = "Interactive, AI-verifiable live rendering of research manuscripts (provider-neutral evidence states for registered claims). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.10"
@@ -17,7 +17,7 @@ keywords = [
     "live-paper",
     "interactive-paper",
     "claims",
-    "clew",
+    "evidence",
     "viewer",
     "ara",
 ]
@@ -56,21 +56,13 @@ server = [
 mcp = [
     "fastmcp>=2.0",
 ]
-# scitex-clew owns the claim model + the live `verify_claim()` operation.
-# Without this extra, the M2 `api/claim/verify` (and `api/claims/verify`)
-# endpoints degrade gracefully to `fallback: true` per-result so the SPA
-# badge stays meaningful — but the operator never gets a real verify.
-# Install with: `pip install scitex-live-paper[clew]`.
-clew = [
-    "scitex-clew>=0.1.0",
-]
 test = [
     "pytest>=8.0",
 ]
 # `pip install scitex-live-paper[all]` must pull EVERYTHING public (PS-221).
 # PS-221: public extras are closed under `[all]` — CI installs `.[all,dev]`.
 all = [
-    "scitex-live-paper[clew,django,server,mcp,test]",
+    "scitex-live-paper[django,server,mcp,test]",
 ]
 # `dev` toolchain extra — the org pytest-matrix reusable installs
 # `.[all,dev]`; without a `dev` extra the chain falls back to a bare
@@ -117,6 +109,7 @@ package-dir = { "" = "src" }
 [tool.setuptools.package-data]
 scitex_live_paper = [
     "_skills/scitex-live-paper/*.md",
+    "evidence/*.json",
     "package.json",
     "_django/static/live_paper/js/*.js",
     "_django/static/live_paper/js/*.d.ts",

@@ -7,7 +7,7 @@ the actual mount under ``scitex-hub`` ``/viewer-v2/`` is M3 proper.
 
 Boundary unchanged: every handler that needs claim/DAG data goes through
 ``scitex_live_paper.bundle.load()`` — the claim schema is owned upstream
-by ``scitex-clew``.
+by the claim registry that produced claims.json.
 """
 
 default_app_config = "scitex_live_paper._django.apps.LivePaperConfig"

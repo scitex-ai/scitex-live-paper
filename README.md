@@ -31,8 +31,8 @@
 | # | Problem | Solution |
 |---|---------|----------|
 | 1 | **A PDF is dead** — you cannot click a claim, see the code that produced it, re-run it, or check provenance. | **Live-paper renderer** — turns an accepted manuscript bundle into a page where every claim is hash-linked to the executable artefact that produced it. |
-| 2 | **Verification rots** — a badge stamped at acceptance says nothing about whether the claims still hold after the code moved on. | **Live re-verify (M2 shipped)** — per-claim and bulk `verify` endpoints call `scitex-clew` against the live project so the badge tracks a continuous re-review cycle. |
-| 3 | **Claim-model drift** — every consumer re-defines `Claim` slightly differently until nothing interoperates. | **Deliberately thin consumer** — the claim model is owned upstream by `scitex-clew`; this package reads it, never extends it. |
+| 2 | **Verification rots** — a badge stamped at acceptance says nothing about whether the claims still hold after the code moved on. | **Live re-verify (M2 shipped)** — per-claim and bulk `verify` endpoints ask the installed evidence provider (any package implementing the [evidence-provider contract](docs/evidence-provider-contract.md)) about the live project, so the badge tracks a continuous re-review cycle. |
+| 3 | **Claim-model drift** — every consumer re-defines `Claim` slightly differently until nothing interoperates. | **Deliberately thin consumer** — the claim model is owned upstream by the claim registry that produced `claims.json`; this package reads it, never extends it. |
 
 ## Quick Start
 
@@ -85,7 +85,6 @@ pip install scitex-live-paper           # CLI + library + canonical SDK assets
 |-------|-------|-----|
 | `django` | `django>=4.2` | standalone `serve` + `scitex-hub` mount |
 | `server` | `django>=4.2` + `scitex-sdk[gui]` | `serve` via the SDK workspace shell (superset of `django`) |
-| `clew` | `scitex-clew>=0.1.0` | live re-verify (M2) |
 | `mcp` | `fastmcp>=2.0` | MCP server for agents |
 | `test` | `pytest>=8.0` | test suite |
 | `all` | everything above | the one install line operators need |
@@ -94,10 +93,13 @@ pip install scitex-live-paper           # CLI + library + canonical SDK assets
 
 <sub><b>Table 1.</b> Optional-dependency extras.</sub>
 
-Without `[clew]` the M2 `api/claim/verify` and `api/claims/verify`
-endpoints stay reachable but degrade gracefully (every per-claim
-response carries `fallback: true` + a clear reason); install
-`[clew]` to get the real `verify_claim()` call.
+live-paper depends on no evidence provider. Without one installed, the
+M2 `api/claim/verify` and `api/claims/verify` endpoints stay reachable
+but degrade gracefully (every per-claim response carries
+`fallback: true`, `status: "unassessed"` and a clear reason); install
+any package that implements the
+[evidence-provider contract](docs/evidence-provider-contract.md) to get
+real evidence states.
 
 > **Working on `scitex-live-paper` itself?** See
 > [Dev quickstart](docs/dev-quickstart.md) — editable install, render
@@ -109,7 +111,7 @@ response carries `fallback: true` + a clear reason); install
 `scitex-live-paper` is **deliberately thin**. It is a **consumer /
 rendering layer**, not an authority on claims. If a feature requires
 extending the claim or DAG model, **the change belongs upstream in
-`scitex-clew`**, not here.
+the claim registry that produces `claims.json`**, not here.
 
 ```mermaid
 flowchart TD
@@ -124,8 +126,8 @@ flowchart TD
 
 | Concern | Owner | This package's role |
 |---------|-------|---------------------|
-| `Claim` data model, `VerificationStatus`, DAG | `scitex-clew` | reads only — never defines, never mutates |
-| Hash-linked provenance graph | `scitex-clew` | reads `clew.dag()` / `clew.verify_claim()` outputs |
+| `Claim` data model, `claims.json` statuses, DAG | the upstream claim registry | reads only — never defines, never mutates |
+| Evidence state + minimal evidence graph per claim | any evidence provider | renders the contract's report (`scitex_live_paper.evidence`) |
 | Manuscript bundle layout | `scitex-writer` | ingests the bundle as-is |
 | Acceptance + re-review verdicts | `scitex-agentic-journal` | receives accepted bundle, surfaces badge |
 | Auth / Django app surface | `scitex-hub` | mounted on `/apps/live-paper/` (M3 shipped) |
@@ -191,8 +193,8 @@ use, demo, and testability.
 | Variable | Set by | Read by | Purpose |
 |----------|--------|---------|---------|
 | `SCITEX_LIVE_PAPER_BUNDLE` | `serve` CLI / operator | bundle cache | bundle path pinned for the process |
-| `SCITEX_CLEW_DB_PATH` | — (retired) | — | retired — clew has no database file |
-| `SCITEX_STORE_DSN` | operator | `scitex-clew` | clew's store switch (owned by clew, not this package) |
+| `SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER` | operator | re-verify endpoints | entry-point name of the evidence provider (default: the single installed one) |
+| `SCITEX_LIVE_PAPER_EVIDENCE_ROOT` | operator | re-verify endpoints | project root handed to the provider (default: the bundle root) |
 
 <sub><b>Table 4.</b> Environment variables referenced by this package.</sub>
 
@@ -200,7 +202,7 @@ use, demo, and testability.
 
 `scitex-live-paper` is part of [**SciTeX**](https://scitex.ai).
 
-Upstream dependencies (this package consumes them; it does not define their models): `scitex-clew` (claim model, DAG, verification), `scitex-writer` (bundle layout + Django viewer pattern), `scitex-hub` (Django host, auth), `scitex-sdk` (shared AppHeader assets and App/UI contracts). Producer: `scitex-agentic-journal` (accepted bundle + re-review verdicts).
+Upstream dependencies (this package consumes them; it does not define their models): the claim registry that produces `claims.json` (claim model, DAG), any evidence provider (evidence states, via the contract), `scitex-writer` (bundle layout + Django viewer pattern), `scitex-hub` (Django host, auth), `scitex-sdk` (shared AppHeader assets and App/UI contracts). Producer: `scitex-agentic-journal` (accepted bundle + re-review verdicts).
 
 >Four Freedoms for Research
 >

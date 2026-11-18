@@ -65,8 +65,8 @@ HUB_APP_MANIFEST: Mapping[str, Any] = MappingProxyType(
             "Interactive, AI-verifiable live rendering of research "
             "manuscripts. Renders an accepted manuscript bundle as a "
             "PDF.js viewer + claims sidebar + DAG navigator + "
-            "verification badge. Consumer of the scitex-clew claim "
-            "model (mirrors clew's schema; never extends it)."
+            "verification badge. Consumer of the claim model carried "
+            "in claims.json (mirrors its schema; never extends it)."
         ),
         "category": "app",
         "python_requires": ">=3.10",
@@ -93,7 +93,6 @@ HUB_APP_MANIFEST: Mapping[str, Any] = MappingProxyType(
         "requires": (
             "scitex-live-paper>=0.1.0",
             "django>=4.2",
-            "scitex-clew>=0.1.0",
         ),
         "upstream": MappingProxyType(
             {

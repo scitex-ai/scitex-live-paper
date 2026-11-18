@@ -13,6 +13,7 @@ from typing import Any, Mapping, Tuple
 
 from .protocols import (
     CLAIM_GRAPH_PORT,
+    EVIDENCE_PORT,
     FIGURE_PORT,
     PORT_NAMES,
     SNIPPET_PORT,
@@ -23,6 +24,7 @@ RENDER_METHOD = {
     FIGURE_PORT: "render_figure",
     SNIPPET_PORT: "render_snippet",
     CLAIM_GRAPH_PORT: "render_claim_graph",
+    EVIDENCE_PORT: "evidence_report",
 }
 
 

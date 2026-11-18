@@ -13,7 +13,6 @@ from __future__ import annotations
 import importlib
 
 import pytest
-
 from scitex_live_paper import _mcp_server
 
 # Tool name -> dotted Python API it projects. Mirrors the "Projects ..."
@@ -24,6 +23,8 @@ PROJECTIONS = {
     "live_paper_derive_wrapper_manifest": "scitex_live_paper.derive_wrapper_manifest",
     "live_paper_dag_render_dag": "scitex_live_paper.dag.render_dag",
     "live_paper_dag_render_html": "scitex_live_paper.dag.render_html",
+    "live_paper_evidence_review": "scitex_live_paper.evidence.build_review_packet",
+    "live_paper_evidence_claim": "scitex_live_paper.evidence.find_claim",
 }
 
 

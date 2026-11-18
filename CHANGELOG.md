@@ -16,6 +16,48 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Added
+
+- **Evidence-provider contract** (`scitex_live_paper.evidence`,
+  `docs/evidence-provider-contract.md`). An evidence report
+  (`scitex-live-paper.evidence-report` v1.0.0, JSON Schema shipped as
+  `evidence/evidence-report.schema.json`) gives each **registered** claim one
+  of four neutral states: supported, not supported, registered but not
+  checkable, or no evidence graph. Each claim also gets a plain-language
+  reason, its source and locator, and its minimal evidence graph
+  (nodes/edges). Providers connect through the existing ports seam
+  (`scitex.livepaper.renderers` entry point, new port `evidence`,
+  `EvidencePort`) or through a report file. Text that is not a registered
+  claim is never marked.
+- Reviewer view: `paper.html` marks each registered claim in the manuscript
+  with a colour-blind-safe highlight. States also differ by underline style
+  and symbol. Hovering a mark shows its reason, and clicking opens the
+  claim's minimal-graph page (`claim-graph-*.html`). `claims.html` now opens
+  with a **Needs inspection** list (not supported, then not checkable, then
+  no evidence graph), followed by the supported claims.
+- Machine adapter: `review.json` / `review.txt` in the site, the
+  `export-review` CLI command, and the MCP tools `live_paper_evidence_review`
+  and `live_paper_evidence_claim`. All serve the same review packet
+  (`scitex-live-paper.review-packet` v1.0.0), and the human pages are rendered
+  from it, so the two cannot disagree.
+- `render --evidence-report / --evidence-provider / --evidence-root`.
+
+### Changed
+
+- live-paper is provider-neutral. It no longer imports any evidence provider
+  and has no extra for one. The Django re-verify endpoints
+  (`api/claim/verify`, `api/claims/verify`) now ask the configured evidence
+  provider (`SCITEX_LIVE_PAPER_EVIDENCE_PROVIDER`,
+  `SCITEX_LIVE_PAPER_EVIDENCE_ROOT`) and return its evidence state as
+  `status`. With no provider installed they degrade to `unassessed`
+  (fallback).
+
+### Removed
+
+- The provider-specific optional extra.
+
 ## [0.2.21]
 
 ### Fixed

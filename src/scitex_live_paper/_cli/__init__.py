@@ -7,8 +7,8 @@ page + vendored assets). The generated site opens straight from
 ``file://`` — no server required.
 
 The CLI is the thin glue layer: it loads the bundle and calls each
-sibling renderer in turn. All claim / DAG semantics live upstream in
-``scitex-clew``; this module never invents or validates fields.
+sibling renderer in turn. All claim / DAG semantics come from the bundle and, optionally, an
+evidence provider; this module never invents or validates fields.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ __all__ = ["RenderResult", "render_site", "cli", "main"]
 # Every visible top-level command MUST be assigned — the auto `Other`
 # catch-all is an audit finding and never renders at audit-clean.
 _COMMAND_CATEGORIES = (
-    ("Core", ("render", "hub-manifest")),
+    ("Core", ("render", "export-review", "hub-manifest")),
     ("Service", ("serve", "mcp")),
     ("Diagnostics", ("info", "validate")),
     ("Introspection", ("list-python-apis",)),
@@ -54,8 +54,9 @@ _COMMAND_CATEGORIES = (
             "and emit a self-contained static site (viewer + claims + "
             "DAG + landing page + vendored assets) that opens straight "
             "from file:// — no server required. All claim / DAG semantics "
-            "live upstream in scitex-clew; this CLI never invents or "
-            "validates fields.",
+            "come from the bundle and, optionally, an evidence provider "
+            "(see docs/evidence-provider-contract.md); this CLI never "
+            "invents or validates fields.",
         ),
         config_resolution=(
             "--config PATH (explicit flag wins when the command accepts one)",
@@ -109,6 +110,7 @@ from .validate import (
 # only owns the group, the universal flags, and the registration calls.
 # ---------------------------------------------------------------------------
 from .completion import register_completion_commands
+from .evidence_options import register as register_export_review
 from .hub_manifest import register as register_hub_manifest
 from .info import register as register_info
 from .introspect import register as register_introspect
@@ -118,6 +120,7 @@ from .serve import register as register_serve
 from .validate import register as register_validate
 
 register_render(cli)
+register_export_review(cli)
 register_serve(cli)
 register_info(cli)
 register_validate(cli)

@@ -14,13 +14,20 @@ except ImportError as exc:  # pragma: no cover - defensive
     ) from exc
 
 from scitex_live_paper import bundle as bundle_module
-from .spec import spec_command_kwargs
 from scitex_live_paper._renderer.claims import render_claims_sidebar
 from scitex_live_paper._renderer.dag import render_dag
+from scitex_live_paper._renderer.evidence_site import (
+    EvidenceError,
+    render_evidence_pages,
+    resolve_evidence_report,
+)
 from scitex_live_paper._renderer.index import render_index
 from scitex_live_paper._renderer.viewer import render_viewer
 
-__all__ = ["RenderResult", "render_site", "render_cmd", "register"]
+from .evidence_options import evidence_options
+from .spec import spec_command_kwargs
+
+__all__ = ["RenderResult", "register", "render_cmd", "render_site"]
 
 
 @dataclass(frozen=True)
@@ -36,6 +43,9 @@ class RenderResult:
     viewer_html: Path
     claims_html: Path
     dag_html: Path
+    #: Present only when an evidence provider/report was given.
+    paper_html: Path | None = None
+    review_json: Path | None = None
 
 
 def render_site(
@@ -44,6 +54,9 @@ def render_site(
     *,
     title: str | None = None,
     project_label: str | None = None,
+    evidence_report: str | Path | None = None,
+    evidence_provider: str | None = None,
+    evidence_root: str | Path | None = None,
 ) -> RenderResult:
     """Render a bundle directory into a self-contained static site.
 
@@ -61,6 +74,14 @@ def render_site(
     project_label
         Optional project name shown as static text in the SDK header's
         project slot (static export has no project provider).
+    evidence_report
+        Path of an evidence report (contract
+        ``scitex-live-paper.evidence-report`` v1) a provider produced.
+    evidence_provider, evidence_root
+        Name of an installed evidence provider (entry point, port
+        ``evidence``) and the project root it assesses. Giving only
+        *evidence_root* selects the single installed provider. With none of
+        the three, claims render without an evidence state.
 
     Returns
     -------
@@ -70,6 +91,20 @@ def render_site(
     loaded = bundle_module.load(bundle_path)
     out_dir = Path(out_dir).expanduser().resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    report = resolve_evidence_report(
+        loaded,
+        report_path=evidence_report,
+        provider=evidence_provider,
+        project_root=evidence_root,
+    )
+    evidence = (
+        render_evidence_pages(
+            report, out_dir, bundle=loaded, project_label=project_label
+        )
+        if report is not None
+        else None
+    )
 
     viewer = render_viewer(
         loaded,
@@ -82,6 +117,8 @@ def render_site(
         out_dir,
         title=title or "Live Paper — Claims",
         project_label=project_label,
+        review=evidence.packet if evidence else None,
+        paper_url=evidence.paper_url if evidence else None,
     )
     dag = render_dag(
         loaded,
@@ -94,6 +131,8 @@ def render_site(
         out_dir,
         title=title,
         project_label=project_label,
+        review=evidence.packet if evidence else None,
+        paper_url=evidence.paper_url if evidence else None,
     )
 
     return RenderResult(
@@ -102,7 +141,11 @@ def render_site(
         viewer_html=viewer.viewer_html,
         claims_html=claims.claims_html,
         dag_html=dag.dag_html,
+        paper_html=evidence.paper_html if evidence else None,
+        review_json=evidence.review_json if evidence else None,
     )
+
+
 @click.command(
     "render",
     **spec_command_kwargs(
@@ -145,12 +188,29 @@ def render_site(
     help="Optional project name shown as static text in the SDK header "
     "project slot (static export has no project provider).",
 )
-def render_cmd(bundle_path: str, out_dir: str, title: str | None, project_label: str | None) -> None:
+@evidence_options
+def render_cmd(
+    bundle_path: str,
+    out_dir: str,
+    title: str | None,
+    project_label: str | None,
+    evidence_report: str | None,
+    evidence_provider: str | None,
+    evidence_root: str | None,
+) -> None:
     """Render BUNDLE_PATH into a self-contained static site under --out."""
     try:
-        result = render_site(bundle_path, out_dir, title=title, project_label=project_label)
-    except bundle_module.BundleError as exc:
-        # Surface bundle-layout errors with a clean exit code (no traceback).
+        result = render_site(
+            bundle_path,
+            out_dir,
+            title=title,
+            project_label=project_label,
+            evidence_report=evidence_report,
+            evidence_provider=evidence_provider,
+            evidence_root=evidence_root,
+        )
+    except (bundle_module.BundleError, EvidenceError) as exc:
+        # Surface bundle-layout / evidence-contract errors cleanly.
         raise click.ClickException(str(exc)) from exc
 
     click.echo(f"rendered → {result.out_dir}")
@@ -158,6 +218,10 @@ def render_cmd(bundle_path: str, out_dir: str, title: str | None, project_label:
     click.echo(f"  viewer   : {result.viewer_html.relative_to(result.out_dir)}")
     click.echo(f"  claims   : {result.claims_html.relative_to(result.out_dir)}")
     click.echo(f"  dag      : {result.dag_html.relative_to(result.out_dir)}")
+    if result.paper_html is not None:
+        click.echo(f"  paper    : {result.paper_html.relative_to(result.out_dir)}")
+    if result.review_json is not None:
+        click.echo(f"  review   : {result.review_json.relative_to(result.out_dir)}")
 
 
 def register(group) -> None:
