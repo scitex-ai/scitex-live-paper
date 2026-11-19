@@ -116,7 +116,7 @@ def test_shipped_json_schema_is_a_valid_schema():
     # Act
     jsonschema.Draft202012Validator.check_schema(_schema())
     # Assert
-    assert _schema()["$id"].endswith("/evidence-report/1.1.0")
+    assert _schema()["$id"].endswith("/evidence-report/1.2.0")
 
 
 def test_shipped_json_schema_accepts_a_conforming_report(ref_report):

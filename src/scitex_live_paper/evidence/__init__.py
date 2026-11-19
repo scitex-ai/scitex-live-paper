@@ -5,7 +5,7 @@ need inspection, with each claim's minimal evidence graph. It computes none
 of this: an evidence provider does, through the contract documented in
 ``docs/evidence-provider-contract.md`` (report schema
 ``scitex-live-paper.evidence-report`` v1,
-1.1 adds failing graph nodes; shipped as
+1.1 adds failing graph nodes, 1.2 the value read at the source; shipped as
 ``evidence-report.schema.json``). live-paper imports no provider; with no
 provider, claims render without a state.
 
