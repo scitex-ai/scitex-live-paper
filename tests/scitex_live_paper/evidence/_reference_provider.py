@@ -105,6 +105,15 @@ class ReferenceProvider:
         return "supported", "value and sources check out against the recorded run", []
 
     @staticmethod
+    def _source(root: Path, claim: dict) -> dict:
+        """Report ``source`` (1.2.0: ``value`` only when it was actually read)."""
+        source, pointer = claim.get("source"), claim.get("pointer")
+        out: dict[str, Any] = {"file": source, "locator": pointer}
+        if source and pointer and (root / source).exists():
+            out["value"] = _pointer(json.loads((root / source).read_text()), pointer)
+        return out
+
+    @staticmethod
     def _failures(root: Path, claim: dict, run: dict) -> dict[str, dict]:
         """``{file: failure}`` for every recorded file where the evidence broke."""
         out: dict[str, dict] = {}
@@ -112,7 +121,10 @@ class ReferenceProvider:
             if not (root / p).exists():
                 out[p] = {"kind": "missing", "detail": f"{p} not found"}
             elif sha256(root / p) != h:
-                out[p] = {"kind": "changed", "detail": "hash differs from the recorded run"}
+                out[p] = {
+                    "kind": "changed",
+                    "detail": "hash differs from the recorded run",
+                }
         source = claim["source"]
         if out or not claim.get("pointer"):
             return out
@@ -184,7 +196,7 @@ class ReferenceProvider:
                 "stated_value": c.get("value"),
                 "state": state,
                 "reason": reason,
-                "source": {"file": c.get("source"), "locator": c.get("pointer")},
+                "source": self._source(root, c),
                 "details": details,
                 "provider_status": {"name": state.upper(), "code": None},
             }
@@ -196,7 +208,7 @@ class ReferenceProvider:
             claims.append(entry)
         return {
             "schema": "scitex-live-paper.evidence-report",
-            "schema_version": "1.1.0",
+            "schema_version": "1.2.0",
             "provider": {"name": PROVIDER_NAME, "version": "1.0"},
             "project_root": str(root),
             "claims": claims,
@@ -376,11 +388,16 @@ def install_entry_point(site_dir: Path) -> Path:
 # Shared pytest fixtures (function-scoped; import them into a test module)
 # ---------------------------------------------------------------------------
 
-import sys as _sys  # noqa: E402
+import sys as _sys
 
-import pytest  # noqa: E402
+import pytest
 
-FIXTURE_PDF = Path(__file__).resolve().parent.parent / "fixtures" / "bundle-min" / "manuscript.pdf"
+FIXTURE_PDF = (
+    Path(__file__).resolve().parent.parent
+    / "fixtures"
+    / "bundle-min"
+    / "manuscript.pdf"
+)
 
 
 @pytest.fixture
