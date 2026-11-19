@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+### Fixed
+
+- Display a registered manuscript claim's stated value in place of its
+  `\vclaim{...}` macro, with the highlight confined to that value. Single-value
+  wrappers display as numbers in both the manuscript and its evidence panel.
+  Unsupported claims retain their stated value and verdict; unregistered text
+  remains unassessed.
+
 ### Added
 
 - **Review-packet JSON Schema.** `evidence/review-packet.schema.json`
