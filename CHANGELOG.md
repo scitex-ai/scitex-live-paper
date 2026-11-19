@@ -16,6 +16,26 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-20
+
+### Fixed
+
+- Display a registered manuscript claim's stated value in place of its
+  `\vclaim{...}` macro, with the highlight confined to that value. Single-value
+  wrappers display as numbers in both the manuscript and its evidence panel.
+  Unsupported claims retain their stated value and verdict; unregistered text
+  remains unassessed.
+
+### Added
+
+- **Review-packet JSON Schema.** `evidence/review-packet.schema.json`
+  (`$id` `https://scitex.ai/schemas/scitex-live-paper/review-packet/1.2.0`,
+  draft 2020-12, self-contained) publishes the `scitex-live-paper.review-packet`
+  contract that was defined only in code. Shipped in the wheel next to
+  `evidence-report.schema.json`; tests validate real reference-provider
+  packets (built, rendered `review.json`, no embedded graphs) against it.
+  `jsonschema` joins the `test` extra.
+
 ## [0.5.0]
 
 ### Added
