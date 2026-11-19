@@ -16,6 +16,16 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+### Added
+
+- **Review-packet JSON Schema.** `evidence/review-packet.schema.json`
+  (`$id` `https://scitex.ai/schemas/scitex-live-paper/review-packet/1.2.0`,
+  draft 2020-12, self-contained) publishes the `scitex-live-paper.review-packet`
+  contract that was defined only in code. Shipped in the wheel next to
+  `evidence-report.schema.json`; tests validate real reference-provider
+  packets (built, rendered `review.json`, no embedded graphs) against it.
+  `jsonschema` joins the `test` extra.
+
 ## [0.5.0]
 
 ### Added
