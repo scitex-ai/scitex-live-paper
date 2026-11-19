@@ -11,7 +11,10 @@ Use `scitex-live-paper --help` and each command's `--help` for the installed
 version. The main workflows are:
 
 - `validate BUNDLE` checks a directory's loadable shape.
-- `render BUNDLE --out DIRECTORY` emits index, viewer, claims and graph pages.
+- `render BUNDLE --out DIRECTORY` emits index, viewer, claims and graph pages;
+  with evidence (`--evidence-report` / `--evidence-provider`) also `paper.html`,
+  where each registered claim opens an in-page evidence panel with its
+  minimal graph (`paper.html#claim-<id>` deep-links one claim).
 - `serve BUNDLE --host 127.0.0.1 --port 8765` starts the local Django viewer;
   keep this local unless the user authorized wider exposure.
 - `info` reports package metadata; `hub-manifest` exposes the host manifest.

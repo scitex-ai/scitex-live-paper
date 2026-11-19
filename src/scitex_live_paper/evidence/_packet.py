@@ -34,7 +34,8 @@ __all__ = [
 
 PACKET_SCHEMA = "scitex-live-paper.review-packet"
 #: 1.1.0 adds ``failing_nodes`` per entry (from report node ``failure``).
-PACKET_SCHEMA_VERSION = "1.1.0"
+#: 1.2.0 adds ``source.value`` + ``source.value_reported`` (report 1.2.0).
+PACKET_SCHEMA_VERSION = "1.2.0"
 
 SCOPE = (
     "Registered claims only. Text that is not a registered claim is not "
@@ -90,7 +91,14 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
         "symbol": SYMBOLS[state],
         "reason": claim["reason"],
         "needs_inspection": state != SUPPORTED,
-        "source": {"file": src.get("file"), "locator": src.get("locator")},
+        "source": {
+            "file": src.get("file"),
+            "locator": src.get("locator"),
+            # A source value of null is a value; only an absent key means
+            # the provider did not read one.
+            "value": src.get("value"),
+            "value_reported": "value" in src,
+        },
         "details": list(claim.get("details") or []),
         "provider_status": claim.get("provider_status"),
         "graph": claim.get("graph"),
@@ -178,6 +186,10 @@ def review_text(packet: Mapping[str, Any]) -> str:
             )
             src = e["source"]
             out.append(f"    source: {src['file']} locator: {src['locator']}")
+            if src.get("value_reported"):
+                out.append(
+                    f"    stated value: {e['stated_value']!r}  source value: {src['value']!r}"
+                )
             for f in e.get("failing_nodes") or []:
                 detail = f" -- {f['detail']}" if f.get("detail") else ""
                 out.append(

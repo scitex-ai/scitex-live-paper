@@ -54,7 +54,7 @@ def test_packet_is_versioned(ref_report):
     # Act
     version = (packet["schema"], packet["schema_version"])
     # Assert
-    assert version == ("scitex-live-paper.review-packet", "1.1.0")
+    assert version == ("scitex-live-paper.review-packet", "1.2.0")
 
 
 def test_find_claim_returns_none_for_unregistered_text(ref_report):

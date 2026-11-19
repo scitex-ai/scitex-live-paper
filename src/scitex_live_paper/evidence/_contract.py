@@ -30,7 +30,7 @@ __all__ = [
 REPORT_SCHEMA = "scitex-live-paper.evidence-report"
 #: The contract version this release implements. Any ``1.x.y`` report is
 #: accepted (minor bumps only add optional fields).
-REPORT_SCHEMA_VERSION = "1.1.0"
+REPORT_SCHEMA_VERSION = "1.2.0"
 GRAPH_NODE_KINDS = frozenset({"claim", "process", "input", "output", "other"})
 #: A node's ``failure.kind`` (1.1.0) is a short lowercase token. Any token is
 #: accepted so a later 1.x can name new kinds; unknown ones render verbatim.

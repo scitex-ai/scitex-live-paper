@@ -51,3 +51,41 @@ jobs:
       - name: Run pytest
         run: |
           python -m pytest -ra
+
+  # The paper page's claim navigation (evidence panel, navigator, deep links,
+  # back/forward, keyboard flow) in a real headless Chromium. The suite run
+  # above skips these tests when no browser is installed; here
+  # LP_REQUIRE_BROWSER=1 makes a missing browser a failure instead.
+  browser:
+    name: browser (chromium, py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package, Playwright and headless Chromium
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[all,dev]' playwright
+          python -m playwright install --with-deps --only-shell chromium
+
+      - name: Run browser tests
+        env:
+          LP_REQUIRE_BROWSER: "1"
+          LP_SCREENSHOT_DIR: ${{ runner.temp }}/paper-navigation-shots
+        run: |
+          python -m pytest -ra tests/scitex_live_paper/_renderer/test_paper_navigation_browser.py
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-navigation-shots
+          path: ${{ runner.temp }}/paper-navigation-shots
+          if-no-files-found: ignore

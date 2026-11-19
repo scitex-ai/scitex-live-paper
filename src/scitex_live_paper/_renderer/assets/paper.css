@@ -1,0 +1,292 @@
+/* scitex-live-paper / paper page: manuscript, claims navigator, evidence panel.
+ *
+ * Accessibility rules this file keeps:
+ *   - state is never colour alone: symbol + label text + underline style
+ *     (support.css), and failing graph nodes add a dash-dot outline + "⚠ KIND";
+ *   - the active claim gets a thick black outline (not a hue change);
+ *   - every interactive target is at least 32px (44px on touch);
+ *   - motion is skipped under prefers-reduced-motion.
+ */
+
+.lp-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.lp-skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.lp-skip-link:focus {
+  left: 12px;
+  top: 12px;
+  z-index: 100;
+  padding: 8px 12px;
+  background: #fff;
+  border: 2px solid #000;
+}
+
+:root {
+  --lp-panel-width: 460px;
+  --lp-focus: #000;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+.lp-paper-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 900px);
+  gap: 20px;
+  justify-content: center;
+  padding: 20px;
+}
+.lp-paper-shell { min-width: 0; }
+.lp-paper-text {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 16px 20px;
+  font: 14px/1.9 ui-serif, Georgia, serif;
+}
+.lp-paper-line { display: block; white-space: pre-wrap; }
+.lp-paper-file { font-size: 12px; color: #57606a; margin: 16px 0 4px; }
+
+/* Room for the panel beside the text on wide screens. */
+@media (min-width: 1200px) {
+  body.lp-panel-open .lp-paper-layout {
+    margin-right: var(--lp-panel-width);
+  }
+}
+
+@media (max-width: 760px) {
+  .lp-paper-layout { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+}
+
+/* ------------------------------------------------------------- navigator */
+
+.lp-claim-nav { min-width: 0; }
+.lp-claim-nav-box {
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.lp-claim-nav-box > summary { cursor: pointer; list-style-position: inside; }
+.lp-claim-nav-title { display: inline; font-size: 14px; margin: 0; }
+.lp-claim-nav-hint { font-size: 12px; color: #57606a; margin: 6px 0; }
+.lp-claim-nav-group { font-size: 12px; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; color: #24292f; }
+.lp-claim-nav-list { list-style: none; margin: 0; padding: 0; }
+.lp-claim-nav-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-height: 32px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border-left: 4px solid transparent;
+  color: #24292f;
+  text-decoration: none;
+  font-size: 13px;
+}
+.lp-claim-nav-item:hover { background: #f6f8fa; }
+.lp-claim-nav-item[data-support="supported"] { border-left-color: var(--lp-support-supported); }
+.lp-claim-nav-item[data-support="not_supported"] { border-left-color: var(--lp-support-not_supported); }
+.lp-claim-nav-item[data-support="not_checkable"] { border-left-color: var(--lp-support-not_checkable); }
+.lp-claim-nav-item[data-support="no_evidence_graph"] { border-left-color: var(--lp-support-no_evidence_graph); }
+.lp-claim-nav-item[aria-current="true"] {
+  background: #f6f8fa;
+  outline: 2px solid var(--lp-focus);
+  font-weight: 600;
+}
+.lp-claim-nav-symbol { font-weight: 700; width: 1em; text-align: center; }
+.lp-claim-nav-item[data-support="supported"] .lp-claim-nav-symbol { color: var(--lp-support-supported); }
+.lp-claim-nav-item[data-support="not_supported"] .lp-claim-nav-symbol { color: var(--lp-support-not_supported); }
+.lp-claim-nav-item[data-support="not_checkable"] .lp-claim-nav-symbol { color: var(--lp-support-not_checkable); }
+.lp-claim-nav-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.lp-claim-nav-text { color: #57606a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+@media (max-width: 760px) {
+  .lp-claim-nav-box { position: static; max-height: none; }
+}
+
+/* ----------------------------------------------------------- claim marks */
+
+mark.lp-claim-span a:focus-visible,
+.lp-claim-nav-item:focus-visible,
+.lp-claim-panel :focus-visible {
+  outline: 3px solid var(--lp-focus);
+  outline-offset: 2px;
+}
+mark.lp-claim-span[data-lp-active] {
+  outline: 3px solid var(--lp-focus);
+  outline-offset: 3px;
+}
+mark.lp-claim-span.lp-claim-flash { animation: lp-claim-flash 1.2s ease-out 1; }
+@keyframes lp-claim-flash {
+  0%   { box-shadow: 0 0 0 10px rgba(0, 0, 0, 0.25); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  mark.lp-claim-span.lp-claim-flash { animation: none; }
+}
+
+/* --------------------------------------------------------- evidence panel */
+
+.lp-claim-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--lp-panel-width);
+  max-width: 100vw;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-left: 1px solid #d0d7de;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+}
+.lp-claim-panel[hidden] { display: none; }
+.lp-claim-panel[data-support="supported"] { border-left: 6px solid var(--lp-support-supported); }
+.lp-claim-panel[data-support="not_supported"] { border-left: 6px solid var(--lp-support-not_supported); }
+.lp-claim-panel[data-support="not_checkable"] { border-left: 6px solid var(--lp-support-not_checkable); }
+.lp-claim-panel[data-support="no_evidence_graph"] { border-left: 6px solid var(--lp-support-no_evidence_graph); }
+
+/* Touch / narrow screens: a bottom sheet over the lower part of the page. */
+@media (max-width: 760px) {
+  .lp-claim-panel {
+    top: auto;
+    width: 100vw;
+    height: 62vh;
+    border-left: 0;
+    border-top: 1px solid #d0d7de;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.16);
+  }
+  .lp-claim-panel[data-support] { border-left: 0; border-top-width: 6px; border-top-style: solid; }
+  .lp-claim-panel[data-support="supported"] { border-top-color: var(--lp-support-supported); }
+  .lp-claim-panel[data-support="not_supported"] { border-top-color: var(--lp-support-not_supported); }
+  .lp-claim-panel[data-support="not_checkable"] { border-top-color: var(--lp-support-not_checkable); }
+  .lp-claim-panel[data-support="no_evidence_graph"] { border-top-color: var(--lp-support-no_evidence_graph); }
+  body.lp-panel-open { padding-bottom: 62vh; }
+}
+
+.lp-claim-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #d0d7de;
+}
+.lp-claim-panel-title { flex: 1; margin: 0; font-size: 15px; }
+.lp-claim-panel-title:focus { outline: none; }
+.lp-claim-panel-title:focus-visible { outline: 3px solid var(--lp-focus); }
+.lp-claim-panel-close {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 22px;
+  line-height: 1;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.lp-claim-panel-body { overflow: auto; padding: 10px 14px 16px; flex: 1; }
+.lp-claim-panel-body p { margin: 6px 0; }
+.lp-claim-panel-position { color: #57606a; font-size: 12px; }
+.lp-claim-panel-reason { font-size: 14px; }
+.lp-claim-panel-quote { font: 14px/1.6 ui-serif, Georgia, serif; }
+.lp-claim-panel h3 { font-size: 13px; margin: 14px 0 4px; }
+
+.lp-claim-values {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 6px 0;
+}
+.lp-claim-values dt { font-weight: 600; color: #24292f; }
+.lp-claim-values dd { margin: 0; overflow-wrap: anywhere; }
+.lp-claim-values dd.lp-value-differs::before { content: "≠ "; font-weight: 700; }
+.lp-claim-values .lp-value-absent { color: #57606a; font-style: italic; }
+
+.lp-claim-panel-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.lp-claim-panel-nav button,
+.lp-claim-panel-nav a,
+.lp-graph-node-list button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 10px;
+  border: 1px solid #8c959f;
+  border-radius: 6px;
+  background: #f6f8fa;
+  color: #24292f;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.lp-claim-panel-nav button:hover,
+.lp-claim-panel-nav a:hover,
+.lp-graph-node-list button:hover { background: #eaeef2; }
+.lp-claim-panel-nav button:disabled { opacity: 0.5; cursor: default; }
+@media (pointer: coarse) {
+  .lp-claim-panel-nav button,
+  .lp-claim-panel-nav a,
+  .lp-graph-node-list button,
+  .lp-claim-nav-item { min-height: 44px; }
+}
+
+/* The inline minimal evidence graph. */
+.lp-claim-graph {
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 6px;
+  overflow: auto;
+  background: #fff;
+}
+.lp-claim-graph svg { max-width: 100%; height: auto; }
+.lp-claim-graph g.node { cursor: pointer; }
+.lp-claim-graph g.node:focus { outline: none; }
+.lp-claim-graph g.node:focus-visible rect,
+.lp-claim-graph g.node[aria-pressed="true"] rect {
+  stroke: #000 !important;
+  stroke-width: 4px !important;
+}
+.lp-graph-summary { color: #57606a; font-size: 12px; }
+
+.lp-graph-node-list { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lp-graph-node-list button { width: 100%; justify-content: flex-start; gap: 6px; text-align: left; }
+.lp-graph-node-list button[aria-pressed="true"] { outline: 2px solid #000; background: #fff; font-weight: 600; }
+.lp-graph-node-list button[data-lp-failure] {
+  border: 2px dashed #9e3a00;
+  background: repeating-linear-gradient(135deg, #fff4ec, #fff4ec 6px, #ffe6d6 6px, #ffe6d6 12px);
+}
+.lp-node-kind { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #57606a; min-width: 6.5em; }
+.lp-node-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+
+.lp-node-details {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #8c959f;
+  border-radius: 6px;
+  background: #f6f8fa;
+}
+.lp-node-details[data-lp-failure] { border: 2px dashed #9e3a00; background: #fff4ec; }
+.lp-node-details h4 { margin: 0 0 4px; font-size: 13px; }
+.lp-node-details dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 10px; }
+.lp-node-details dt { font-weight: 600; }
+.lp-node-details dd { margin: 0; overflow-wrap: anywhere; }
+.lp-node-details code { font-size: 12px; }

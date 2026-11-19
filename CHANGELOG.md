@@ -16,6 +16,51 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.0]
+
+### Added
+
+- **Navigate the paper through its claims (`paper.html`).** Selecting a
+  registered claim's mark (click, tap, or Enter) opens an in-page
+  **evidence panel** instead of leaving the paper: state and reason, stated
+  vs source value, source and locator, provider verdict, where the evidence
+  broke, and the claim's **minimal evidence graph drawn inline** (the graph
+  page's own mermaid source, top-down; failing nodes keep the dash-dot
+  outline and `⚠ KIND` line). Selecting a graph node (click, Enter, Space,
+  or the node list beside it) shows its file, hash, run, and failure mark.
+  The panel steps to the previous/next claim (reading order) or the next
+  claim needing inspection (inspection order), opens the source node's
+  details, and links to the full graph page.
+- **Claims navigator** on `paper.html`, needs inspection first: scrolls to
+  the claim, highlights it (black outline, not a hue), and opens its panel.
+- **Deep links and history**: `paper.html#claim-<id>` opens that claim's
+  panel on load; every claim opened is a history entry, so back/forward
+  step through them. The graph pages' "Show in paper" link uses it.
+- Accessibility: a non-modal `role="dialog"` panel, focus moves into it and
+  returns to the claim on Esc/close, keyboard-operable graph nodes plus an
+  equivalent node list, state never by colour alone, 44px touch targets,
+  bottom-sheet layout on narrow screens, reduced-motion respected.
+- Static-site friendly: classic scripts (`assets/paper-panel.js`,
+  `assets/paper.js`, `assets/paper.css`) and the claims data embedded in the
+  page, so it works from `file://`; without JavaScript every mark still
+  links to its graph page and every navigator entry to its mark.
+- **Evidence contract 1.2.0**: optional `source.value`, the value the
+  provider read at the locator (backwards compatible: 1.0/1.1 reports stay
+  valid). Review packet 1.2.0 adds `source.value` + `source.value_reported`;
+  the panel and graph page show stated vs source value and say in words when
+  they differ; `review.txt` prints both.
+- CI: a `browser (chromium, py3.12)` leg runs the Playwright navigation tests
+  with `LP_REQUIRE_BROWSER=1` (a missing browser fails instead of skipping)
+  and uploads screenshots. Locally the tests skip cleanly without Playwright
+  or Chromium; `LP_SCREENSHOT_DIR` saves screenshots.
+
+### Changed
+
+- The `render` / `export-review` CLI is unchanged (no new options);
+  `paper.html` gains the panel and navigator automatically when evidence is
+  given. The embedded data comes from
+  `scitex_live_paper._renderer.paper.claims_data` (internal module).
+
 ## [0.4.0]
 
 ### Added

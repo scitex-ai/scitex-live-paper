@@ -9,6 +9,16 @@ never marked — not as supported, not as unsupported.
 
 Rendered from the review packet only (``scitex_live_paper.evidence``), so
 the highlights agree with the claims page and the machine adapter.
+
+Navigation (``assets/paper.js``, a classic script so it also runs from
+``file://``): selecting a mark (click, tap, Enter) opens an in-page evidence
+panel with the claim's state, reason, stated vs source value, source and
+locator, and its minimal evidence graph drawn inline (the same mermaid source
+as the claim's graph page, failing nodes marked the same way). A claims
+navigator lists the claims needing inspection first; ``#claim-<id>`` deep
+links open the panel and the browser's back/forward buttons step through the
+claims opened. Without JavaScript every mark still links to its graph page
+and every navigator entry to its mark.
 """
 
 from __future__ import annotations
@@ -25,12 +35,23 @@ from markupsafe import Markup, escape
 from scitex_live_paper.evidence import SYMBOLS, iter_entries
 
 from ._sdk_header import copy_sdk_header_assets, header_context
+from .dag import MERMAID_VERSION, graph_to_mermaid
 
-__all__ = ["PaperArtifacts", "highlight_lines", "render_paper"]
+__all__ = ["PaperArtifacts", "claims_data", "highlight_lines", "render_paper"]
 
 _RENDERER_DIR = Path(__file__).resolve().parent
 _ASSETS_DIR = _RENDERER_DIR / "assets"
 _TEMPLATES_DIR = _RENDERER_DIR / "templates"
+_MERMAID_MAIN = "mermaid/mermaid.min.js"
+#: Assets the paper page loads, copied verbatim into ``<out>/assets/``.
+_PAPER_ASSETS = (
+    "claims.css",
+    "support.css",
+    "paper.css",
+    "paper-panel.js",
+    "paper.js",
+    _MERMAID_MAIN,
+)
 
 
 @dataclass(frozen=True)
@@ -45,7 +66,8 @@ def _mark(entry: Mapping[str, Any], inner: str) -> str:
     return (
         f'<mark class="lp-claim-span" id="claim-{escape(entry["claim_id"])}" '
         f'data-claim-id="{escape(entry["claim_id"])}" data-support="{escape(entry["state"])}" '
-        f'title="{escape(title)}"><a href="{escape(href)}">{inner}'
+        f'title="{escape(title)}"><a href="{escape(href)}" aria-haspopup="dialog" '
+        f'aria-controls="lp-claim-panel">{inner}'
         f'<sup aria-label="{escape(entry["label"])}">{escape(entry["symbol"])}</sup></a></mark>'
     )
 
@@ -91,6 +113,44 @@ def highlight_lines(text: str, entries: list[Mapping[str, Any]]) -> list[Markup]
     return out
 
 
+#: Packet-entry keys the in-page panel reads (everything it shows).
+_CLIENT_KEYS = (
+    "claim_id",
+    "location",
+    "claim_type",
+    "stated_text",
+    "stated_value",
+    "state",
+    "label",
+    "symbol",
+    "reason",
+    "needs_inspection",
+    "source",
+    "details",
+    "provider_status",
+    "graph",
+    "failing_nodes",
+    "graph_error",
+    "graph_url",
+)
+
+
+def claims_data(review: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The packet's entries as the paper page embeds them, needs-inspection first.
+
+    Each entry is the packet entry (same keys, same values) plus ``mermaid``:
+    the exact mermaid source the claim's graph page draws, so the inline graph
+    and the graph page cannot differ (``None`` when the claim has no graph).
+    """
+    out = []
+    for e in iter_entries(review):
+        item = {k: e.get(k) for k in _CLIENT_KEYS}
+        graph = e.get("graph")
+        item["mermaid"] = graph_to_mermaid(graph, state=e["state"])[0] if graph else None
+        out.append(item)
+    return out
+
+
 def render_paper(
     review: Mapping[str, Any],
     out_dir: str | Path,
@@ -127,7 +187,8 @@ def render_paper(
 
     out_dir = Path(out_dir).expanduser().resolve()
     (out_dir / "assets").mkdir(parents=True, exist_ok=True)
-    for name in ("claims.css", "support.css"):
+    for name in _PAPER_ASSETS:
+        (out_dir / "assets" / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(_ASSETS_DIR / name, out_dir / "assets" / name)
     copy_sdk_header_assets(out_dir)
 
@@ -136,14 +197,25 @@ def render_paper(
         autoescape=select_autoescape(["html", "htm", "xml"]),
         keep_trailing_newline=True,
     )
+    entries = list(iter_entries(review))
     html = env.get_template("paper.html.j2").render(
         title=title or "Live Paper — Paper",
         review=review,
         symbols=SYMBOLS,
         sections=sections,
         claims_url=claims_url,
+        nav_groups=[
+            ("Needs inspection", [e for e in entries if e["needs_inspection"]]),
+            ("Supported", [e for e in entries if not e["needs_inspection"]]),
+        ],
+        claims_data=claims_data(review),
         css_url="assets/claims.css",
         support_css_url="assets/support.css",
+        paper_css_url="assets/paper.css",
+        paper_panel_js_url="assets/paper-panel.js",
+        paper_js_url="assets/paper.js",
+        mermaid_url=f"assets/{_MERMAID_MAIN}",
+        mermaid_version=MERMAID_VERSION,
         **header_context(project_label=project_label),
     )
     dest = out_dir / "paper.html"

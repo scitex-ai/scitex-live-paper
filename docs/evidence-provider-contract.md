@@ -15,8 +15,8 @@ no graph connects it, so there is nothing to say about it.
 
 | Artifact | id | version | file |
 |---|---|---|---|
-| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.1.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
-| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.1.0` | produced by `export-review`, documented below |
+| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.2.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
+| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.2.0` | produced by `export-review`, documented below |
 
 Both carry `schema` + `schema_version` (semver). A **minor** bump only adds
 optional fields, so a consumer of `1.x` keeps working. A **major** bump changes
@@ -27,8 +27,9 @@ majors with a clear error.
 |---|---|
 | 1.0.0 | states, reasons, sources, minimal graph |
 | 1.1.0 | optional per-node `failure` (where the evidence broke); packet `failing_nodes` |
+| 1.2.0 | optional `source.value` (the value the provider read at the locator); packet `source.value` + `source.value_reported` |
 
-A 1.0.0 report is a valid 1.1.0 report. Providers should vendor a version-pinned copy of
+Every 1.0.0 and 1.1.0 report is a valid 1.2.0 report. Providers should vendor a version-pinned copy of
 the schema and validate their output against it in their own tests, without
 importing live-paper.
 
@@ -51,7 +52,7 @@ so colour is never the only cue. "Needs inspection" means every state except
 ```json
 {
   "schema": "scitex-live-paper.evidence-report",
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "provider": {"name": "example-provider", "version": "1.2.3"},
   "project_root": "/abs/path/to/project",
   "claims": [
@@ -63,7 +64,7 @@ so colour is never the only cue. "Needs inspection" means every state except
       "stated_value": 3,
       "state": "not_supported",
       "reason": "value in source differs: 2 in source vs 3 stated",
-      "source": {"file": "results/results.json", "locator": {".": {"pointer": "/n_rows"}}},
+      "source": {"file": "results/results.json", "locator": {".": {"pointer": "/n_rows"}}, "value": 2},
       "details": ["claimed 3 vs source 2"],
       "provider_status": {"name": "VALUE_MISMATCH", "code": 21},
       "graph": {
@@ -117,6 +118,15 @@ line, so colour is never the only cue. It also lists the failing nodes in
 words above the graph. `review.json` carries them per claim as
 `failing_nodes` and `review.txt` prints `evidence broke at: …` lines.
 
+### The value read at the source (1.2.0)
+
+`source.value` is the value the provider read at the locator, any JSON type.
+Omit the key when the provider did not read a value (no locator, unreadable
+source); `null` means the source holds `null`. The paper's evidence panel and
+the graph page then show the stated value beside the source value and say in
+words when they differ. Without it the panel says the source value was not
+reported by the provider; the reason line still explains the state.
+
 ## Connecting a provider
 
 **1. Python entry point (in-process).** Publish an object in the existing
@@ -157,8 +167,17 @@ scitex-live-paper export-review --evidence-report report.json --out review.json
 ```
 
 The rendered site adds `paper.html`, the manuscript with each registered claim
-marked by its state. Hovering a mark shows the reason, and clicking it opens
-the claim's minimal-graph page. `claims.html` opens with the **Needs
+marked by its state. Hovering a mark shows the reason. Selecting it (click,
+tap, or Enter) opens the claim's **evidence panel** in place: state and reason,
+stated vs source value, source and locator, where the evidence broke, and the
+minimal evidence graph drawn inline (the graph page's mermaid source, failing
+nodes marked the same way). Selecting a graph node shows its file, hash, run
+and failure mark. The panel steps to the previous/next claim or the next claim
+needing inspection and links to the full graph page. A **claims navigator**
+lists the claims needing inspection first; `paper.html#claim-<id>` opens a
+claim directly, and back/forward step through the claims opened. Esc closes
+the panel. The page works from `file://` (classic scripts, data embedded), and
+without JavaScript each mark still links to its graph page. `claims.html` opens with the **Needs
 inspection** list, followed by the supported claims. `review.json` and
 `review.txt` hold the review packet. MCP tools
 `live_paper_evidence_review` and `live_paper_evidence_claim` serve the same
@@ -167,12 +186,13 @@ one review packet, so they cannot disagree. A test enforces this.
 
 ## Review packet (what a reviewer reads)
 
-`scitex-live-paper.review-packet` 1.1.0 is the evidence report re-ordered for
+`scitex-live-paper.review-packet` 1.2.0 is the evidence report re-ordered for
 review: `needs_inspection` (ordered as above) and `supported`. Each entry adds
 `label`, `symbol`, `needs_inspection`, `graph_url` (the claim's page in the
 rendered site), and (1.1.0) `failing_nodes`: one
 `{id, kind, label, failure, failure_label, detail}` per marked graph node,
-in graph order (empty when none is marked). The packet also includes `scope`, `states` (state to label),
+in graph order (empty when none is marked). Each entry's `source` carries
+(1.2.0) `value` and `value_reported` (whether the report gave a value). The packet also includes `scope`, `states` (state to label),
 `counts`, and `provider`.
 
 ## Known providers (examples only)
