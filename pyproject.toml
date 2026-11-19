@@ -58,6 +58,8 @@ mcp = [
 ]
 test = [
     "pytest>=8.0",
+    # Validates the shipped evidence-report / review-packet JSON Schemas.
+    "jsonschema>=4.18",
 ]
 # `pip install scitex-live-paper[all]` must pull EVERYTHING public (PS-221).
 # PS-221: public extras are closed under `[all]` — CI installs `.[all,dev]`.
