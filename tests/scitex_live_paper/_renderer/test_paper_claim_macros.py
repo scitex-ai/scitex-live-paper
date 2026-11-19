@@ -18,66 +18,90 @@ def entry(claim_id="score.v1", value=0.91, state="supported"):
 
 
 def test_registered_macro_displays_stated_value_with_narrow_highlight():
-    html = str(highlight_lines(r"Accuracy is \vclaim{score.v1}; n = 20.", [entry()])[0])
-
-    assert html.startswith("Accuracy is <mark ")
-    assert ">0.91<sup " in html
-    assert html.endswith("</mark>; n = 20.")
-    assert r"\vclaim" not in html
+    # Arrange
+    text = r"Accuracy is \vclaim{score.v1}; n = 20."
+    # Act
+    html = str(highlight_lines(text, [entry()])[0])
+    # Assert
+    assert (
+        html.startswith("Accuracy is <mark "),
+        ">0.91<sup " in html,
+        html.endswith("</mark>; n = 20."),
+        r"\vclaim" not in html,
+    ) == (True, True, True, True)
 
 
 def test_unsupported_claim_keeps_its_stated_value_and_state():
+    # Arrange
+    claim = entry(state="not_supported")
+    # Act
     html = str(
         highlight_lines(
             r"Accuracy is \vclaim{score.v1}.",
             [
-                entry(state="not_supported"),
+                claim,
             ],
         )[0]
     )
 
-    assert 'data-support="not_supported"' in html
-    assert ">0.91<sup " in html
-    assert "0.95" not in html
+    # Assert
+    assert (
+        'data-support="not_supported"' in html,
+        ">0.91<sup " in html,
+        "0.95" not in html,
+    ) == (True, True, True)
 
 
 def test_wrapped_value_from_a_real_numeric_claim_displays_the_number():
+    # Arrange
+    claim = entry(value={"value": 0.91})
+    # Act
     html = str(
         highlight_lines(
             r"Accuracy: \vclaim{score.v1}",
             [
-                entry(value={"value": 0.91}),
+                claim,
             ],
         )[0]
     )
 
-    assert ">0.91<sup " in html
-    assert "{'value':" not in html
+    # Assert
+    assert (">0.91<sup " in html, "{'value':" not in html) == (True, True)
 
 
 def test_unregistered_macro_and_untagged_numbers_remain_unassessed():
-    html = str(highlight_lines(r"n = 20; \vclaim{unregistered}", [])[0])
-
-    assert html == r"n = 20; \vclaim{unregistered}"
-    assert "<mark" not in html
+    # Arrange
+    text = r"n = 20; \vclaim{unregistered}"
+    # Act
+    html = str(highlight_lines(text, [])[0])
+    # Assert
+    assert (html, "<mark" not in html) == (text, True)
 
 
 def test_registered_display_value_is_html_escaped():
+    # Arrange
+    claim = entry(value="<script>alert(1)</script>")
+    # Act
     html = str(
         highlight_lines(
             r"Value: \vclaim{score.v1}",
             [
-                entry(value="<script>alert(1)</script>"),
+                claim,
             ],
         )[0]
     )
 
-    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
-    assert "<script>" not in html
+    # Assert
+    assert (
+        "&lt;script&gt;alert(1)&lt;/script&gt;" in html,
+        "<script>" not in html,
+    ) == (True, True)
 
 
 def test_missing_stated_value_does_not_invent_one_from_source():
-    html = str(highlight_lines(r"Value: \vclaim{score.v1}", [entry(value=None)])[0])
-
-    assert r"\vclaim{score.v1}" in html
-    assert "0.95" not in html
+    # Arrange
+    claim = entry(value=None)
+    # Act
+    html = str(highlight_lines(r"Value: \vclaim{score.v1}", [claim])[0])
+    # Assert
+    assert (r"\vclaim{score.v1}" in html, "0.95" not in html) == (True, True)
