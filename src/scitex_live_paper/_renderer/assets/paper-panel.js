@@ -42,6 +42,10 @@
   }
 
   function fmt(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value) &&
+        Object.keys(value).length === 1 && Object.prototype.hasOwnProperty.call(value, 'value')) {
+      value = value.value;
+    }
     if (typeof value === 'string') return value;
     try { return JSON.stringify(value); } catch (e) { return String(value); }
   }

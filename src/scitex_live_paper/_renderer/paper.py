@@ -23,6 +23,7 @@ and every navigator entry to its mark.
 
 from __future__ import annotations
 
+import re
 import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -75,6 +76,8 @@ def _mark(entry: Mapping[str, Any], inner: str) -> str:
 def highlight_lines(text: str, entries: list[Mapping[str, Any]]) -> list[Markup]:
     """Escape *text* line by line, marking each registered claim's span.
 
+    Registered ``\\vclaim{id}`` macros display their stated value. This
+    never substitutes a source value or changes the provider's verdict.
     Untagged text is returned escaped and unmarked.
     """
     by_line: dict[int, list[Mapping[str, Any]]] = {}
@@ -89,21 +92,31 @@ def highlight_lines(text: str, entries: list[Mapping[str, Any]]) -> list[Markup]
         if not claims:
             out.append(Markup(escape(raw)))
             continue
-        pieces: list[tuple[int, int, Mapping[str, Any]]] = []
+        pieces: list[tuple[int, int, Mapping[str, Any], str]] = []
         whole: list[Mapping[str, Any]] = []
         for e in claims:
             stated = e.get("stated_text") or ""
             at = raw.find(stated) if stated else -1
-            taken = any(a < at + len(stated) and at < b for a, b, _ in pieces)
+            end, display = at + len(stated), stated
+            macro = re.search(
+                r"\\vclaim\s*\{\s*" + re.escape(e["claim_id"]) + r"\s*\}", raw
+            )
+            value = e.get("stated_value")
+            if isinstance(value, Mapping) and set(value) == {"value"}:
+                value = value["value"]
+            if macro is not None and value is not None:
+                at, end = macro.span()
+                display = str(value)
+            taken = any(a < end and at < b for a, b, _, _ in pieces)
             if at >= 0 and not taken:
-                pieces.append((at, at + len(stated), e))
+                pieces.append((at, end, e, display))
             else:
                 whole.append(e)
         pieces.sort(key=lambda p: p[0])
         html, pos = [], 0
-        for a, b, e in pieces:
+        for a, b, e, display in pieces:
             html.append(str(escape(raw[pos:a])))
-            html.append(_mark(e, str(escape(raw[a:b]))))
+            html.append(_mark(e, str(escape(display))))
             pos = b
         html.append(str(escape(raw[pos:])))
         line_html = "".join(html)
@@ -146,7 +159,9 @@ def claims_data(review: Mapping[str, Any]) -> list[dict[str, Any]]:
     for e in iter_entries(review):
         item = {k: e.get(k) for k in _CLIENT_KEYS}
         graph = e.get("graph")
-        item["mermaid"] = graph_to_mermaid(graph, state=e["state"])[0] if graph else None
+        item["mermaid"] = (
+            graph_to_mermaid(graph, state=e["state"])[0] if graph else None
+        )
         out.append(item)
     return out
 
