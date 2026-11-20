@@ -46,11 +46,14 @@
       {% for state, label in review.states.items() %}<span class="lp-support-badge" data-support="{{ state }}">{{ review.symbols[state] }} {{ label }}: {{ review.counts[state] }}</span>{% endfor %}
     </p>
     {% for s in sections %}
+    <section class="lp-paper-section">
     <p class="lp-paper-file"><code>{{ s.file }}</code></p>
-    <article class="lp-paper-text" data-file="{{ s.file }}">
-      {% for line in s.lines %}<span class="lp-paper-line">{{ line }}</span>
+    {% if s.is_latex %}<input type="checkbox" class="lp-source-toggle" id="lp-source-{{ loop.index }}"><label class="lp-source-label" for="lp-source-{{ loop.index }}">Show LaTeX source</label>{% endif %}
+    <article class="lp-paper-text" data-file="{{ s.file }}"{% if s.is_latex %} data-latex="true"{% endif %}>
+      {% for line in s.reader_lines %}<span class="lp-paper-line {{ line.kind }}"{% if line.heading %} role="heading" aria-level="{{ line.heading }}"{% endif %}>{{ line.html }}</span>{% if line.figure_note %}<span class="lp-tex-figure-note">Figure reference — view source for details.</span>{% endif %}
       {% endfor %}
     </article>
+    </section>
     {% endfor %}
   </main>
 </div>
