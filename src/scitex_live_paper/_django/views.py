@@ -44,6 +44,7 @@ from scitex_live_paper.ports._registry import PortNotFound
 
 from ..bundle import BundleMissingError
 from . import services
+from ._evidence_request import manuscript_url
 from .handlers import HANDLERS
 from .handlers.ports import handle_port
 
@@ -157,6 +158,7 @@ def viewer_page(request) -> HttpResponse:
             or "",
             "view_scope": getattr(view_selection, "scope", None),
             "view_project": getattr(view_selection, "id", None) or "",
+            "manuscript_url": manuscript_url(request),
         },
         request=request,
     )

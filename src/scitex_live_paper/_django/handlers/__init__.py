@@ -41,6 +41,9 @@ from .core import bundle_info, ping
 from .dag import handle_dag
 from .dashboard import handle_dashboard
 from .event_log import handle_event_log
+from .evidence_pages import (
+    handle_evidence_asset, handle_graph, handle_paper, handle_review_json, handle_review_text,
+)
 from .pdf import handle_pdf
 from .reverify import handle_reverify, handle_reverify_all
 
@@ -48,6 +51,11 @@ HandlerFn = Callable[..., object]
 
 # fmt: off
 HANDLERS: Dict[str, HandlerFn] = {
+    "paper.html":         handle_paper,
+    "graph.html":         handle_graph,
+    "review.json":        handle_review_json,
+    "review.txt":         handle_review_text,
+    "assets":             handle_evidence_asset,
     "api/ping":           ping,
     "api/bundle-info":    bundle_info,
     "api/claims":         handle_claims,

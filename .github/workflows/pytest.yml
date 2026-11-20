@@ -80,7 +80,7 @@ jobs:
           LP_REQUIRE_BROWSER: "1"
           LP_SCREENSHOT_DIR: ${{ runner.temp }}/paper-navigation-shots
         run: |
-          python -m pytest -ra tests/scitex_live_paper/_renderer/test_paper_navigation_browser.py
+          python -m pytest -ra tests/scitex_live_paper/_renderer/test_paper_navigation_browser.py tests/scitex_live_paper/_django/handlers/test_evidence_pages_browser.py
 
       - name: Upload screenshots
         if: always()

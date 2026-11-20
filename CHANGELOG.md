@@ -16,6 +16,32 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-20
+
+### Added
+
+- Serve `paper.html`, per-claim `graph.html`, `review.json`, `review.txt` and
+  their installed assets through the same authorized Django mount as the viewer.
+  Hosts may bind a neutral evidence snapshot and an authorized resource root;
+  standalone bundles may supply `evidence-report.json`. Every link retains host
+  selectors. Reads refuse traversal, symlinks, non-regular and oversized files;
+  report metadata never selects a filesystem root. Viewer shells link to the
+  manuscript when a report is present. These GETs never rerun a provider.
+
+### Fixed
+
+- Require SDK 0.3.25 for the corrected explicit standalone project picker and
+  registered host API identity behavior.
+- Include the renderer templates/assets, Django templates/plugin manifest,
+  vendored Mermaid and PDF.js resources in both sdist and wheel. Source-tree
+  availability no longer conceals missing resources in installed packages.
+  CI builds real archives and compares every owned non-Python resource byte.
+- Pin release promotion to the already qualified immutable workflow revision
+  that uses ordinary expected-head merges and retains its CI gate.
+- Enable HTML escaping for the actual `.html.j2` renderer templates, including
+  report metadata. Draw standalone graphs with Mermaid's strict security mode;
+  mounted pages use private responses and a restrictive content security policy.
+
 ## [0.5.1] - 2026-11-20
 
 ### Fixed

@@ -24,6 +24,7 @@ import importlib.metadata
 import importlib.util
 import shutil
 from pathlib import Path
+from typing import Callable
 
 __all__ = [
     "SDK_HEADER_CSS_DEST",
@@ -96,12 +97,16 @@ def copy_sdk_header_assets(out_dir: str | Path) -> dict[str, Path]:
     return written
 
 
-def header_context(*, project_label: str | None = None) -> dict[str, str | None]:
+def header_context(
+    *, project_label: str | None = None,
+    asset_url: Callable[[str], str] | None = None,
+) -> dict[str, str | None]:
     """Template context shared by the four static pages' SDK header."""
+    asset = asset_url if asset_url is not None else str
     return {
-        "sdk_header_css_url": SDK_HEADER_CSS_DEST,
-        "sdk_header_js_url": SDK_HEADER_JS_DEST,
-        "sdk_header_slot_js_url": SDK_HEADER_SLOT_JS_DEST,
+        "sdk_header_css_url": asset(SDK_HEADER_CSS_DEST),
+        "sdk_header_js_url": asset(SDK_HEADER_JS_DEST),
+        "sdk_header_slot_js_url": asset(SDK_HEADER_SLOT_JS_DEST),
         "app_version": _package_version(),
         # Static export has no project provider: the slot shows a plain
         # label when the caller knows the project, else stays empty.

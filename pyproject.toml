@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.5.1"
+version = "0.5.2"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (provider-neutral evidence states for registered claims). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -37,7 +37,7 @@ dependencies = [
     "scitex-dev>=0.11.7",
     "scitex-logging>=0.1.0",
     # Static exports consume the canonical SDK assets without requiring Django.
-    "scitex-sdk>=0.3.22",
+    "scitex-sdk>=0.3.25",
     "click>=8.0",
     "jinja2>=3.1",
     "pyyaml>=6.0",
@@ -51,13 +51,14 @@ django = [
 # contracts and mount. Use the same qualified SDK runtime minimum as core.
 server = [
     "django>=4.2",
-    "scitex-sdk[gui]>=0.3.22",
+    "scitex-sdk[gui]>=0.3.25",
 ]
 mcp = [
     "fastmcp>=2.0",
 ]
 test = [
     "pytest>=8.0",
+    "build>=1.2",
     # Validates the shipped evidence-report / review-packet JSON Schemas.
     "jsonschema>=4.18",
 ]
@@ -113,9 +114,22 @@ scitex_live_paper = [
     "_skills/scitex-live-paper/*.md",
     "evidence/*.json",
     "package.json",
+    "_django/manifest.json",
+    "_django/templates/live_paper/*.html",
+    "_renderer/templates/*.j2",
+    "_renderer/assets/*.css",
+    "_renderer/assets/*.js",
+    "_renderer/assets/mermaid/*.js",
+    "_renderer/assets/mermaid/*.md",
+    "_renderer/assets/pdfjs/*.mjs",
+    "_renderer/assets/pdfjs/*.md",
     "_django/static/live_paper/js/*.js",
     "_django/static/live_paper/js/*.d.ts",
     "_django/static/live_paper/css/*.css",
+    "_django/static/live_paper/js/vendor/*.js",
+    "_django/static/live_paper/js/vendor/*.md",
+    "_django/static/live_paper/pdfjs/*.mjs",
+    "_django/static/live_paper/pdfjs/*.md",
 ]
 
 [tool.setuptools.packages.find]
