@@ -62,7 +62,21 @@ def test_pyproject_requirements_name_no_unknown_scitex_package():
         if _dist_name(r).startswith("scitex-")
     }
     # Assert
-    assert scitex_deps <= KNOWN_SCITEX_DEPS
+    assert scitex_deps <= KNOWN_SCITEX_DEPS | {"scitex-rich-pdf"}
+
+
+def test_rich_pdf_is_a_development_dependency():
+    # Arrange
+    project = _pyproject()["project"]
+    groups = {"runtime": project["dependencies"], **project["optional-dependencies"]}
+    # Act
+    owners = {
+        name
+        for name, requirements in groups.items()
+        if "scitex-rich-pdf" in {_dist_name(req) for req in requirements}
+    }
+    # Assert
+    assert owners == {"dev"}
 
 
 def test_all_extra_is_closed_over_public_extras():
