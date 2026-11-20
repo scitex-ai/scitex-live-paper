@@ -310,6 +310,7 @@ def test_narrow_screen_shows_the_panel_as_a_bottom_sheet(browser, ref_site):
 def test_latex_reader_source_toggle_preserves_one_claim_and_evidence_panel(
     browser, ref_site, tmp_path, width
 ):
+    # Arrange
     from copy import deepcopy
 
     from scitex_live_paper._renderer.paper import render_paper
@@ -329,24 +330,24 @@ def test_latex_reader_source_toggle_preserves_one_claim_and_evidence_panel(
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
+    # Act
     try:
         page.goto(result.paper_html.as_uri())
         page.wait_for_selector("html[data-lp-paper-ready]", state="attached")
         article = page.locator(".lp-paper-text")
-        assert r"\documentclass" not in article.inner_text()
-        assert r"\section" not in article.inner_text()
-        assert page.locator('.lp-tex-title').inner_text() == "A readable manuscript"
-        assert page.locator("mark#claim-cohort2").count() == 1
+        reader = article.inner_text()
+        title = page.locator('.lp-tex-title').inner_text()
+        reader_marks = page.locator("mark#claim-cohort2").count()
         page.locator("mark#claim-cohort2 a").click()
         page.wait_for_selector("#lp-claim-panel svg")
-        assert _panel(page).get_attribute("data-support") == "not_supported"
+        verdict = _panel(page).get_attribute("data-support")
         page.keyboard.press("Escape")
         page.locator(".lp-source-toggle").check()
-        assert r"\documentclass{article}" in article.inner_text()
-        assert r"\section*{Results}" in article.inner_text()
-        assert page.locator("mark#claim-cohort2").count() == 1
+        source = article.inner_text()
+        source_marks = page.locator("mark#claim-cohort2").count()
         page.locator(".lp-source-toggle").uncheck()
-        assert r"\documentclass" not in article.inner_text()
-        assert errors == []
+        restored = article.inner_text()
     finally:
         context.close()
+    # Assert
+    assert (r"\documentclass" not in reader, r"\section" not in reader, title, reader_marks, verdict, r"\documentclass{article}" in source, r"\section*{Results}" in source, source_marks, r"\documentclass" not in restored, errors) == (True, True, "A readable manuscript", 1, "not_supported", True, True, 1, True, [])
