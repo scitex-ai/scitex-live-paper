@@ -16,6 +16,8 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-20
+
 ### Added
 
 - Serve `paper.html`, per-claim `graph.html`, `review.json`, `review.txt` and
@@ -28,6 +30,8 @@ may change without a changelog entry.
 
 ### Fixed
 
+- Require SDK 0.3.25 for the corrected explicit standalone project picker and
+  registered host API identity behavior.
 - Include the renderer templates/assets, Django templates/plugin manifest,
   vendored Mermaid and PDF.js resources in both sdist and wheel. Source-tree
   availability no longer conceals missing resources in installed packages.

@@ -5,7 +5,8 @@ whole line when the text is not found verbatim there) is wrapped in a
 ``<mark class="lp-claim-span" data-support=...>`` linking to its minimal
 evidence graph. Every other character of the manuscript is emitted as plain
 escaped text: text that is not a registered claim is not assessed, so it is
-never marked — not as supported, not as unsupported.
+never marked — not as supported, not as unsupported. Reader presentation
+hides TeX setup; the source toggle reveals every original escaped line.
 
 Rendered from the review packet only (``scitex_live_paper.evidence``), so
 the highlights agree with the claims page and the machine adapter.
@@ -36,6 +37,7 @@ from markupsafe import Markup, escape
 from scitex_live_paper.evidence import SYMBOLS, iter_entries
 
 from ._sdk_header import copy_sdk_header_assets, header_context
+from ._paper_presentation import presentation_lines
 from .dag import MERMAID_VERSION, graph_to_mermaid
 
 __all__ = ["PaperArtifacts", "claims_data", "highlight_lines", "render_paper"]
@@ -205,7 +207,14 @@ def render_paper(
             if not path.is_file():
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
-        sections.append({"file": rel, "lines": highlight_lines(text, by_file[rel])})
+        lines = highlight_lines(text, by_file[rel])
+        is_latex = Path(rel).suffix.lower() in {".tex", ".ltx"}
+        sections.append({
+            "file": rel,
+            "lines": lines,
+            "is_latex": is_latex,
+            "reader_lines": presentation_lines(text, lines, is_latex=is_latex),
+        })
     if not sections:
         return None
 
