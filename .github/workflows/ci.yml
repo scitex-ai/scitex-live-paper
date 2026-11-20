@@ -77,7 +77,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: scitex-ai/.github/.github/workflows/rtd-sphinx-build.yml@e15c6bad03eafcc29547793bab2623b75f8fe322
+    uses: scitex-ai/.github/.github/workflows/rtd-sphinx-build.yml@7638517f37694707ddd22a9c4bdf34f702f098b3
     with:
       runs_on: ${{ vars.CI_RUNS_ON || '["ubuntu-latest"]' }}
       required: true
@@ -92,7 +92,7 @@ jobs:
           github.ref == 'refs/heads/develop' }}
     permissions:
       contents: read
-    uses: scitex-ai/.github/.github/workflows/rtd-publish.yml@e15c6bad03eafcc29547793bab2623b75f8fe322
+    uses: scitex-ai/.github/.github/workflows/rtd-publish.yml@7638517f37694707ddd22a9c4bdf34f702f098b3
     with:
       project: scitex-live-paper
       version: latest
