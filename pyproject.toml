@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scitex-live-paper"
-version = "0.5.1"
+version = "0.5.2"
 description = "Interactive, AI-verifiable live rendering of research manuscripts (provider-neutral evidence states for registered claims). Part of SciTeX."
 readme = "README.md"
 license = "AGPL-3.0-only"
@@ -37,7 +37,7 @@ dependencies = [
     "scitex-dev>=0.11.7",
     "scitex-logging>=0.1.0",
     # Static exports consume the canonical SDK assets without requiring Django.
-    "scitex-sdk>=0.3.22",
+    "scitex-sdk>=0.3.25",
     "click>=8.0",
     "jinja2>=3.1",
     "pyyaml>=6.0",
@@ -51,7 +51,7 @@ django = [
 # contracts and mount. Use the same qualified SDK runtime minimum as core.
 server = [
     "django>=4.2",
-    "scitex-sdk[gui]>=0.3.22",
+    "scitex-sdk[gui]>=0.3.25",
 ]
 mcp = [
     "fastmcp>=2.0",
