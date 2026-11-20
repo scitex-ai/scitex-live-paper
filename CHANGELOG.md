@@ -16,6 +16,8 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-20
+
 ### Fixed
 
 - Display a registered manuscript claim's stated value in place of its
