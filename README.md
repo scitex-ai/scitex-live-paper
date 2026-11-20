@@ -186,6 +186,23 @@ standalone: `scitex-live-paper serve ./bundle/` boots the SDK
 workspace shell (`scitex_sdk.app.embed.run_standalone`) for local
 use, demo, and testability.
 
+The same mount serves `paper.html`, `graph.html?claim_id=…`, `review.json`,
+`review.txt`, and the installed page assets. Supply `evidence-report.json`
+(the neutral evidence-report contract) in the bundle directory, or pass a
+trusted `BundleContext(evidence_report=report, resource_root=authorized_root, …)`.
+The resource root defaults to the bundle directory. Paths in the report never
+grant access outside that root; symlinks and non-regular files are refused.
+Page, graph and asset links retain the request's project and working-directory
+selectors, and every request still passes through the host resolver. These
+read routes consume a snapshot without running an evidence provider or changing
+manuscript values. A viewer with a report offers **Read manuscript with evidence**.
+
+Django settings `SCITEX_LIVE_PAPER_MAX_REPORT_BYTES` (default 16 MiB) and
+`SCITEX_LIVE_PAPER_MAX_TEXT_BYTES` (default 4 MiB across manuscript files) bound
+the request's reads. Secure descriptor-relative reads require POSIX support;
+an unavailable capability returns 503. Missing, refused, invalid and oversized
+resources return 404, 403, 400 and 413 respectively.
+
 </details>
 
 ## Environment Variables

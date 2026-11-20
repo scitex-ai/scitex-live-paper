@@ -24,6 +24,7 @@
 <body class="live-paper-embed">
   <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
     <section class="live-paper-status">
+      {% if manuscript_url %}<p><a href="{{ manuscript_url }}">Read manuscript with evidence</a></p>{% endif %}
       <p id="live-paper-loading">Loading bundle info…</p>
       <div id="live-paper-bundle-header" hidden></div>
       <details id="live-paper-bundle-diagnostics" hidden>

@@ -49,7 +49,7 @@ class IndexArtifacts:
 def _jinja_env() -> Environment:
     return Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
-        autoescape=select_autoescape(["html", "htm", "xml"]),
+        autoescape=select_autoescape(["html", "htm", "xml", "j2"]),
         keep_trailing_newline=True,
     )
 

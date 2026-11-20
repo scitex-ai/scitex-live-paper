@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -158,7 +159,8 @@ def test_graph_page_draws_the_providers_nodes(ref_site):
     # Act
     html = (out / packet["supported"][0]["graph_url"]).read_text()
     # Assert
-    assert "Processing<br/>scripts/compute.py" in html
+    # Browser textContent decodes HTML entities before Mermaid reads its source.
+    assert "Processing<br/>scripts/compute.py" in unescape(html)
 
 
 def test_graph_page_lists_exactly_the_packets_failing_nodes(ref_site):
@@ -184,7 +186,7 @@ def test_graph_page_draws_failing_nodes_with_class_and_text_label(ref_site):
     html = (out / entry["graph_url"]).read_text()
     # Assert
     assert (
-        "Input<br/>data/input2.csv<br/>\u26a0 CHANGED\"]:::failing" in html
+        "Input<br/>data/input2.csv<br/>\u26a0 CHANGED\"]:::failing" in unescape(html)
         and "classDef failing" in html
         and "stroke-dasharray:12 4 3 4" in html
     )

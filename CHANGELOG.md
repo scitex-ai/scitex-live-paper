@@ -16,6 +16,24 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+### Added
+
+- Serve `paper.html`, per-claim `graph.html`, `review.json`, `review.txt` and
+  their installed assets through the same authorized Django mount as the viewer.
+  Hosts may bind a neutral evidence snapshot and an authorized resource root;
+  standalone bundles may supply `evidence-report.json`. Every link retains host
+  selectors. Reads refuse traversal, symlinks, non-regular and oversized files;
+  report metadata never selects a filesystem root. Viewer shells link to the
+  manuscript when a report is present. These GETs never rerun a provider.
+
+### Fixed
+
+- Enable HTML escaping for the actual `.html.j2` renderer templates, including
+  report metadata. Draw standalone graphs with Mermaid's strict security mode;
+  mounted pages use private responses and a restrictive content security policy.
+
+## [0.5.1] - 2026-11-20
+
 ### Fixed
 
 - Display a registered manuscript claim's stated value in place of its

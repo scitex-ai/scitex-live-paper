@@ -320,6 +320,11 @@ class BundleContext:
     #: resolver-built context — ``mount()`` needs no signature
     #: change. ``None`` → port endpoints 404 ("no adapters registered").
     renderers: Optional["Registry"] = None
+    #: Optional provider-neutral evidence snapshot supplied by the authorized host.
+    evidence_report: Optional[Mapping[str, Any]] = None
+    #: Authorized root for manuscript resources; defaults to the bundle root.
+    #: Report metadata never supplies filesystem authority.
+    resource_root: Optional[Path] = None
 
     def __post_init__(self) -> None:
         # ``RendererOptions`` carries renderer-display knobs; default to
