@@ -28,6 +28,12 @@ may change without a changelog entry.
 
 ### Fixed
 
+- Include the renderer templates/assets, Django templates/plugin manifest,
+  vendored Mermaid and PDF.js resources in both sdist and wheel. Source-tree
+  availability no longer conceals missing resources in installed packages.
+  CI builds real archives and compares every owned non-Python resource byte.
+- Pin release promotion to the already qualified immutable workflow revision
+  that uses ordinary expected-head merges and retains its CI gate.
 - Enable HTML escaping for the actual `.html.j2` renderer templates, including
   report metadata. Draw standalone graphs with Mermaid's strict security mode;
   mounted pages use private responses and a restrictive content security policy.
