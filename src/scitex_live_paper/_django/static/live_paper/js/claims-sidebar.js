@@ -30,18 +30,17 @@ export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
     sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
   }
 
-  const list = document.createElement("ul");
-  list.className = "lp-claims-list";
-
-  for (const claim of claimsPayload.claims) {
-    list.appendChild(renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit));
-  }
-
-  sidebar.appendChild(list);
+  const container = document.createElement("div");
+  container.className = "lp-claims-list";
+  sidebar.appendChild(container);
+  return {
+    feedContainer: container,
+    renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit),
+  };
 }
 
 export function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
-  const li = document.createElement("li");
+  const li = document.createElement("div");
   li.className = "lp-claim";
   li.dataset.claimId = claim.claim_id;
   li.dataset.status = claim.status || "registered";
@@ -52,11 +51,6 @@ export function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
     const sidebar = li.closest(".live-paper-claims");
     if (sidebar) renderClaimDetail(sidebar, claim, apiBase);
   });
-
-  const idSpan = document.createElement("span");
-  idSpan.className = "lp-claim-id";
-  idSpan.textContent = claim.claim_id;
-  li.appendChild(idSpan);
 
   const valueSpan = document.createElement("span");
   valueSpan.className = "lp-claim-value";

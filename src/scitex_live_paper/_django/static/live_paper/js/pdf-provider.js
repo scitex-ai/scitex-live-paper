@@ -1,10 +1,10 @@
 /**
- * LivePaper public rich PDF provider. Framework-neutral, route-neutral.
+ * SciTeX Rich PDF provider. Framework-neutral and route-neutral.
  *
  * All anchors: 1-based page, bottom-left PDF units, bbox [x0,y0,x1,y1].
  * SDK owns raster/text/link rendering and viewport transforms. Consumers own
  * document resolution, DTO translation, authentication, persistence and policy.
- * See docs/rich-pdf-provider.md for the port contract and package export.
+ * See the package README for the port contract and package exports.
  */
 export function createRichPdfViewer(options) {
   const { container, createPdfViewer, ports = {}, rendererOptions = {} } = options;
@@ -18,6 +18,8 @@ export function createRichPdfViewer(options) {
   const pages = new Map();
   const layers = new Map();
   let popup = null;
+  let selectedOverlayId = null;
+  const feed = createFeed(options.feedContainer, chooseFeedEntry, ports.feed?.renderEntry);
   const emit = (event) => ports.events?.emit?.({ documentId: current?.id ?? null, ...event });
   const allow = (action, target) => {
     const canonical = target?.overlayId ? overlays.find((item) => item.id === target.overlayId) : null;
@@ -73,12 +75,16 @@ export function createRichPdfViewer(options) {
       button.className = "lp-rich-overlay";
       button.dataset.overlayId = overlay.id;
       button.dataset.status = overlay.status ?? "";
+      if (overlay.id === selectedOverlayId) button.setAttribute("aria-current", "true");
       button.setAttribute("aria-label", overlay.label || `Overlay ${overlay.id}`);
       button.title = overlay.label || overlay.id;
       rectStyle(button, surface, overlay.bbox);
       const count = comments.filter((comment) => comment.target?.overlayId === overlay.id).length;
       if (count) { const badge = document.createElement("span"); badge.className = "lp-rich-comment-count"; badge.textContent = `✎${count}`; button.append(badge); }
       button.addEventListener("click", () => selectTarget({ overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly }, button, overlay));
+      for (const type of ["pointerenter", "focus"]) {
+        button.addEventListener(type, () => emit({ type: "overlay-preview", overlay }));
+      }
       layer.append(button);
     }
     for (const comment of comments.filter((item) => !item.target?.overlayId && item.target?.page === page && validBox(item.target.bbox))) {
@@ -91,9 +97,33 @@ export function createRichPdfViewer(options) {
       layer.append(button);
     }
   }
+  function selectOverlay(overlayId) {
+    selectedOverlayId = overlayId ?? null;
+    for (const layer of layers.values()) {
+      for (const element of layer.querySelectorAll("[data-overlay-id]")) {
+        if (element.dataset.overlayId === selectedOverlayId) {
+          element.setAttribute("aria-current", "true");
+        } else {
+          element.removeAttribute("aria-current");
+        }
+      }
+    }
+  }
+
+  function chooseFeedEntry(entry) {
+    const overlay = overlays.find((item) => item.id === entry.overlayId);
+    selectOverlay(overlay?.id);
+    const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
+      .find((element) => element.dataset.overlayId === entry.overlayId);
+    anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    emit({ type: "feed-select", entry, overlay: overlay ?? null });
+  }
+
   function selectTarget(target, anchor, overlay = null) {
     if (disposed || !current) return;
     popup?.remove();
+    selectOverlay(target.overlayId);
+    feed?.selectOverlay(target.overlayId);
     emit({ type: "overlay-select", target, overlay });
     const panel = document.createElement("section");
     panel.className = "lp-rich-comments";
@@ -144,12 +174,22 @@ export function createRichPdfViewer(options) {
   async function refresh() {
     if (!current || disposed) return;
     const token = sequence; const document = current;
-    const values = await Promise.allSettled([ports.overlays?.list?.(document) ?? overlays, ports.comments?.list?.(document) ?? comments]);
+    const requests = [
+      Promise.resolve().then(() => ports.overlays?.list?.(document) ?? overlays),
+      Promise.resolve().then(() => ports.comments?.list?.(document) ?? comments),
+      Promise.resolve().then(() => feed && ports.feed?.list?.(document)),
+    ];
+    const values = await Promise.allSettled(requests);
     if (disposed || token !== sequence) return;
     if (values[0].status === "fulfilled") overlays = [...(values[0].value || [])];
     else emit({ type: "port-error", port: "overlays", error: values[0].reason });
     if (values[1].status === "fulfilled") comments = [...(values[1].value || [])];
     else emit({ type: "port-error", port: "comments", error: values[1].reason });
+    if (values[2].status === "rejected") {
+      emit({ type: "port-error", port: "feed", error: values[2].reason });
+    } else if (values[2].value != null) {
+      feed?.setEntries(values[2].value);
+    }
     repaint();
   }
   async function load(key) {
@@ -157,6 +197,8 @@ export function createRichPdfViewer(options) {
     const token = ++sequence;
     popup?.remove(); popup = null;
     current = null;
+    selectedOverlayId = null;
+    feed?.reset();
     for (const layer of layers.values()) layer.remove();
     layers.clear(); pages.clear();
     const document = await ports.documents.resolve(key);
@@ -173,6 +215,7 @@ export function createRichPdfViewer(options) {
   function destroy() {
     if (disposed) return;
     disposed = true; sequence++; popup?.remove();
+    feed?.destroy();
     for (const layer of layers.values()) layer.remove();
     layers.clear(); pages.clear(); renderer.destroy();
   }
@@ -183,4 +226,52 @@ function validBox(box) { return Array.isArray(box) && box.length === 4 && box.ev
 function sameTarget(left, right) {
   if (left?.overlayId || right?.overlayId) return Boolean(left?.overlayId && left.overlayId === right?.overlayId);
   return left?.page === right?.page && JSON.stringify(left?.bbox) === JSON.stringify(right?.bbox);
+}
+
+
+function createFeed(container, choose, renderEntry) {
+  if (!container) return null;
+  const list = container.ownerDocument.createElement("ul");
+  list.className = "scitex-rich-pdf-feed";
+  container.append(list);
+  let rows = [];
+  let selected = null;
+
+  function select(row, scroll = false) {
+    selected?.button.removeAttribute("aria-current");
+    selected = row ?? null;
+    selected?.button.setAttribute("aria-current", "true");
+    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function setEntries(entries) {
+    const selectedId = selected?.entry.id;
+    select(null);
+    rows = entries.map((entry) => {
+      const element = list.ownerDocument.createElement("li");
+      const button = list.ownerDocument.createElement("button");
+      button.type = "button";
+      button.textContent = entry.label;
+      const row = { entry, element, button };
+      button.addEventListener("click", () => {
+        select(row);
+        choose(entry);
+      });
+      element.append(button);
+      const content = renderEntry?.(entry);
+      if (content) element.append(content);
+      return row;
+    });
+    list.replaceChildren(...rows.map((row) => row.element));
+    select(rows.find((row) => row.entry.id === selectedId));
+  }
+
+  return {
+    setEntries,
+    selectOverlay(overlayId) {
+      if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
+    },
+    reset() { setEntries([]); },
+    destroy() { list.remove(); },
+  };
 }

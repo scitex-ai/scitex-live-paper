@@ -122,6 +122,8 @@ function createRichPdfViewer(options) {
   const pages = /* @__PURE__ */ new Map();
   const layers = /* @__PURE__ */ new Map();
   let popup = null;
+  let selectedOverlayId = null;
+  const feed = createFeed(options.feedContainer, chooseFeedEntry, ports.feed?.renderEntry);
   const emit = (event) => ports.events?.emit?.({ documentId: current?.id ?? null, ...event });
   const allow = (action, target) => {
     const canonical = target?.overlayId ? overlays.find((item) => item.id === target.overlayId) : null;
@@ -187,6 +189,7 @@ function createRichPdfViewer(options) {
       button.className = "lp-rich-overlay";
       button.dataset.overlayId = overlay.id;
       button.dataset.status = overlay.status ?? "";
+      if (overlay.id === selectedOverlayId) button.setAttribute("aria-current", "true");
       button.setAttribute("aria-label", overlay.label || `Overlay ${overlay.id}`);
       button.title = overlay.label || overlay.id;
       rectStyle(button, surface, overlay.bbox);
@@ -198,6 +201,9 @@ function createRichPdfViewer(options) {
         button.append(badge);
       }
       button.addEventListener("click", () => selectTarget({ overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly }, button, overlay));
+      for (const type of ["pointerenter", "focus"]) {
+        button.addEventListener(type, () => emit({ type: "overlay-preview", overlay }));
+      }
       layer.append(button);
     }
     for (const comment of comments.filter((item) => !item.target?.overlayId && item.target?.page === page && validBox(item.target.bbox))) {
@@ -213,9 +219,30 @@ function createRichPdfViewer(options) {
       layer.append(button);
     }
   }
+  function selectOverlay(overlayId) {
+    selectedOverlayId = overlayId ?? null;
+    for (const layer of layers.values()) {
+      for (const element of layer.querySelectorAll("[data-overlay-id]")) {
+        if (element.dataset.overlayId === selectedOverlayId) {
+          element.setAttribute("aria-current", "true");
+        } else {
+          element.removeAttribute("aria-current");
+        }
+      }
+    }
+  }
+  function chooseFeedEntry(entry) {
+    const overlay = overlays.find((item) => item.id === entry.overlayId);
+    selectOverlay(overlay?.id);
+    const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element) => element.dataset.overlayId === entry.overlayId);
+    anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    emit({ type: "feed-select", entry, overlay: overlay ?? null });
+  }
   function selectTarget(target, anchor, overlay = null) {
     if (disposed || !current) return;
     popup?.remove();
+    selectOverlay(target.overlayId);
+    feed?.selectOverlay(target.overlayId);
     emit({ type: "overlay-select", target, overlay });
     const panel = document.createElement("section");
     panel.className = "lp-rich-comments";
@@ -297,12 +324,22 @@ function createRichPdfViewer(options) {
     if (!current || disposed) return;
     const token = sequence;
     const document2 = current;
-    const values = await Promise.allSettled([ports.overlays?.list?.(document2) ?? overlays, ports.comments?.list?.(document2) ?? comments]);
+    const requests = [
+      Promise.resolve().then(() => ports.overlays?.list?.(document2) ?? overlays),
+      Promise.resolve().then(() => ports.comments?.list?.(document2) ?? comments),
+      Promise.resolve().then(() => feed && ports.feed?.list?.(document2))
+    ];
+    const values = await Promise.allSettled(requests);
     if (disposed || token !== sequence) return;
     if (values[0].status === "fulfilled") overlays = [...values[0].value || []];
     else emit({ type: "port-error", port: "overlays", error: values[0].reason });
     if (values[1].status === "fulfilled") comments = [...values[1].value || []];
     else emit({ type: "port-error", port: "comments", error: values[1].reason });
+    if (values[2].status === "rejected") {
+      emit({ type: "port-error", port: "feed", error: values[2].reason });
+    } else if (values[2].value != null) {
+      feed?.setEntries(values[2].value);
+    }
     repaint();
   }
   async function load(key) {
@@ -311,6 +348,8 @@ function createRichPdfViewer(options) {
     popup?.remove();
     popup = null;
     current = null;
+    selectedOverlayId = null;
+    feed?.reset();
     for (const layer of layers.values()) layer.remove();
     layers.clear();
     pages.clear();
@@ -333,6 +372,7 @@ function createRichPdfViewer(options) {
     disposed = true;
     sequence++;
     popup?.remove();
+    feed?.destroy();
     for (const layer of layers.values()) layer.remove();
     layers.clear();
     pages.clear();
@@ -346,6 +386,53 @@ function validBox(box) {
 function sameTarget(left, right) {
   if (left?.overlayId || right?.overlayId) return Boolean(left?.overlayId && left.overlayId === right?.overlayId);
   return left?.page === right?.page && JSON.stringify(left?.bbox) === JSON.stringify(right?.bbox);
+}
+function createFeed(container, choose, renderEntry) {
+  if (!container) return null;
+  const list = container.ownerDocument.createElement("ul");
+  list.className = "scitex-rich-pdf-feed";
+  container.append(list);
+  let rows = [];
+  let selected = null;
+  function select(row, scroll = false) {
+    selected?.button.removeAttribute("aria-current");
+    selected = row ?? null;
+    selected?.button.setAttribute("aria-current", "true");
+    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function setEntries(entries) {
+    const selectedId = selected?.entry.id;
+    select(null);
+    rows = entries.map((entry) => {
+      const element = list.ownerDocument.createElement("li");
+      const button = list.ownerDocument.createElement("button");
+      button.type = "button";
+      button.textContent = entry.label;
+      const row = { entry, element, button };
+      button.addEventListener("click", () => {
+        select(row);
+        choose(entry);
+      });
+      element.append(button);
+      const content = renderEntry?.(entry);
+      if (content) element.append(content);
+      return row;
+    });
+    list.replaceChildren(...rows.map((row) => row.element));
+    select(rows.find((row) => row.entry.id === selectedId));
+  }
+  return {
+    setEntries,
+    selectOverlay(overlayId) {
+      if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
+    },
+    reset() {
+      setEntries([]);
+    },
+    destroy() {
+      list.remove();
+    }
+  };
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-overlays.js
@@ -499,6 +586,7 @@ var PDFViewer = class {
     this.container.classList.add("pdf-viewer-host");
     this.provider = createRichPdfViewer({
       container: this.container,
+      feedContainer: options.feedContainer,
       createPdfViewer: options.createPdfViewer,
       rendererOptions: {
         pdfjs: options.pdfjs,
@@ -512,6 +600,15 @@ var PDFViewer = class {
           src: withBundleContext(this.apiBase + "pdf?doc_type=" + encodeURIComponent(docType || "manuscript") + "&t=" + Date.now())
         }) },
         overlays: { list: () => this.claims.map(toOverlay).filter(Boolean) },
+        feed: options.feedContainer && {
+          list: () => this.claims.map((claim) => ({
+            id: claim.claim_id,
+            label: claim.claim_id,
+            overlayId: toOverlay(claim)?.id,
+            data: claim
+          })),
+          renderEntry: (entry) => options.renderFeedEntry(entry.data)
+        },
         comments: {
           list: () => this.comments.map(toComment),
           create: async (_document, target, body) => {
@@ -522,9 +619,10 @@ var PDFViewer = class {
           }
         },
         events: { emit: (event) => {
-          if (event.type === "overlay-select" && event.overlay) {
-            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id: event.overlay.id } }));
-            if (event.overlay.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
+          if (event.type === "feed-select" || event.type === "overlay-select" && event.overlay) {
+            const id = event.type === "feed-select" ? event.entry.id : event.overlay.id;
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id } }));
+            if (event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
           }
           this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
         } }
@@ -804,15 +902,16 @@ function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (reVerifyEnabled) {
     sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
   }
-  const list = document.createElement("ul");
-  list.className = "lp-claims-list";
-  for (const claim of claimsPayload.claims) {
-    list.appendChild(renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit));
-  }
-  sidebar.appendChild(list);
+  const container = document.createElement("div");
+  container.className = "lp-claims-list";
+  sidebar.appendChild(container);
+  return {
+    feedContainer: container,
+    renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit)
+  };
 }
 function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
-  const li = document.createElement("li");
+  const li = document.createElement("div");
   li.className = "lp-claim";
   li.dataset.claimId = claim.claim_id;
   li.dataset.status = claim.status || "registered";
@@ -822,10 +921,6 @@ function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
     const sidebar = li.closest(".live-paper-claims");
     if (sidebar) renderClaimDetail(sidebar, claim, apiBase);
   });
-  const idSpan = document.createElement("span");
-  idSpan.className = "lp-claim-id";
-  idSpan.textContent = claim.claim_id;
-  li.appendChild(idSpan);
   const valueSpan = document.createElement("span");
   valueSpan.className = "lp-claim-value";
   valueSpan.textContent = claim.claim_value || claim.file_path || "(no value)";
@@ -1255,9 +1350,10 @@ async function boot(rootEl) {
       setStatus({ error: String(err) });
     }
   }
+  let sidebarOptions;
   if (claimsPayload) {
     try {
-      renderClaimsSidebar(rootEl, claimsPayload, apiBase);
+      sidebarOptions = renderClaimsSidebar(rootEl, claimsPayload, apiBase);
     } catch (err) {
       console.warn("[live-paper] claims sidebar render failed", err);
     }
@@ -1275,6 +1371,7 @@ async function boot(rootEl) {
   });
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
+    ...sidebarOptions,
     container: pdfContainer,
     pdfjs,
     createPdfViewer,

@@ -1,14 +1,24 @@
 import type { PdfSource, PdfViewerApi, PdfViewerOptions, PenInput } from '@scitex/sdk/ui/pdf-viewer';
-export interface PdfDocument { id: string; src: PdfSource; readonly?: boolean; }
+export interface PdfDocument { id: string; src: PdfSource; revision?: string; readonly?: boolean; }
 /** All geometry uses 1-based pages and bottom-left PDF units. */
 export interface PdfTarget { overlayId?: string; page?: number; bbox?: number[]; readonly?: boolean; }
 export interface PdfOverlay { id: string; page: number; bbox: number[]; label?: string; status?: string; readonly?: boolean; target?: unknown; }
 export interface PdfComment { id: string; body: string; author?: string; target: PdfTarget; }
 export interface PdfEvent { type: string; documentId: string | null; [key: string]: unknown; }
+export interface PdfFeedEntry {
+  id: string;
+  label: string;
+  overlayId?: string;
+  data?: unknown;
+}
 export interface RichPdfPorts {
   documents: { resolve(key: unknown): PdfDocument | Promise<PdfDocument> };
   overlays?: { list(document: PdfDocument): PdfOverlay[] | Promise<PdfOverlay[]> };
   comments?: { list(document: PdfDocument): PdfComment[] | Promise<PdfComment[]>; create?(document: PdfDocument, target: PdfTarget, body: string): Promise<PdfComment> };
+  feed?: {
+    list(document: PdfDocument): PdfFeedEntry[] | Promise<PdfFeedEntry[]>;
+    renderEntry?(entry: PdfFeedEntry): Node | null;
+  };
   events?: { emit(event: PdfEvent): void };
   mutations?: { createMark?(document: PdfDocument, input: PenInput): void | Promise<void> };
   policy?: { canMutate(context: { document: PdfDocument; action: string; target: unknown }): boolean };
@@ -19,6 +29,7 @@ export interface RichPdfOptions {
   ports: RichPdfPorts;
   rendererOptions?: Omit<PdfViewerOptions, 'container' | 'src'>;
   commentsContainer?: HTMLElement;
+  feedContainer?: HTMLElement;
 }
 export interface RichPdfApi {
   readonly renderer: PdfViewerApi;

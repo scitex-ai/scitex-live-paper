@@ -89,3 +89,14 @@ canonical pair as `view_scope`/`view_project` and root data attributes; it never
 uses a raw query value as the current-project alias. This request-local view
 is separate from the globally remembered navigation selection and remains
 available for a missing-bundle empty state.
+
+## Released component
+
+SciTeX Rich PDF owns the provider implementation. Live Paper bundles matching
+assets for Django and preserves the existing `@scitex/live-paper/pdf-provider`
+exports used by Writer. The native viewer supplies its claims through the
+component's synchronized feed, including claims without a resolved PDF region.
+
+To refresh the compatibility assets, install the version pinned in
+`scripts/sync-rich-pdf.py`, run `python scripts/sync-rich-pdf.py`, and rebuild
+with `npm ci && npm run build:frontend`. Use `--check` to verify asset parity.
