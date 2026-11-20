@@ -1,0 +1,792 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SciTeX Scientific Paper Architecture &mdash; SciTeX Live Paper 0.5.2 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="_static/architecture.css?v=f0b9be60" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=8e576371"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=f281be69"></script>
+      <script type="module">import mermaid from "./_static/mermaid-loader.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = "";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = -1 === -1 ? mermaids_active.length : -1;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!false) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false, "securityLevel": "strict", "theme": "neutral", "flowchart": {"curve": "linear"}},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false, "securityLevel": "strict", "theme": "neutral", "flowchart": {"curve": "linear"}},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="CLI Reference" href="cli_reference.html" />
+    <link rel="prev" title="SciTeX Live Paper" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            SciTeX Live Paper
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">SciTeX Scientific Paper Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#terms">Terms</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#gui-composition">GUI composition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#core-libraries-and-services">Core libraries and services</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#package-responsibilities">Package responsibilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#one-pdf-and-one-feed">One PDF and one feed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#public-interfaces">Public interfaces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#connector-ownership">Connector ownership</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#from-a-statistical-result-to-a-paper">From a statistical result to a paper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#identities-and-persistence">Identities and persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#related-packages">Related packages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#implementation-sequence">Implementation sequence</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cli_reference.html">CLI Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">SciTeX Live Paper</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">SciTeX Scientific Paper Architecture</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/scitex-ai/scitex-live-paper/blob/develop/docs/sphinx/architecture.md" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="scitex-scientific-paper-architecture">
+<h1>SciTeX Scientific Paper Architecture<a class="headerlink" href="#scitex-scientific-paper-architecture" title="Link to this heading"></a></h1>
+<p>Architecture design · 20 November 2026</p>
+<p><strong>Rich PDF owns the PDF and its synchronized feed. Live Paper supplies scientific content and actions.</strong> Scholar and Writer embed Live Paper through small connectors. Stats produces statistical results and receipts; Clew connects registered claims to those results and their recorded computations.</p>
+<p>This is the canonical paper-workflow architecture in <code class="docutils literal notranslate"><span class="pre">scitex-live-paper</span></code>. Sphinx and the architecture skill read this same source. It covers the reading, authoring, computation, evidence, and publication boundaries; related packages retain their own API and operations documentation.</p>
+<section id="terms">
+<h2>Terms<a class="headerlink" href="#terms" title="Link to this heading"></a></h2>
+<p><strong>Library or application describes how software is used. GUI, CLI, TUI, and API describe how it is accessed.</strong> One repository can provide a library, an application, and several interfaces.</p>
+<p>An application may expose a GUI, CLI, or both. A library may provide headless functions or reusable GUI components.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Term</p></th>
+<th class="head"><p>Meaning here</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Core library</p></td>
+<td><p>Reusable domain logic called through a public API</p></td>
+</tr>
+<tr class="row-odd"><td><p>UI component</p></td>
+<td><p>Reusable graphical functionality embedded in an application</p></td>
+</tr>
+<tr class="row-even"><td><p>Application</p></td>
+<td><p>A runnable experience with an entry point, host context, and user workflow</p></td>
+</tr>
+<tr class="row-odd"><td><p>GUI</p></td>
+<td><p>A graphical user interface, including a web application</p></td>
+</tr>
+<tr class="row-even"><td><p>CLI</p></td>
+<td><p>A command-line interface: commands and arguments in a terminal</p></td>
+</tr>
+<tr class="row-odd"><td><p>TUI</p></td>
+<td><p>An interactive terminal interface with screens, panels, or menus</p></td>
+</tr>
+<tr class="row-even"><td><p>API</p></td>
+<td><p>A programmatic interface, such as Python functions, a JavaScript component API, or HTTP endpoints</p></td>
+</tr>
+</tbody>
+</table>
+<p>Use <strong>CLI</strong> for command-line tools. Use <strong>TUI</strong> when describing an interactive terminal screen. CUI is less specific and is unnecessary for this architecture.</p>
+</section>
+<section id="gui-composition">
+<h2>GUI composition<a class="headerlink" href="#gui-composition" title="Link to this heading"></a></h2>
+<blockquote>
+<div><p><strong>Diagram legend:</strong> A → B means <strong>A uses B</strong> through a public interface. All arrows are solid. Box subtitles identify applications, UI components, libraries, or services. In this diagram, uses means embeds a UI component.</p>
+</div></blockquote>
+<p>Scholar and Writer embed the Live Paper component; Live Paper’s standalone application embeds that same component.</p>
+<pre  class="mermaid">
+        flowchart TD
+    ScholarApp[&quot;Scholar&lt;br/&gt;Web application&quot;] --&gt; LivePaperUI[&quot;Live Paper&lt;br/&gt;UI component&quot;]
+    WriterApp[&quot;Writer&lt;br/&gt;Web application&quot;] --&gt; LivePaperUI
+    LivePaperApp[&quot;Live Paper&lt;br/&gt;Web application&quot;] --&gt; LivePaperUI
+    LivePaperUI --&gt; RichPDF[&quot;Rich PDF&lt;br/&gt;UI component: PDF and feed&quot;]
+    </pre><p>Live Paper has both an embeddable component and an application shell. Its embedding API exposes the component. Rich PDF is a UI component library, which can be used by other applications as well.</p>
+</section>
+<section id="core-libraries-and-services">
+<h2>Core libraries and services<a class="headerlink" href="#core-libraries-and-services" title="Link to this heading"></a></h2>
+<blockquote>
+<div><p><strong>Diagram legend:</strong> A → B means <strong>A uses B</strong> through a public API. All arrows are solid. Here, uses means calls a library or service through a connector. Artifact transfer appears in the numbered workflow.</p>
+</div></blockquote>
+<p>The execution service invokes Stats for authorized computation and records runs in Clew.</p>
+<pre  class="mermaid">
+        flowchart TD
+    LivePaperBackend[&quot;Live Paper&lt;br/&gt;Scientific services&quot;] --&gt; ClewCore[&quot;Clew&lt;br/&gt;Core library or service API&quot;]
+    WriterCore[&quot;Writer&lt;br/&gt;Claim integration&quot;] --&gt; ClewCore
+    Execution[&quot;Host&lt;br/&gt;Execution service&quot;] --&gt; ClewCore
+    Execution --&gt; StatsCore[&quot;Stats&lt;br/&gt;Core library&quot;]
+    </pre><p>The Live Paper backend uses its optional Clew connector. Writer uses its claim registration connector. A connector can call a library locally or an authorized service API without changing the viewer. Stats returns result artifacts and receipts, which the author can reference from Writer. Artifact movement is described in the workflow below rather than drawn as a second kind of arrow.</p>
+<p>SDK supplies shared UI and PDF primitives plus the contracts for host capabilities. Each application’s GUI and CLI can call its own core library. Keeping the component separate from the application shell allows reuse without bringing the shell’s navigation into another app.</p>
+</section>
+<section id="package-responsibilities">
+<h2>Package responsibilities<a class="headerlink" href="#package-responsibilities" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Repository</p></th>
+<th class="head"><p>Owns</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-rich-pdf</span></code></p></td>
+<td><p>Neutral PDF viewer and feed: rectangles, annotations, selection, scrolling, and generic action controls</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-live-paper</span></code></p></td>
+<td><p>Scientific content: claim cards, graph previews, result details, reproduction workflows, and integration contracts</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-clew</span></code></p></td>
+<td><p>Authoritative claim registry, recorded runs, provenance graphs, and evidence checks</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-scholar</span></code></p></td>
+<td><p>Paper discovery, library records, bibliographic metadata, citations, reading notes, and its Live Paper connector</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-writer</span></code></p></td>
+<td><p>Manuscript sources, claim insertion, formatting, compilation, PDF anchors, and its Live Paper connector</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-stats</span></code></p></td>
+<td><p>Statistical methods, result schemas, receipts, and numerical verification rules</p></td>
+</tr>
+</tbody>
+</table>
+<p>Rich PDF uses the SDK’s PDF rendering and coordinate transforms. Its feed supports comments, review notes, and scientific cards. Live Paper integrates Clew through its connector and accepts other providers through the same public interfaces. Clew uses SDK for its GUI; its core operates independently of SDK and Django.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Package</p></th>
+<th class="head"><p>Reusable surface</p></th>
+<th class="head"><p>Application interfaces</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Rich PDF</p></td>
+<td><p>JavaScript UI component and public viewer/feed API</p></td>
+<td><p>The component appears inside a host GUI</p></td>
+</tr>
+<tr class="row-odd"><td><p>Live Paper</p></td>
+<td><p>Scientific services, connectors, and embeddable UI component</p></td>
+<td><p>Standalone web GUI, CLI, and programmatic APIs</p></td>
+</tr>
+<tr class="row-even"><td><p>Clew</p></td>
+<td><p>Claim, provenance, and verification core API</p></td>
+<td><p>CLI and optional web GUI</p></td>
+</tr>
+<tr class="row-odd"><td><p>Scholar</p></td>
+<td><p>Search, library, and bibliography APIs; Live Paper connector</p></td>
+<td><p>CLI and web GUI</p></td>
+</tr>
+<tr class="row-even"><td><p>Writer</p></td>
+<td><p>Manuscript, compilation, and claim APIs; Live Paper connector</p></td>
+<td><p>CLI and web GUI</p></td>
+</tr>
+<tr class="row-odd"><td><p>Stats</p></td>
+<td><p>Statistical computation, result, and verification APIs</p></td>
+<td><p>CLI and web GUI</p></td>
+</tr>
+</tbody>
+</table>
+<p>These rows describe the target separation; existing foundations and planned work are distinguished in the implementation sequence. A web GUI, CLI, and API are multiple entry points to the same capabilities, not separate claim or result stores.</p>
+</section>
+<section id="one-pdf-and-one-feed">
+<h2>One PDF and one feed<a class="headerlink" href="#one-pdf-and-one-feed" title="Link to this heading"></a></h2>
+<p>The main view has a PDF beside a synchronized feed. Selecting a rectangle selects its entry; selecting an anchored entry scrolls to its PDF region. Entries with unresolved locations remain available in the feed.</p>
+<p>Rich PDF owns layout, selection, keyboard interaction, hover containers, and generic action buttons. Injected content renderers and handlers receive region selection, entry selection, hover, and action requests.</p>
+<p>Live Paper supplies the meaning of scientific entries: stated values, source values, evidence states, graph previews, and available actions. Hover or keyboard focus shows a compact claim graph. A selected card provides access to the full authorized graph and deeper details. Reproduction starts through an explicit action.</p>
+<p>Live Paper renders graphs inside Rich PDF’s containers. The same content works in standalone Live Paper, Scholar, and Writer. Features appear according to available content and capabilities.</p>
+</section>
+<section id="public-interfaces">
+<h2>Public interfaces<a class="headerlink" href="#public-interfaces" title="Link to this heading"></a></h2>
+<p>Keep four small interfaces; connectors translate provider APIs into these contracts.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Interface</p></th>
+<th class="head"><p>Information or operations</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Document</p></td>
+<td><p>Stable document identity, PDF source, revision hash, metadata, and access capabilities</p></td>
+</tr>
+<tr class="row-odd"><td><p>Feed</p></td>
+<td><p>Entry identity, optional document target, display content or renderer, comments, actions, and selection events</p></td>
+</tr>
+<tr class="row-even"><td><p>Evidence</p></td>
+<td><p>Project-qualified claim reference, stated and source values, check outcomes, reasons, artifact references, and pruned or full graph data</p></td>
+</tr>
+<tr class="row-odd"><td><p>Actions</p></td>
+<td><p>Available operations, explicit invocation, progress, result, and cancellation when supported</p></td>
+</tr>
+</tbody>
+</table>
+<p>The document and feed interfaces belong to Rich PDF. Live Paper defines the scientific evidence interface and the semantics of its scientific actions. The host provides authorized document access, persistence, and execution; credentials remain on the server.</p>
+<p>Reuse the public PDF coordinate contract and Live Paper evidence-report schema, preserving existing adapters and exports during migration. Additional scientific fields and capabilities remain optional.</p>
+</section>
+<section id="connector-ownership">
+<h2>Connector ownership<a class="headerlink" href="#connector-ownership" title="Link to this heading"></a></h2>
+<p>Connectors are modules in their owning repositories and use public APIs.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Connector</p></th>
+<th class="head"><p>Lives in</p></th>
+<th class="head"><p>Adapts</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Scholar to Live Paper</p></td>
+<td><p>Scholar</p></td>
+<td><p>Selected paper, authorized PDF, bibliographic metadata, reading notes, and citation actions</p></td>
+</tr>
+<tr class="row-odd"><td><p>Writer to Live Paper</p></td>
+<td><p>Writer</p></td>
+<td><p>Compiled PDF, document revision, claim occurrences, annotations, and navigation back to source</p></td>
+</tr>
+<tr class="row-even"><td><p>Live Paper to Clew</p></td>
+<td><p>Live Paper</p></td>
+<td><p>Claims, evidence outcomes, artifact references, and provenance graphs into scientific content</p></td>
+</tr>
+<tr class="row-odd"><td><p>Writer to Clew</p></td>
+<td><p>Writer</p></td>
+<td><p>Claim creation and updates into the authoritative claim registry</p></td>
+</tr>
+</tbody>
+</table>
+<p>Stats supplies result artifacts and receipts. The execution service invokes its verification or recomputation APIs when an authorized action requests them.</p>
+<p>Scholar and Writer consume Live Paper’s embedding API. Live Paper composes Rich PDF internally. Connector modules can remain small without separate connector repositories.</p>
+</section>
+<section id="from-a-statistical-result-to-a-paper">
+<h2>From a statistical result to a paper<a class="headerlink" href="#from-a-statistical-result-to-a-paper" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Prepare and compute.</strong> Template establishes the project layout, Scholar supplies references, and Dataset supplies inputs and acquisition records. Session manages the analysis lifecycle. Stats returns results and receipts; FigRecipe records figure recipes. I/O persists artifacts, and Clew subscribes to recording hooks to connect the run, inputs, outputs, and environment.</p></li>
+<li><p><strong>Author.</strong> The author inserts a claim through Writer. The claim references the result artifact, the exact field or locator, the recorded run when available, and the comparison rule. Clew stores the registered claim.</p></li>
+<li><p><strong>Compile.</strong> Writer formats the claim for the manuscript and emits the PDF plus an anchor map for that PDF revision. Each displayed occurrence can have its own region.</p></li>
+<li><p><strong>Read.</strong> Scholar or Writer opens the same Live Paper component. Its Clew connector supplies evidence, and Rich PDF displays the rectangles and synchronized feed.</p></li>
+<li><p><strong>Reproduce.</strong> An explicit action requests an authorized job. The execution service produces a new run and artifacts, evaluates the declared comparisons, and returns fresh evidence to Live Paper.</p></li>
+<li><p><strong>Publish and review.</strong> Agentic Journal supplies submission, review, publication, and lifecycle metadata through its ports and bundle references. Live Paper presents the paper and evidence in that lifecycle context.</p></li>
+</ol>
+<p>Stats owns numerical checks. Clew owns checks of claims and recorded computational dependencies. Live Paper presents the individual outcomes, including whether a fresh rerun actually completed and matched.</p>
+</section>
+<section id="identities-and-persistence">
+<h2>Identities and persistence<a class="headerlink" href="#identities-and-persistence" title="Link to this heading"></a></h2>
+<p>Join the components using project-qualified claim IDs, artifact hashes and locators, recorded run IDs, and PDF revision hashes.</p>
+<p>A PDF anchor contains document identity and revision, an occurrence ID, an optional claim reference, page number, and rectangles. Pages start at 1; rectangles use bottom-left PDF coordinates in PDF units. Text context or a named PDF destination can help locate content; ambiguous matches stay unresolved.</p>
+<p>Recompilation creates a new document revision and anchor map. Feed entries keep their claim references while locations resolve against the new revision. Repeated mentions retain separate occurrence identities.</p>
+<p>Clew remains the claim registry. Writer’s claim files and exported evidence reports are derived snapshots. The host persists comments and notes through the relevant connector. A viewer cache holds presentation data for a particular document revision.</p>
+</section>
+<section id="related-packages">
+<h2>Related packages<a class="headerlink" href="#related-packages" title="Link to this heading"></a></h2>
+<p>These packages connect through public APIs, artifacts, hooks, or host services. Their presence in this workflow does not make them mandatory Live Paper dependencies.</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Package</p></th>
+<th class="head"><p>Connection to the paper workflow</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-sdk</span></code></p></td>
+<td><p>Shared App/UI contracts, reusable PDF primitives, host capability interfaces, and mounting. SDK is the canonical owner of the shared App/UI surface.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-hub</span></code></p></td>
+<td><p>Web host, identity, authorized project and resource resolution, persistence, and job integration. It mounts package-owned applications.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-session</span></code></p></td>
+<td><p>Public session decorator and lifecycle hooks. Clew subscribes to record computations while Session remains independent of the observer.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-io</span></code></p></td>
+<td><p>Load/save APIs, artifact formats and bundles, and observation hooks for provenance recording.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-dataset</span></code></p></td>
+<td><p>Dataset discovery, acquisition records, file manifests, and replayable input retrieval.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">figrecipe</span></code> and <code class="docutils literal notranslate"><span class="pre">scitex-plt</span></code></p></td>
+<td><p>Figure recording, saved recipes, and reproduction. <code class="docutils literal notranslate"><span class="pre">scitex-plt</span></code> is a compatibility alias for FigRecipe rather than a second figure engine. Figure details enter Live Paper through its figure port.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-template</span></code></p></td>
+<td><p>Project creation and research layout, including Scholar and Writer integration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-hpc</span></code></p></td>
+<td><p>Scheduler-neutral planning, submission, status, and cancellation for authorized compute jobs.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-container</span></code></p></td>
+<td><p>Docker/Apptainer environments and container lifecycle for declared execution backends.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-agent-container</span></code></p></td>
+<td><p>Agent orchestration when a workflow calls for an agent. The execution host chooses the backend for a job.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-agentic-journal</span></code></p></td>
+<td><p>Submission and publication lifecycle, review outcomes, and published bundle references through its own ports and host resolver adapter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-notebook</span></code></p></td>
+<td><p>Notebook verification and conversion, contributing executable artifacts and their provenance.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-browser</span></code></p></td>
+<td><p>Browser automation used for scholarly access and acquisition; the PDF viewer remains a separate component.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">scitex</span></code> from <code class="docutils literal notranslate"><span class="pre">scitex-python</span></code></p></td>
+<td><p>User-facing umbrella namespace and convenience interfaces over packages. Package integrations call the owning leaf’s public API.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">scitex-dev</span></code>, <code class="docutils literal notranslate"><span class="pre">scitex-config</span></code>, and <code class="docutils literal notranslate"><span class="pre">scitex-logging</span></code></p></td>
+<td><p>Shared development, documentation/skill discovery, configuration, and logging infrastructure. Domain ownership stays with the relevant packages.</p></td>
+</tr>
+</tbody>
+</table>
+<p>For reproduction, Live Paper requests an action from the execution host. The host selects the configured local, container, or HPC route, records the new run through Session/Clew, and returns fresh result artifacts. Optional agent orchestration uses the same declared job boundary.</p>
+<p>The existing source provides Session and I/O recording hooks, Dataset file manifests, FigRecipe recipe APIs, HPC compute APIs, and Journal ports. Connecting all of them into one accepted Live Paper workflow remains integration work. The six-package reading/authoring boundary above is the target design.</p>
+</section>
+<section id="implementation-sequence">
+<h2>Implementation sequence<a class="headerlink" href="#implementation-sequence" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>Deliverable</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>1</p></td>
+<td><p>Extract the neutral PDF provider into <code class="docutils literal notranslate"><span class="pre">scitex-rich-pdf</span></code>, including the generic synchronized feed, while retaining compatibility exports in Live Paper</p></td>
+</tr>
+<tr class="row-odd"><td><p>2</p></td>
+<td><p>Expose the Live Paper embedding API and its scientific content and action adapters</p></td>
+</tr>
+<tr class="row-even"><td><p>3</p></td>
+<td><p>Extend Writer’s existing Live Paper adapter with document revisions, claim occurrences, and source navigation</p></td>
+</tr>
+<tr class="row-odd"><td><p>4</p></td>
+<td><p>Add Scholar’s Live Paper connector for selected library papers</p></td>
+</tr>
+<tr class="row-even"><td><p>5</p></td>
+<td><p>Connect Stats result details and authorized verification or reproduction actions through the evidence and execution interfaces</p></td>
+</tr>
+</tbody>
+</table>
+<p>Existing foundations include SDK PDF primitives, Live Paper’s injectable overlay/comment provider and evidence-report contract, Writer’s Clew claim registration, and Stats verification APIs. Writer already wraps Live Paper’s PDF provider; Scholar’s library details pane shows metadata. The extraction, shared feed, richer connectors, and complete PDF evidence workflow remain to be implemented.</p>
+<p>Acceptance should demonstrate the same PDF and feed in standalone Live Paper, Scholar, and Writer; selection in both directions; a claim-specific graph preview; unresolved and repeated claim locations; correct behavior after recompilation; persisted comments; and an explicit rerun that reports fresh comparison results. Existing project authorization and tenant isolation must continue to hold.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="SciTeX Live Paper" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="cli_reference.html" class="btn btn-neutral float-right" title="CLI Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Yusuke Watanabe.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

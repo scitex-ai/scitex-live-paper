@@ -1,8 +1,9 @@
-"""live-paper stays provider-neutral: its source names no evidence provider.
+"""Runtime source stays provider-neutral; documentation can name integrations.
 
 Any evidence provider plugs in through the contract
 (docs/evidence-provider-contract.md); naming a specific provider package in
-live-paper's source or packaging fails this test.
+live-paper's runtime source or packaging fails this test. Architecture references,
+skills, and generated Sphinx documentation describe the integration boundaries.
 """
 
 from __future__ import annotations
@@ -32,13 +33,14 @@ SOURCE_SUFFIXES = {
 }
 
 
-def test_source_names_no_specific_provider():
+def test_runtime_source_names_no_specific_provider():
     # Arrange
     files = [
         p
         for p in SRC.rglob("*")
         if p.is_file()
         and p.suffix in SOURCE_SUFFIXES
+        and p.relative_to(SRC).parts[0] not in {"_skills", "_sphinx_html"}
         and not any(v in p.relative_to(SRC).as_posix() for v in VENDORED)
     ]
     # Act
