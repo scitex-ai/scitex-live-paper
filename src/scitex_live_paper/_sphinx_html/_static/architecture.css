@@ -1,0 +1,4 @@
+.wy-nav-content { max-width: 1080px; }
+.rst-content .mermaid { margin: 1.5rem 0; }
+.rst-content .mermaid svg { max-width: 100%; height: auto; }
+.rst-content blockquote { margin: 1rem 0; padding: .75rem 1rem; background: #f1f4f8; border-left: 3px solid #7186a2; }

@@ -1,0 +1,8 @@
+# Generated CLI docs use sphinx-click's pre-9 autodoc mock API.
+sphinx>=7.0,<9
+sphinx-rtd-theme>=2.0
+myst-parser>=2.0
+sphinx-copybutton>=0.5
+sphinx-autodoc-typehints>=1.25
+sphinx-click>=6.0
+sphinxcontrib-mermaid>=2.1.1

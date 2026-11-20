@@ -74,9 +74,29 @@ jobs:
       runs_on: ${{ vars.CI_RUNS_ON || '["ubuntu-latest"]' }}
 
   rtd-sphinx-build:
-    uses: scitex-ai/.github/.github/workflows/rtd-sphinx-build.yml@8c646081e9f1352077d3d8674052cce7ec75a1b7
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: scitex-ai/.github/.github/workflows/rtd-sphinx-build.yml@e6007ec2dbb842ec1f969a9844d7cea27d757620
     with:
       runs_on: ${{ vars.CI_RUNS_ON || '["ubuntu-latest"]' }}
-      # This repo ships no sphinx docs (docs/ holds notes/assets only, no
-      # conf.py). `required: false` is the sanctioned explicit opt-out.
-      required: false
+      required: true
+      fail_on_warning: true
+      python_version: '3.11'
+      bundle_dir: src/scitex_live_paper/_sphinx_html
+
+  publish-documentation:
+    needs: rtd-sphinx-build
+    if: >-
+      ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          github.ref == 'refs/heads/develop' }}
+    permissions:
+      contents: read
+    uses: scitex-ai/.github/.github/workflows/rtd-publish.yml@e6007ec2dbb842ec1f969a9844d7cea27d757620
+    with:
+      project: scitex-live-paper
+      version: latest
+      page: architecture.html
+      expected_text: SciTeX Scientific Paper Architecture
+    secrets:
+      RTD_TOKEN: ${{ secrets.SCITEX_LIVE_PAPER_RTD_TOKEN }}

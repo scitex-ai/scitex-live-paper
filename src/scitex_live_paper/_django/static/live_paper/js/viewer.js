@@ -147,9 +147,10 @@ async function boot(rootEl) {
 
   // Claims sidebar — best-effort; if the claims payload didn't land
   // (boot RPC raised), the PDF viewer still mounts.
+  let sidebarOptions;
   if (claimsPayload) {
     try {
-      renderClaimsSidebar(rootEl, claimsPayload, apiBase);
+      sidebarOptions = renderClaimsSidebar(rootEl, claimsPayload, apiBase);
     } catch (err) {
       console.warn("[live-paper] claims sidebar render failed", err);
     }
@@ -177,6 +178,7 @@ async function boot(rootEl) {
 
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
+    ...sidebarOptions,
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,

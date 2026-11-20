@@ -304,3 +304,50 @@ def test_narrow_screen_shows_the_panel_as_a_bottom_sheet(browser, ref_site):
         0 <= mark["y"] and mark["y"] + mark["height"] <= sheet["y"],
         nav_open,
     ) == (True, True, True, False)
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_latex_reader_source_toggle_preserves_one_claim_and_evidence_panel(
+    browser, ref_site, tmp_path, width
+):
+    # Arrange
+    from copy import deepcopy
+
+    from scitex_live_paper._renderer.paper import render_paper
+    from scitex_live_paper.evidence import iter_entries
+
+    _out, _result, packet = ref_site
+    review = deepcopy(packet)
+    lines = [r"\documentclass{article}", r"\title{A readable manuscript}",
+             r"\begin{document}", r"\maketitle", r"\section*{Results}"]
+    for entry in iter_entries(review):
+        lines.append(r"The registered value is \vclaim{" + entry["claim_id"] + "}.")
+        entry["location"].update(file="manuscript.tex", line=len(lines))
+    lines.append(r"\end{document}")
+    text = "\n".join(lines)
+    result = render_paper(review, tmp_path / "reader", read_text=lambda _name: text)
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    # Act
+    try:
+        page.goto(result.paper_html.as_uri())
+        page.wait_for_selector("html[data-lp-paper-ready]", state="attached")
+        article = page.locator(".lp-paper-text")
+        reader = article.inner_text()
+        title = page.locator('.lp-tex-title').inner_text()
+        reader_marks = page.locator("mark#claim-cohort2").count()
+        page.locator("mark#claim-cohort2 a").click()
+        page.wait_for_selector("#lp-claim-panel svg")
+        verdict = _panel(page).get_attribute("data-support")
+        page.keyboard.press("Escape")
+        page.locator(".lp-source-toggle").check()
+        source = article.inner_text()
+        source_marks = page.locator("mark#claim-cohort2").count()
+        page.locator(".lp-source-toggle").uncheck()
+        restored = article.inner_text()
+    finally:
+        context.close()
+    # Assert
+    assert (r"\documentclass" not in reader, r"\section" not in reader, title, reader_marks, verdict, r"\documentclass{article}" in source, r"\section*{Results}" in source, source_marks, r"\documentclass" not in restored, errors) == (True, True, "A readable manuscript", 1, "not_supported", True, True, 1, True, [])

@@ -27,3 +27,20 @@
 .lp-rich-comments button { color: inherit; background: var(--bg-tertiary, Canvas); border: 1px solid var(--border-color, currentColor); padding: 4px 8px; cursor: pointer; }
 .lp-rich-comments button:disabled { opacity: 0.6; cursor: default; }
 @media print { .lp-rich-overlays, .lp-rich-comments { display: none !important; } }
+
+.scitex-rich-pdf-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scitex-rich-pdf-feed li + li { margin-block-start: 0.5rem; }
+.scitex-rich-pdf-feed button[aria-current="true"] {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 2px;
+}
+
+.lp-rich-overlay[aria-current="true"] {
+  outline: 2px solid var(--accent, currentColor);
+}
+@media print { .scitex-rich-pdf-feed { display: none !important; } }

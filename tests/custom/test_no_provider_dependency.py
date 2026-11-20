@@ -50,7 +50,7 @@ def test_pyproject_declares_no_provider_extra():
     # Act
     extras = set(_pyproject()["project"]["optional-dependencies"])
     # Assert
-    assert extras <= {"django", "server", "mcp", "test", "all", "dev"}
+    assert extras <= {"django", "server", "mcp", "test", "docs", "all", "dev"}
 
 
 def test_pyproject_requirements_name_no_unknown_scitex_package():
@@ -62,7 +62,21 @@ def test_pyproject_requirements_name_no_unknown_scitex_package():
         if _dist_name(r).startswith("scitex-")
     }
     # Assert
-    assert scitex_deps <= KNOWN_SCITEX_DEPS
+    assert scitex_deps <= KNOWN_SCITEX_DEPS | {"scitex-rich-pdf"}
+
+
+def test_rich_pdf_is_a_development_dependency():
+    # Arrange
+    project = _pyproject()["project"]
+    groups = {"runtime": project["dependencies"], **project["optional-dependencies"]}
+    # Act
+    owners = {
+        name
+        for name, requirements in groups.items()
+        if "scitex-rich-pdf" in {_dist_name(req) for req in requirements}
+    }
+    # Assert
+    assert owners == {"dev"}
 
 
 def test_all_extra_is_closed_over_public_extras():
@@ -70,7 +84,7 @@ def test_all_extra_is_closed_over_public_extras():
     # Act
     all_extra = _pyproject()["project"]["optional-dependencies"]["all"]
     # Assert
-    assert all_extra == ["scitex-live-paper[django,server,mcp,test]"]
+    assert all_extra == ["scitex-live-paper[django,server,mcp,test,docs]"]
 
 
 def test_hub_manifest_requires_no_unknown_scitex_package():

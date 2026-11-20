@@ -16,6 +16,11 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-20
+
+- Use the released Rich PDF provider for the native synchronized claims feed. Preserve Writer’s existing frontend exports.
+- Include the shared paper workflow architecture and hosted documentation updates.
+
 ## [0.5.2] - 2026-11-20
 
 ### Added

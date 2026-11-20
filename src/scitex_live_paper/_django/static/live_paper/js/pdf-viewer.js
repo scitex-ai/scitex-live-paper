@@ -29,6 +29,7 @@ export class PDFViewer {
     this.container.classList.add("pdf-viewer-host");
     this.provider = createRichPdfViewer({
       container: this.container,
+      feedContainer: options.feedContainer,
       createPdfViewer: options.createPdfViewer,
       rendererOptions: { pdfjs: options.pdfjs, workerSrc: options.workerSrc,
         textLayer: true, linkLayer: true },
@@ -36,6 +37,15 @@ export class PDFViewer {
         documents: { resolve: (docType) => ({ id: String(docType || "manuscript"),
           src: withBundleContext(this.apiBase + "pdf?doc_type=" + encodeURIComponent(docType || "manuscript") + "&t=" + Date.now()) }) },
         overlays: { list: () => this.claims.map(toOverlay).filter(Boolean) },
+        feed: options.feedContainer && {
+          list: () => this.claims.map((claim) => ({
+            id: claim.claim_id,
+            label: claim.claim_id,
+            overlayId: toOverlay(claim)?.id,
+            data: claim,
+          })),
+          renderEntry: (entry) => options.renderFeedEntry(entry.data),
+        },
         comments: {
           list: () => this.comments.map(toComment),
           create: async (_document, target, body) => {
@@ -46,9 +56,10 @@ export class PDFViewer {
           },
         },
         events: { emit: (event) => {
-          if (event.type === "overlay-select" && event.overlay) {
-            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id: event.overlay.id } }));
-            if (event.overlay.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
+          if (event.type === "feed-select" || (event.type === "overlay-select" && event.overlay)) {
+            const id = event.type === "feed-select" ? event.entry.id : event.overlay.id;
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id } }));
+            if (event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
           }
           this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
         } },

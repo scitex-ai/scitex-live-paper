@@ -50,6 +50,14 @@ scitex-live-paper render ./bundle/ --out ./site/
 
 For a runnable walk-through see [`examples/example_live_paper.py`](examples/example_live_paper.py).
 
+The [paper-workflow architecture](src/scitex_live_paper/_skills/scitex-live-paper/references/architecture.md)
+defines application, component, library, and connector ownership across Live Paper,
+Rich PDF, Clew, Scholar, Writer, Stats, and the related ecosystem packages. Sphinx
+and the packaged architecture skill use this same source.
+
+For documentation work, install `.[docs]` and run `make -C docs/sphinx html`.
+Refresh the HTML shipped in distributions with `make -C docs/sphinx bundle`.
+
 ## Demo
 
 A runnable load-and-summarise demo lives in
@@ -86,6 +94,7 @@ pip install scitex-live-paper           # CLI + library + canonical SDK assets
 | `django` | `django>=4.2` | standalone `serve` + `scitex-hub` mount |
 | `server` | `django>=4.2` + `scitex-sdk[gui]` | `serve` via the SDK workspace shell (superset of `django`) |
 | `mcp` | `fastmcp>=2.0` | MCP server for agents |
+| `docs` | Sphinx, MyST, and documentation extensions | build the architecture and generated CLI reference |
 | `test` | `pytest>=8.0` | test suite |
 | `all` | everything above | the one install line operators need |
 

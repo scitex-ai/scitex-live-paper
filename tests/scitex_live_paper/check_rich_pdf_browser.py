@@ -14,17 +14,29 @@ from playwright.sync_api import sync_playwright
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--chromium", required=True)
-    parser.add_argument("--sdk-root", type=Path, required=True)
+    parser.add_argument("--chromium")
+    parser.add_argument("--sdk-root", type=Path)
     parser.add_argument("--pdfjs-root", type=Path)
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
     js = repo / "src/scitex_live_paper/_django/static/live_paper/js"
     css = repo / "src/scitex_live_paper/_django/static/live_paper/css/pdf-provider.css"
-    sdk = args.sdk_root / "src/scitex_sdk/ui/static/scitex_sdk/ui/js/app/pdf-viewer.js"
-    vendor = (args.pdfjs_root or args.sdk_root / "node_modules/pdfjs-dist") / "build"
+    if args.sdk_root is None:
+        import scitex_sdk
+
+        sdk_package = Path(scitex_sdk.__file__).resolve().parent
+    else:
+        sdk_package = args.sdk_root / "src/scitex_sdk"
+    sdk = sdk_package / "ui/static/scitex_sdk/ui/js/app/pdf-viewer.js"
+    pdfjs = js.parent / "pdfjs"
+    vendor = {
+        "pdf.mjs": pdfjs / "pdf.min.mjs",
+        "pdf.worker.mjs": pdfjs / "pdf.worker.min.mjs",
+    }
+    if args.pdfjs_root is not None:
+        vendor = {name: args.pdfjs_root / "build" / name for name in vendor}
     fixture = repo / "tests/scitex_live_paper/fixtures/rich-provider.pdf"
-    html = """<meta name="live-paper-csrf-token" content="native-fixture-token"><main id="root"><div id="viewer" style="width:750px;height:480px;overflow:auto"></div></main>
+    html = """<meta name="live-paper-csrf-token" content="native-fixture-token"><main id="root"><aside id="feed"></aside><div id="viewer" style="width:750px;height:480px;overflow:auto"></div></main>
 <script type="module">
 import {createPdfViewer} from '/sdk.js';import * as pdfjs from '/pdf.mjs';
 import {createRichPdfViewer} from '/modules/pdf-provider.js';
@@ -60,7 +72,7 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
                 )
             elif path in ["pdf.mjs", "pdf.worker.mjs"]:
                 route.fulfill(
-                    content_type="text/javascript", body=(vendor / path).read_bytes()
+                    content_type="text/javascript", body=vendor[path].read_bytes()
                 )
             elif path == "fixture.pdf" or path == "native/api/pdf":
                 route.fulfill(content_type="application/pdf", body=fixture.read_bytes())
@@ -156,11 +168,19 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
         assert page.evaluate("markCalls.length") == 2
         # Native consumer adapter, same actual SDK and public provider.
         page.evaluate(
-            """async()=>{provider.destroy();window.nativeEvents=[];document.querySelector('#root').addEventListener('live-paper:claim',e=>nativeEvents.push(e.detail));window.native=new NativeViewer({container:document.querySelector('#viewer'),createPdfViewer:SDKFactory,pdfjs:nativePdfjs,workerSrc:'/native-worker.mjs',apiBase:'/native/api/'});native.setClaims([{claim_id:'native-claim',claim_value:'Native claim',status:'verified',extras:{anchor:{page:1,bbox:[60,620,240,655]}}}]);native.setComments([{id:'native-seed',body:'Native note',target:{claim_id:'native-claim'}}]);if(!await native.load())throw new Error('Native adapter load failed');}"""
+            """async()=>{provider.destroy();window.nativeEvents=[];document.querySelector('#root').addEventListener('live-paper:claim',e=>nativeEvents.push(e.detail));window.native=new NativeViewer({container:document.querySelector('#viewer'),createPdfViewer:SDKFactory,pdfjs:nativePdfjs,workerSrc:'/native-worker.mjs',apiBase:'/native/api/',feedContainer:document.querySelector('#feed'),renderFeedEntry:claim=>document.createTextNode(claim.claim_value)});native.setClaims([{claim_id:'native-claim',claim_value:'Native claim',status:'verified',extras:{anchor:{page:1,bbox:[60,620,240,655]}}},{claim_id:'unanchored',claim_value:'Unanchored claim'}]);native.setComments([{id:'native-seed',body:'Native note',target:{claim_id:'native-claim'}}]);if(!await native.load())throw new Error('Native adapter load failed');}"""
         )
         assert page.locator("[data-stx-pdf-layer=text]").count() == 2
         page.get_by_role("button", name="Native claim", exact=True).click()
         assert page.evaluate("nativeEvents[0].id") == "native-claim"
+        feed_button = page.get_by_role("button", name="native-claim", exact=True)
+        assert feed_button.get_attribute("aria-current") == "true"
+        page.get_by_role("button", name="unanchored", exact=True).click()
+        assert page.evaluate("nativeEvents.at(-1).id") == "unanchored"
+        feed_button.click()
+        assert page.locator('[data-overlay-id="native-claim"]').get_attribute(
+            "aria-current"
+        ) == "true"
         page.get_by_role("textbox", name="New PDF comment").fill("Native adapter note")
         page.get_by_role("button", name="Add comment").click()
         page.get_by_text("Native adapter note", exact=True).wait_for()
@@ -193,7 +213,7 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
                         "reload clears popup",
                     ],
                     "native_adapter": [
-                        "claim selection event",
+                        "claim selection and bidirectional feed",
                         "DTO translated POST",
                         "text layer retained",
                     ],
