@@ -25,6 +25,7 @@ create another claim schema or establish that a claim is verified.
 - [04_cli-reference.md](04_cli-reference.md) — CLI commands and output boundaries
 - [05_mcp-tools.md](05_mcp-tools.md) — tool and packaged skill discovery
 - [10_mounted-viewer.md](10_mounted-viewer.md) — host authorization, URL context, overlays and comments
+- [11_architecture.md](11_architecture.md) — package ownership, components, connectors, and the shared paper-workflow architecture
 - [20_env-vars.md](20_env-vars.md) — runtime settings actually read by the standalone server
 
 The source checkout includes `examples/example-project-mnist`, a labeled

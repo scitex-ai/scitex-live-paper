@@ -31,3 +31,4 @@ live-paper-comments.json
 
 # Native viewer bundle toolchain (npm ci).
 node_modules/
+docs/sphinx/_build/
