@@ -24,7 +24,7 @@ import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -74,7 +74,7 @@ class DagArtifacts:
 def _jinja_env() -> Environment:
     return Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
-        autoescape=select_autoescape(["html", "htm", "xml"]),
+        autoescape=select_autoescape(["html", "htm", "xml", "j2"]),
         keep_trailing_newline=True,
     )
 
@@ -267,6 +267,7 @@ def render_claim_graph(
     claims_url: str = "claims.html",
     paper_url: str | None = None,
     project_label: str | None = None,
+    asset_url: Callable[[str], str] | None = None,
 ) -> Path:
     """Render one claim's minimal evidence graph page (``claim-graph-*.html``).
 
@@ -287,6 +288,7 @@ def render_claim_graph(
         source, provenance, summary = "", {}, None
 
     template = _jinja_env().get_template("dag.html.j2")
+    asset = asset_url if asset_url is not None else str
     html = template.render(
         title=f"Live Paper — evidence graph for {claim_id}",
         subtitle=(
@@ -294,18 +296,18 @@ def render_claim_graph(
             + (f" · {summary}" if summary else "")
         ),
         claim=entry,
-        support_css_url="assets/support.css",
+        support_css_url=asset("assets/support.css"),
         paper_url=paper_url,
         dag_source=source,
         has_dag=bool(source),
-        css_url="assets/dag.css",
-        js_url="assets/dag.js",
-        mermaid_url=f"assets/mermaid/{_MERMAID_MAIN}",
+        css_url=asset("assets/dag.css"),
+        js_url=asset("assets/dag.js"),
+        mermaid_url=asset(f"assets/mermaid/{_MERMAID_MAIN}"),
         mermaid_version=MERMAID_VERSION,
         viewer_url=viewer_url,
         claims_url=claims_url,
         provenance_map=provenance,
-        **header_context(project_label=project_label),
+        **header_context(project_label=project_label, asset_url=asset_url),
     )
     dest = out_dir / claim_graph_filename(claim_id)
     dest.write_text(html, encoding="utf-8")

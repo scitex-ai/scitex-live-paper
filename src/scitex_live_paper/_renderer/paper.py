@@ -28,7 +28,7 @@ import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
@@ -174,16 +174,20 @@ def render_paper(
     claims_url: str = "claims.html",
     title: str | None = None,
     project_label: str | None = None,
+    read_text: Callable[[str], str | None] | None = None,
+    asset_url: Callable[[str], str] | None = None,
 ) -> PaperArtifacts | None:
     """Render ``paper.html`` from *review*; ``None`` when no source text is readable.
 
     Manuscript files named by the claims' ``location.file`` are read relative
     to *text_root* (default: the packet's ``project_root``).
+    A host may supply ``read_text`` to resolve every source through its own
+    authorized storage capability, and ``asset_url`` to bind resource URLs.
     """
     base = text_root or review.get("project_root")
-    if base is None:
+    if base is None and read_text is None:
         return None
-    root = Path(base)
+    root = Path(base) if base is not None else None
     by_file: dict[str, list[Mapping[str, Any]]] = {}
     for e in iter_entries(review):
         f = e["location"].get("file")
@@ -192,10 +196,15 @@ def render_paper(
 
     sections = []
     for rel in sorted(by_file):
-        path = Path(rel) if Path(rel).is_absolute() else root / rel
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        if read_text is not None:
+            text = read_text(rel)
+            if text is None:
+                continue
+        else:
+            path = Path(rel) if Path(rel).is_absolute() else root / rel
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
         sections.append({"file": rel, "lines": highlight_lines(text, by_file[rel])})
     if not sections:
         return None
@@ -209,10 +218,11 @@ def render_paper(
 
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATES_DIR)),
-        autoescape=select_autoescape(["html", "htm", "xml"]),
+        autoescape=select_autoescape(["html", "htm", "xml", "j2"]),
         keep_trailing_newline=True,
     )
     entries = list(iter_entries(review))
+    asset = asset_url if asset_url is not None else str
     html = env.get_template("paper.html.j2").render(
         title=title or "Live Paper — Paper",
         review=review,
@@ -224,14 +234,14 @@ def render_paper(
             ("Supported", [e for e in entries if not e["needs_inspection"]]),
         ],
         claims_data=claims_data(review),
-        css_url="assets/claims.css",
-        support_css_url="assets/support.css",
-        paper_css_url="assets/paper.css",
-        paper_panel_js_url="assets/paper-panel.js",
-        paper_js_url="assets/paper.js",
-        mermaid_url=f"assets/{_MERMAID_MAIN}",
+        css_url=asset("assets/claims.css"),
+        support_css_url=asset("assets/support.css"),
+        paper_css_url=asset("assets/paper.css"),
+        paper_panel_js_url=asset("assets/paper-panel.js"),
+        paper_js_url=asset("assets/paper.js"),
+        mermaid_url=asset(f"assets/{_MERMAID_MAIN}"),
         mermaid_version=MERMAID_VERSION,
-        **header_context(project_label=project_label),
+        **header_context(project_label=project_label, asset_url=asset_url),
     )
     dest = out_dir / "paper.html"
     dest.write_text(html, encoding="utf-8")
