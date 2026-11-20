@@ -99,4 +99,4 @@ jobs:
       page: architecture.html
       expected_text: SciTeX Scientific Paper Architecture
     secrets:
-      RTD_TOKEN: ${{ secrets.RTD_TOKEN }}
+      RTD_TOKEN: ${{ secrets.SCITEX_LIVE_PAPER_RTD_TOKEN }}
