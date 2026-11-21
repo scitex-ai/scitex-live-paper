@@ -106,6 +106,7 @@ def test_mounted_manuscript_graph_and_private_assets(evidence_host, mounted_brow
 def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     evidence_host, mounted_browser, width, embed
 ):
+    # Arrange
     fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
     shutil.copyfile(fixture, evidence_host.roots["alice"] / "manuscript.pdf")
     server = make_server(
@@ -118,10 +119,10 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         extra_http_headers={"Authorization": "Bearer alice"},
     )
     try:
+        # Act
         page = context.new_page()
         base = f"http://127.0.0.1:{server.server_port}/mounted/paper/"
         response = page.goto(base + f"?project=alice&embed={int(embed)}")
-        assert response.status == 200
         document = page.get_by_role("region", name="Manuscript", exact=True)
         document.locator("canvas").first.wait_for()
         inspector = page.get_by_role("complementary", name="Claim evidence")
@@ -129,20 +130,24 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         row.wait_for()
         pdf = document.bounding_box()
         evidence = inspector.bounding_box()
-        assert pdf and evidence
         if embed:
-            assert evidence["y"] > pdf["y"]
+            arrangement_ok = evidence["y"] > pdf["y"]
             page.get_by_role("link", name="Claim evidence", exact=True).click()
-            assert page.evaluate("location.hash") == "#live-paper-claims"
+            navigation_ok = page.evaluate("location.hash") == "#live-paper-claims"
         else:
-            assert abs(evidence["y"] - pdf["y"]) < 2
-            assert evidence["x"] >= pdf["x"] + pdf["width"]
-            assert pdf["width"] > 600
+            arrangement_ok = (
+                abs(evidence["y"] - pdf["y"]) < 2
+                and evidence["x"] >= pdf["x"] + pdf["width"]
+            )
+            navigation_ok = pdf["width"] > 600
         row.click()
         inspector.locator(".lp-claim-dag svg").wait_for()
-        assert row.get_attribute("aria-current") == "true"
-        assert inspector.get_by_role("dialog", name="Claim detail").is_visible()
-        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        observed = (
+            response.status, arrangement_ok, navigation_ok,
+            row.get_attribute("aria-current"),
+            inspector.get_by_role("dialog", name="Claim detail").is_visible(),
+            page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+        )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
             Path(screenshots).mkdir(parents=True, exist_ok=True)
@@ -152,3 +157,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         server.shutdown()
         worker.join(timeout=5)
         server.server_close()
+
+    # Assert
+    assert observed == (200, True, True, "true", True, True)
