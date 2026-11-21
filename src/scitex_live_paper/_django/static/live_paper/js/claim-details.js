@@ -12,6 +12,8 @@ import { withBundleContext } from "./_utils.js";
 
 import { renderCommentSection } from "./comments.js";
 
+let graphSequence = 0;
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -20,8 +22,11 @@ function el(tag, className, text) {
 }
 
 export function renderClaimDetail(sidebarEl, claim, apiBase) {
+  const active = sidebarEl.querySelector(":scope > .lp-claim-detail");
+  if (active?.dataset.claimId === claim.claim_id) return active;
   closeClaimDetail(sidebarEl);
   const pane = el("div", "lp-claim-detail");
+  pane.dataset.claimId = claim.claim_id;
   pane.setAttribute("role", "dialog");
   pane.setAttribute("aria-label", "Claim detail");
 
@@ -65,7 +70,7 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
   pane.appendChild(prov);
 
   const dagBox = el("div", "lp-claim-dag");
-  dagBox.appendChild(el("p", "lp-claim-dag-loading", "Loading DAG…"));
+  dagBox.appendChild(el("p", "lp-claim-dag-loading", "Loading evidence graph…"));
   pane.appendChild(dagBox);
   renderDagPane(dagBox, claim.claim_id, apiBase);
 
@@ -91,13 +96,16 @@ export function closeClaimDetail(sidebarEl) {
 export async function renderDagPane(dagBox, claimId, apiBase) {
   let body = {};
   try {
-    const res = await fetch(withBundleContext(apiBase + "dag"), { headers: { Accept: "application/json" } });
+    const selector = new URLSearchParams({ claim_id: claimId });
+    const res = await fetch(withBundleContext(apiBase + "dag?" + selector), {
+      headers: { Accept: "application/json" },
+    });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ("dag request failed: " + res.status));
   } catch (err) {
     dagBox.innerHTML = "";
     dagBox.appendChild(el("p", "lp-claim-dag-empty",
-      "DAG unavailable (" + String((err && err.message) || err) + ")."));
+      String((err && err.message) || "Evidence graph unavailable.")));
     return;
   }
   if (!body.mermaid) {
@@ -113,16 +121,57 @@ export async function renderDagPane(dagBox, claimId, apiBase) {
   }
   try {
     if (typeof window.mermaid.initialize === "function") {
-      window.mermaid.initialize({ startOnLoad: false });
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
     }
-    const { svg } = await window.mermaid.render("lp-dag-" + String(claimId || "x"), body.mermaid);
-    dagBox.innerHTML = "";
+    const { svg } = await window.mermaid.render("lp-dag-" + (++graphSequence), body.mermaid);
+    const heading = el("h3", "lp-claim-graph-title",
+      body.scope === "claim" ? "Clew evidence graph" : "Bundle graph");
     const wrap = el("div", "lp-claim-dag-svg");
     wrap.innerHTML = svg;
-    dagBox.appendChild(wrap);
+    dagBox.replaceChildren(heading, wrap);
+    if (body.scope === "claim") {
+      const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
+      graphPage.searchParams.set("claim_id", claimId);
+      const link = el("a", "lp-claim-graph-link", "Open full evidence graph");
+      link.href = withBundleContext(graphPage.href);
+      dagBox.append(link);
+      bindReferences(dagBox, wrap, body.references);
+    }
   } catch (err) {
     dagBox.innerHTML = "";
     dagBox.appendChild(el("p", "lp-claim-dag-empty",
       "DAG render failed (" + String((err && err.message) || err) + ")."));
+  }
+}
+
+
+function bindReferences(dagBox, graph, references) {
+  if (!Array.isArray(references) || !references.length) return;
+  const list = el("ul", "lp-claim-references");
+  dagBox.append(el("h4", "lp-claim-graph-title", "Source references"), list);
+  const entries = new Map();
+  function highlight(id) {
+    for (const [key, { button, node }] of entries) {
+      button.setAttribute("aria-pressed", String(key === id));
+      node.classList.toggle("lp-source-highlight", key === id);
+    }
+  }
+  for (const reference of references) {
+    const node = [...graph.querySelectorAll("g.node")].find(
+      (element) => element.id.startsWith("flowchart-" + reference.id + "-"),
+    );
+    if (!node) continue;
+    const item = el("li", null);
+    const button = el("button", null, reference.label);
+    button.type = "button";
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      highlight(reference.id);
+      node.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    node.addEventListener("click", () => highlight(reference.id));
+    entries.set(reference.id, { button, node });
+    item.append(button);
+    list.append(item);
   }
 }

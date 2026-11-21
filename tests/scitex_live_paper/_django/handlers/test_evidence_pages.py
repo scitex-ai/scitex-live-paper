@@ -301,3 +301,14 @@ def test_claim_rectangles_are_bound_to_the_downloaded_pdf(evidence_host, valid_p
     claim = response.json()["claims"][0]
     # Assert
     assert claim["extras"].get("anchor") == (anchor if valid_pdf else claims[0].get("anchor"))
+
+
+def test_dag_selector_exposes_only_the_requested_claims_references(evidence_host):
+    # Arrange
+    references = [{"id": "n0", "label": "result.json", "kind": "output"}]
+    # Act
+    chosen = get(evidence_host, "api/dag", claim_id="value").json()
+    missing = get(evidence_host, "api/dag", claim_id="unregistered")
+    # Assert
+    assert (chosen["scope"], chosen["references"], "result.json" in chosen["mermaid"],
+            missing.status_code) == ("claim", references, True, 404)

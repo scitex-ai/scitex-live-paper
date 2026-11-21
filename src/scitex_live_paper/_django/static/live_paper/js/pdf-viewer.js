@@ -10,7 +10,7 @@ export function toOverlay(claim) {
   const anchor = pickAnchor(claim);
   if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
   return { id: claim.claim_id, page: anchor.page, bbox: anchor.bbox,
-    label: claim.claim_value || claim.claim_id, status: claim.status,
+    label: "Trace evidence for " + (claim.claim_value || claim.claim_id), status: claim.status,
     readonly: claim.readonly === true || claim.extras?.locked === true,
     target: { figureId: claim.figure_id ?? claim.extras?.figure_id ?? null } };
 }
@@ -56,10 +56,10 @@ export class PDFViewer {
           },
         },
         events: { emit: (event) => {
-          if (event.type === "feed-select" || (event.type === "overlay-select" && event.overlay)) {
+          if (event.type === "feed-select" || ((event.type === "overlay-select" || event.type === "overlay-preview") && event.overlay)) {
             const id = event.type === "feed-select" ? event.entry.id : event.overlay.id;
-            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id } }));
-            if (event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id, preview: event.type === "overlay-preview" } }));
+            if (event.type === "overlay-select" && event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
           }
           this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
         } },

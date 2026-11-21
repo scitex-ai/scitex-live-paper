@@ -27,11 +27,14 @@ class ViewMarkup(HTMLParser):
         super().__init__()
         self.root = None
         self.pickers = []
+        self.links = []
 
     def handle_starttag(self, tag, attributes):
         attrs = dict(attributes)
         if attrs.get("id") == "live-paper-root":
             self.root = attrs
+        if tag == "a" and "href" in attrs:
+            self.links.append(attrs["href"])
         if "data-stx-project-picker" in attrs:
             self.pickers.append(attrs)
 
@@ -56,6 +59,7 @@ def selected_view(tmp_path, embedded, request):
     if request.param:
         page_request.live_paper_empty_reason = "No LivePaper bundle in this project"
     else:
+        page_request.live_paper_project_tools_url = "/bundle-reader/selected/"
         fixture = Path(__file__).resolve().parents[1] / "fixtures/bundle-min"
         page_request.live_paper_context = BundleContext(
             source=BundleSource.from_directory(fixture)
@@ -95,3 +99,12 @@ def test_full_header_matches_authorized_view_without_raw_current_alias(selected_
     ]
     # Assert
     assert picker_views == [("project", "selected", "")]
+
+
+def test_project_tools_link_requires_a_host_provided_destination(selected_view):
+    # Arrange
+    markup, _before, _preference = selected_view
+    # Act
+    has_project_link = "/bundle-reader/selected/" in markup.links
+    # Assert
+    assert has_project_link == (not markup.root["data-empty-reason"])
