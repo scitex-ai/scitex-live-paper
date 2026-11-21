@@ -86,7 +86,12 @@ These rows describe the target separation; existing foundations and planned work
 
 The main view has a PDF beside a synchronized feed. Selecting a rectangle selects its entry; selecting an anchored entry scrolls to its PDF region. Entries with unresolved locations remain available in the feed.
 
-Rich PDF owns layout, selection, keyboard interaction, hover containers, and generic action buttons. Injected content renderers and handlers receive region selection, entry selection, hover, and action requests.
+The embedded viewer and app shell use the same reader template. Live Paper places the document
+and its scientific inspector side by side at desktop widths and stacks them at narrow widths.
+The host supplies page chrome, project selection, and authorized bundle access. Claim selection
+joins the inspector and document through Rich PDF's feed and overlay events.
+
+Rich PDF owns rendering, selection, keyboard interaction, hover containers, and generic action buttons. Injected content renderers and handlers receive region selection, entry selection, hover, and action requests.
 
 Live Paper supplies the meaning of scientific entries: stated values, source values, evidence states, graph previews, and available actions. Hover or keyboard focus shows a compact claim graph. A selected card provides access to the full authorized graph and deeper details. Reproduction starts through an explicit action.
 

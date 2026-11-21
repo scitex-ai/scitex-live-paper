@@ -94,6 +94,7 @@ function ensureClaimsSidebar(rootEl) {
     host.className = "live-paper-claims";
     rootEl.appendChild(host);
   }
+  host.hidden = false;
   return host;
 }
 function renderError(message) {
@@ -892,11 +893,17 @@ function _markAllClaimRowsAsError() {
 function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (!claimsPayload || !Array.isArray(claimsPayload.claims)) return;
   const sidebar = ensureClaimsSidebar(rootEl);
-  sidebar.innerHTML = "";
-  const header = document.createElement("div");
+  sidebar.replaceChildren();
+  sidebar.hidden = false;
+  const header = document.createElement("h2");
   header.className = "lp-claims-header";
-  header.textContent = claimsPayload.claim_count + " claim" + (claimsPayload.claim_count === 1 ? "" : "s");
+  header.textContent = "Claim evidence";
   sidebar.appendChild(header);
+  const count = claimsPayload.claims.length;
+  const summary = document.createElement("p");
+  summary.className = "lp-claims-summary";
+  summary.textContent = count === 0 ? "No claims are registered for this manuscript." : `${count} ${count === 1 ? "claim" : "claims"} \xB7 Select a claim to inspect its source and evidence graph.`;
+  sidebar.appendChild(summary);
   const reVerifyEnabled = !!claimsPayload.re_verify_enabled;
   const pinnedCommit = claimsPayload.pinned_commit || null;
   if (reVerifyEnabled) {
@@ -1212,7 +1219,7 @@ function bindEventLog(rootEl, log, meta) {
 
 // src/scitex_live_paper/_django/static/live_paper/js/archive.js
 function renderArchiveButton(rootEl, apiBase) {
-  const host = rootEl.querySelector(".live-paper-header") || rootEl;
+  const host = rootEl.querySelector(".lp-reader-actions, .live-paper-header") || rootEl;
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "lp-archive-button";

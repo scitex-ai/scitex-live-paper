@@ -56,6 +56,7 @@ def evidence_host(tmp_path):
         roots[name], reports[name] = root, report
         contexts[name] = BundleContext(
             source=BundleSource.from_directory(root), evidence_report=report, resource_root=root,
+            api_base="/mounted/paper/api/",
         )
 
     def resolver(request, **_kwargs):

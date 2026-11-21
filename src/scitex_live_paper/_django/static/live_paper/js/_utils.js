@@ -121,6 +121,7 @@ export function ensureClaimsSidebar(rootEl) {
     host.className = "live-paper-claims";
     rootEl.appendChild(host);
   }
+  host.hidden = false;
   return host;
 }
 

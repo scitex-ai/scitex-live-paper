@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import shutil
 import threading
 from pathlib import Path
 from wsgiref.simple_server import WSGIRequestHandler, make_server
 
 import pytest
+from django.contrib.staticfiles.handlers import StaticFilesHandler
 from django.core.handlers.wsgi import WSGIHandler
 
 from .test_evidence_pages import evidence_host  # noqa: F401 - shared real host fixture
@@ -98,3 +100,55 @@ def test_mounted_manuscript_graph_and_private_assets(evidence_host, mounted_brow
         "closed": True, "focus_restored": True, "graph_failures": 1,
         "node_details": True, "refused_status": 403, "errors": [], "failures": [], "violations": [],
     }
+
+
+@pytest.mark.parametrize("width,embed", [(1440, False), (390, True)])
+def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
+    evidence_host, mounted_browser, width, embed
+):
+    fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
+    shutil.copyfile(fixture, evidence_host.roots["alice"] / "manuscript.pdf")
+    server = make_server(
+        "127.0.0.1", 0, StaticFilesHandler(WSGIHandler()), handler_class=QuietHandler
+    )
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    context = mounted_browser.new_context(
+        viewport={"width": width, "height": 850},
+        extra_http_headers={"Authorization": "Bearer alice"},
+    )
+    try:
+        page = context.new_page()
+        base = f"http://127.0.0.1:{server.server_port}/mounted/paper/"
+        response = page.goto(base + f"?project=alice&embed={int(embed)}")
+        assert response.status == 200
+        document = page.get_by_role("region", name="Manuscript", exact=True)
+        document.locator("canvas").first.wait_for()
+        inspector = page.get_by_role("complementary", name="Claim evidence")
+        row = inspector.locator(".scitex-rich-pdf-feed button").first
+        row.wait_for()
+        pdf = document.bounding_box()
+        evidence = inspector.bounding_box()
+        assert pdf and evidence
+        if embed:
+            assert evidence["y"] > pdf["y"]
+            page.get_by_role("link", name="Claim evidence", exact=True).click()
+            assert page.evaluate("location.hash") == "#live-paper-claims"
+        else:
+            assert abs(evidence["y"] - pdf["y"]) < 2
+            assert evidence["x"] >= pdf["x"] + pdf["width"]
+            assert pdf["width"] > 600
+        row.click()
+        inspector.locator(".lp-claim-dag svg").wait_for()
+        assert row.get_attribute("aria-current") == "true"
+        assert inspector.get_by_role("dialog", name="Claim detail").is_visible()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        screenshots = os.environ.get("LP_SCREENSHOT_DIR")
+        if screenshots:
+            Path(screenshots).mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(Path(screenshots) / f"reader-workspace-{width}.png"))
+    finally:
+        context.close()
+        server.shutdown()
+        worker.join(timeout=5)
+        server.server_close()
