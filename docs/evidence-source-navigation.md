@@ -2,17 +2,17 @@
 
 **Status** Proposed
 
-The first release answers one question: **Which script produced this figure or value?** Open a claim rectangle to see the script name and recorded run ID. Preview the script in the popup or open it in the project file viewer when available. Use **Open full evidence graph** to inspect the chain. The feed still works for browsing the paper.
+The first release answers one question: **Which script produced this figure or value?** Hover over a claim rectangle to see the script name and recorded run ID. Hover over the script row for a short inline preview. Click the rectangle to pin the popup, or tap to open it on a touch screen. **Open current file** opens the project file when available. **Open full evidence graph** lets the reader inspect the chain. The feed still works for browsing the paper.
 
 ## Three package responsibilities
 
 - **Clew** identifies the producing run and supplies one optional script record on its process node. That record carries the run ID, script name, recorded hash, and Clew's icon and color roles. The same cues can appear on the corresponding node in the full graph. [Clew graph projection](https://github.com/scitex-ai/scitex-clew/blob/57ad743/src/scitex_clew/_evidence_provider/_graph.py)
 - **Live Paper** displays the existing claim status, one script row, and the full-graph link. It loads the preview on demand. The existing graph handles claims with multiple or unclear producers and reports without script information. [Claim DAG endpoint](../src/scitex_live_paper/_django/handlers/dag.py)
-- **Rich PDF** opens and dismisses the popup beside the existing overlay button. A host content hook supplies what appears inside. Click, tap, or keyboard activation opens it. Escape closes it and returns focus to the rectangle. [Rich PDF provider](https://github.com/scitex-ai/scitex-rich-pdf/blob/v0.1.1/src/scitex_rich_pdf/frontend/pdf-provider.js)
+- **Rich PDF** anchors the popup to the existing overlay button and keeps it open while the pointer moves from the rectangle into the popup. Click, tap, or keyboard activation pins it. Escape dismisses it and returns focus to the rectangle. A host content hook supplies what appears inside. [Rich PDF provider](https://github.com/scitex-ai/scitex-rich-pdf/blob/v0.1.1/src/scitex_rich_pdf/frontend/pdf-provider.js)
 
 ## One preview request
 
-The browser requests the script for the claim in the current project and evidence revision. On the server, Live Paper validates the revision and uses a host-supplied, project-scoped lookup for Clew's recorded run. The claim determines the run and script. The host authorizes the file and the existing bounded reader opens it beneath the authorized root.
+After a brief hover or keyboard focus on the script row, the browser requests the script for the claim in the current project and evidence revision. Tapping the row uses the same request. Ignore a response if the reader has already moved to another claim or closed the popup. On the server, Live Paper validates the revision and uses a host-supplied, project-scoped lookup for Clew's recorded run. The claim determines the run and script. The host authorizes the file and the existing bounded reader opens it beneath the authorized root.
 
 Compare the bytes to the recorded hash before showing a plain-text excerpt labeled **Matches recorded hash**. A changed, missing, or unauthorized script gets an unavailable message. Exported reports can still show their graph and any recorded script label. They offer a preview only when the host has a resolver for that evidence. [Evidence request](../src/scitex_live_paper/_django/_evidence_request.py) · [Resource reader](../src/scitex_live_paper/_django/_evidence_files.py)
 
@@ -20,6 +20,6 @@ The same lookup can return an **Open current file** link when Hub can resolve th
 
 ## First acceptance check
 
-Use a FigRecipe output from a recorded run in a Writer-compiled PDF. Open its figure rectangle, preview the matching script, and confirm that the file link opens the same path in Hub. Edit the script and verify that the popup reports the mismatch while the current file remains openable. Check a metadata-only source, a legacy report, and a Scholar document-only PDF.
+Use a FigRecipe output from a recorded run in a Writer-compiled PDF. Hover over its figure rectangle, move into the popup, and hover over the script to preview it. Verify keyboard and touch access. Confirm that the file link opens the same path in Hub. Edit the script and verify that the popup reports the mismatch while the current file remains openable. Check a metadata-only source, a legacy report, and a Scholar document-only PDF.
 
-Further source types, hover previews, and richer run details can build on the first working path. The [ecosystem audit](research/evidence-ecosystem-audit.md) documents the wider package relationships. The [reader integration rules](rich-pdf-provider.md#reader-integration-rules) cover shared ownership, revision binding, and host authorization.
+Further source types and richer run details can build on the first working path. The [ecosystem audit](research/evidence-ecosystem-audit.md) documents the wider package relationships. The [reader integration rules](rich-pdf-provider.md#reader-integration-rules) cover shared ownership, revision binding, and host authorization.
