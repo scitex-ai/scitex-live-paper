@@ -171,7 +171,11 @@ async function boot(rootEl) {
     const claim = claims.find((c) => c && c.claim_id === id);
     if (!claim) return;
     try {
-      renderClaimDetail(ensureClaimsSidebar(rootEl), claim, apiBase);
+      const sidebar = ensureClaimsSidebar(rootEl);
+      const pane = renderClaimDetail(sidebar, claim, apiBase);
+      if (!event.detail?.preview && getComputedStyle(sidebar).position !== "sticky") {
+        pane.scrollIntoView({ block: "nearest" });
+      }
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }

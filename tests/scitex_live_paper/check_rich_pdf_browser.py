@@ -171,7 +171,7 @@ provider.renderer.setInteractive(false);await provider.load('document-one');wind
             """async()=>{provider.destroy();window.nativeEvents=[];document.querySelector('#root').addEventListener('live-paper:claim',e=>nativeEvents.push(e.detail));window.native=new NativeViewer({container:document.querySelector('#viewer'),createPdfViewer:SDKFactory,pdfjs:nativePdfjs,workerSrc:'/native-worker.mjs',apiBase:'/native/api/',feedContainer:document.querySelector('#feed'),renderFeedEntry:claim=>document.createTextNode(claim.claim_value)});native.setClaims([{claim_id:'native-claim',claim_value:'Native claim',status:'verified',extras:{anchor:{page:1,bbox:[60,620,240,655]}}},{claim_id:'unanchored',claim_value:'Unanchored claim'}]);native.setComments([{id:'native-seed',body:'Native note',target:{claim_id:'native-claim'}}]);if(!await native.load())throw new Error('Native adapter load failed');}"""
         )
         assert page.locator("[data-stx-pdf-layer=text]").count() == 2
-        page.get_by_role("button", name="Native claim", exact=True).click()
+        page.get_by_role("button", name="Trace evidence for Native claim", exact=True).click()
         assert page.evaluate("nativeEvents[0].id") == "native-claim"
         feed_button = page.get_by_role("button", name="native-claim", exact=True)
         assert feed_button.get_attribute("aria-current") == "true"

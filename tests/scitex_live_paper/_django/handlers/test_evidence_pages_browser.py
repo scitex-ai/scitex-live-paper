@@ -112,7 +112,11 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
     root = evidence_host.roots["alice"]
     shutil.copyfile(fixture, root / "manuscript.pdf")
-    claim_id = json.loads((root / "claims.json").read_text())["claims"][0]["claim_id"]
+    registry = root / "claims.json"
+    claims = json.loads(registry.read_text())
+    claims["claims"][0].update(claim_id="value", claim_type="figure")
+    registry.write_text(json.dumps(claims))
+    claim_id = "value"
     (root / "pdf-anchors.json").write_text(json.dumps({
         "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
         "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
@@ -148,10 +152,19 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
                 and evidence["x"] >= pdf["x"] + pdf["width"]
             )
             navigation_ok = pdf["width"] > 600
-        row.click()
-        inspector.locator(".lp-claim-dag svg").wait_for()
-        overlay = document.locator(".lp-rich-overlay").first
+        overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
+        overlay.hover()
+        inspector.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
+        graph = inspector.locator(".lp-claim-dag svg")
+        graph.wait_for()
+        reference = inspector.get_by_role("button", name="result.json", exact=True)
+        reference.click()
+        graph.locator("g.lp-source-highlight").wait_for()
+        source_link_is_claim_bound = "claim_id=value" in inspector.get_by_role(
+            "link", name="Open full evidence graph"
+        ).get_attribute("href")
+        row.click()
         overlay_selected = overlay.get_attribute("aria-current") == "true"
         with page.expect_download() as pending:
             page.get_by_role("link", name="Download PDF", exact=True).click()
@@ -164,6 +177,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             overlay_selected,
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
+            reference.get_attribute("aria-pressed"),
+            source_link_is_claim_bound,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -176,4 +191,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         server.server_close()
 
     # Assert
-    assert observed == (200, True, True, "true", True, True, True, "manuscript.pdf", True)
+    assert observed == (
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True
+    )
