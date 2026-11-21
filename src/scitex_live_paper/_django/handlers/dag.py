@@ -42,7 +42,7 @@ def handle_dag(request) -> Mapping[str, Any]:
             entry = find_claim(packet, claim_id)
             graph = entry and entry.get("graph")
             if graph is None:
-                return JsonResponse({"error": "No Clew graph for this claim."}, status=404)
+                return JsonResponse({"error": "No evidence graph for this claim."}, status=404)
             mermaid, _ = graph_to_mermaid(graph, state=entry["state"])
             references = [
                 {"id": f"n{index}", "label": node["label"], "kind": node["kind"]}
@@ -53,6 +53,7 @@ def handle_dag(request) -> Mapping[str, Any]:
                 "mermaid": mermaid,
                 "present": True,
                 "scope": "claim",
+                "provider": packet["provider"]["name"],
                 "references": references,
             }
 

@@ -785,11 +785,9 @@ async function renderDagPane(dagBox, claimId, apiBase) {
       window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
     }
     const { svg } = await window.mermaid.render("lp-dag-" + ++graphSequence, body.mermaid);
-    const heading = el2(
-      "h3",
-      "lp-claim-graph-title",
-      body.scope === "claim" ? "Clew evidence graph" : "Bundle graph"
-    );
+    const title = body.scope === "claim" ? "Evidence graph" : "Bundle graph";
+    const heading = el2("h3", "lp-claim-graph-title", title);
+    if (body.provider) heading.append(" (" + body.provider + ")");
     const wrap = el2("div", "lp-claim-dag-svg");
     wrap.innerHTML = svg;
     dagBox.replaceChildren(heading, wrap);

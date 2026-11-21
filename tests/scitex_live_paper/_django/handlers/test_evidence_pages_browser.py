@@ -155,7 +155,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
         overlay.hover()
-        inspector.get_by_role("heading", name="Clew evidence graph").wait_for()
+        inspector.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
         graph = inspector.locator(".lp-claim-dag svg")
         graph.wait_for()
         reference = inspector.get_by_role("button", name="result.json", exact=True)
