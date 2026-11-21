@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -282,3 +283,21 @@ def test_manuscript_limit_applies_across_all_source_files(evidence_host):
         response = get(evidence_host)
     # Assert
     assert response.status_code == 413
+
+@pytest.mark.parametrize("valid_pdf", [True, False])
+def test_claim_rectangles_are_bound_to_the_downloaded_pdf(evidence_host, valid_pdf):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    claims = json.loads((root / "claims.json").read_text())["claims"]
+    claim_id = claims[0]["claim_id"]
+    anchor = {"page": 1, "bbox": [25, 50, 70, 80]}
+    expected_hash = hashlib.sha256((root / "manuscript.pdf").read_bytes()).hexdigest()
+    (root / "pdf-anchors.json").write_text(json.dumps({
+        "pdf_sha256": expected_hash if valid_pdf else "0" * 64,
+        "anchors": {claim_id: anchor},
+    }))
+    # Act
+    response = get(evidence_host, "api/claims")
+    claim = response.json()["claims"][0]
+    # Assert
+    assert claim["extras"].get("anchor") == (anchor if valid_pdf else claims[0].get("anchor"))

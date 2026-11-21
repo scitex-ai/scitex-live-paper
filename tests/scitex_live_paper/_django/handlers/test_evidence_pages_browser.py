@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import threading
@@ -108,7 +110,13 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 ):
     # Arrange
     fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
-    shutil.copyfile(fixture, evidence_host.roots["alice"] / "manuscript.pdf")
+    root = evidence_host.roots["alice"]
+    shutil.copyfile(fixture, root / "manuscript.pdf")
+    claim_id = json.loads((root / "claims.json").read_text())["claims"][0]["claim_id"]
+    (root / "pdf-anchors.json").write_text(json.dumps({
+        "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
+    }))
     server = make_server(
         "127.0.0.1", 0, StaticFilesHandler(WSGIHandler()), handler_class=QuietHandler
     )
@@ -142,11 +150,20 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             navigation_ok = pdf["width"] > 600
         row.click()
         inspector.locator(".lp-claim-dag svg").wait_for()
+        overlay = document.locator(".lp-rich-overlay").first
+        overlay.wait_for()
+        overlay_selected = overlay.get_attribute("aria-current") == "true"
+        with page.expect_download() as pending:
+            page.get_by_role("link", name="Download PDF", exact=True).click()
+        download = pending.value
         observed = (
             response.status, arrangement_ok, navigation_ok,
             row.get_attribute("aria-current"),
             inspector.get_by_role("dialog", name="Claim detail").is_visible(),
             page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+            overlay_selected,
+            download.suggested_filename,
+            download.path().read_bytes() == fixture.read_bytes(),
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -159,4 +176,4 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         server.server_close()
 
     # Assert
-    assert observed == (200, True, True, "true", True, True)
+    assert observed == (200, True, True, "true", True, True, True, "manuscript.pdf", True)

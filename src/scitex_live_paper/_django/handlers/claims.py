@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from ..services import get_request_bundle_state
+from ._pdf_anchors import read_pdf_anchors
 
 __all__ = ["handle_claims"]
 
@@ -58,6 +59,7 @@ def handle_claims(request) -> Mapping[str, Any]:
     """
     state = get_request_bundle_state(request)
     bundle = state.bundle
+    anchors = read_pdf_anchors(bundle)
 
     return {
         "claim_count": len(bundle.claims),
@@ -76,7 +78,8 @@ def handle_claims(request) -> Mapping[str, Any]:
                 "source_hash": c.source_hash,
                 "registered_at": c.registered_at,
                 "verified_at": c.verified_at,
-                "extras": c.extras,
+                "extras": {**c.extras, "anchor": anchors[c.claim_id]}
+                if c.claim_id in anchors else c.extras,
             }
             for c in bundle.claims
         ],
