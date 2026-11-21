@@ -1393,7 +1393,13 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  await viewer.load();
+  if (await viewer.load()) {
+    const download = rootEl.querySelector("#live-paper-download-pdf");
+    if (download) {
+      download.href = withBundleContext(apiBase + "pdf?download=1");
+      download.hidden = false;
+    }
+  }
 }
 function movePickerIntoHeaderSlot(rootEl) {
   const headerRoot = rootEl.previousElementSibling;
