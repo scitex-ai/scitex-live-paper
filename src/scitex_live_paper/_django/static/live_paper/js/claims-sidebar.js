@@ -6,7 +6,6 @@ import { withBundleContext } from "./_utils.js";
 
 import { ensureClaimsSidebar } from "./_utils.js";
 import { renderReverifyAllButton } from "./reverify-all.js";
-import { renderClaimDetail } from "./claim-details.js";
 
 export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (!claimsPayload || !Array.isArray(claimsPayload.claims)) return;
@@ -54,8 +53,9 @@ export function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
   li.addEventListener("click", function (event) {
     // Buttons (Re-verify) keep their own handlers — row click opens detail.
     if (event.target.closest("button")) return;
-    const sidebar = li.closest(".live-paper-claims");
-    if (sidebar) renderClaimDetail(sidebar, claim, apiBase);
+    li.dispatchEvent(new CustomEvent("live-paper:claim", {
+      bubbles: true, detail: { id: claim.claim_id, preview: false },
+    }));
   });
 
   const valueSpan = document.createElement("span");

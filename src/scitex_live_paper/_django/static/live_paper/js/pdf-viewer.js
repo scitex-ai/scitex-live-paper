@@ -85,6 +85,7 @@ export class PDFViewer {
       },
     });
     this.provider.renderer.setInteractive(false);
+    if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
   }
   setClaims(claims) { this.claims = claims || []; this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean)); }
   setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }
@@ -101,5 +102,60 @@ export class PDFViewer {
   setZoom(delta) { return this.provider.renderer.setScale(Math.max(0.4, Math.min(3, this.provider.renderer.getScale() + delta))); }
   setFitWidth() { return this.provider.renderer.fitWidth(); }
   get zoomPercent() { return Math.round(this.provider.renderer.getScale() * 100); }
-  destroy() { this.provider.destroy(); }
+  destroy() {
+    this.stopEvidencePane?.();
+    this.provider.destroy();
+  }
+}
+
+/** Use the viewer's existing overlay buttons as entry points to the side pane. */
+function bindEvidencePane(container) {
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let lastScroll = -Infinity;
+  let hover;
+  function select(anchor, preview) {
+    if (!preview) {
+      for (const current of container.querySelectorAll('.lp-rich-overlay[aria-current="true"]')) {
+        current.removeAttribute("aria-current");
+      }
+      anchor.setAttribute("aria-current", "true");
+    }
+    container.dispatchEvent(new CustomEvent("live-paper:claim", {
+      bubbles: true,
+      detail: { id: anchor.dataset.overlayId, preview },
+    }));
+  }
+  container.ownerDocument.addEventListener("scroll", (event) => {
+    if (!event.target.contains?.(container)) return;
+    lastScroll = performance.now();
+    clearTimeout(hover);
+  }, { capture: true, passive: true, signal });
+  container.addEventListener("pointerenter", (event) => {
+    const anchor = event.target;
+    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    event.stopImmediatePropagation();
+    if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
+    clearTimeout(hover);
+    hover = setTimeout(() => {
+      if (anchor.isConnected) select(anchor, true);
+    }, 160);
+  }, { capture: true, signal });
+  container.addEventListener("pointerleave", (event) => {
+    if (event.target.matches?.(".lp-rich-overlay")) clearTimeout(hover);
+  }, { capture: true, signal });
+  container.addEventListener("focus", (event) => {
+    if (event.target.matches?.(".lp-rich-overlay")) event.stopImmediatePropagation();
+  }, { capture: true, signal });
+  container.addEventListener("click", (event) => {
+    const anchor = event.target.closest?.(".lp-rich-overlay");
+    if (!anchor) return;
+    event.stopImmediatePropagation();
+    clearTimeout(hover);
+    select(anchor, false);
+  }, { capture: true, signal });
+  return () => {
+    clearTimeout(hover);
+    listeners.abort();
+  };
 }

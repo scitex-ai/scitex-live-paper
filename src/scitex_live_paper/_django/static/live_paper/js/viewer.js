@@ -158,7 +158,7 @@ async function boot(rootEl) {
     }
   }
 
-  // The feed opens the persistent sidebar. PDF anchors open the on-page preview.
+  // The PDF and the claim list both open the evidence sidebar.
   rootEl.addEventListener("live-paper:claim", (event) => {
     const id = event && event.detail ? event.detail.id : null;
     const claims =
@@ -169,10 +169,9 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      const pane = renderClaimDetail(sidebar, claim, apiBase);
-      if (!event.detail?.preview && getComputedStyle(sidebar).position !== "sticky") {
-        pane.scrollIntoView({ block: "nearest" });
-      }
+      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
+      if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
+      renderClaimDetail(sidebar, claim, apiBase);
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -181,7 +180,7 @@ async function boot(rootEl) {
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
     ...sidebarOptions,
-    inlineEvidence: true,
+    evidencePane: true,
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,
