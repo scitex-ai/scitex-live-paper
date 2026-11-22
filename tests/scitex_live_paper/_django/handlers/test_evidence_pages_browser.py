@@ -163,6 +163,9 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     try:
         # Act
         page = context.new_page()
+        graph_requests = []
+        page.on("request", lambda request: graph_requests.append(request.url)
+                if "/api/dag?" in request.url else None)
         base = f"http://127.0.0.1:{server.server_port}/mounted/paper/"
         response = page.goto(base + f"?project=alice&embed={int(embed)}")
         document = page.get_by_role("region", name="Manuscript", exact=True)
@@ -229,6 +232,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         preview.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
         graph = preview.locator(".lp-claim-dag svg")
         graph.wait_for()
+        first_layout = graph.get_attribute("id")
         reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
         reference.hover()
         preview.get_by_text("print('computed value')", exact=True).wait_for()
@@ -266,8 +270,11 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         overlay.focus()
+        before_reopen = len(graph_requests)
         overlay.press("Enter")
         preview.wait_for()
+        graph.wait_for()
+        fresh_graph = (len(graph_requests) > before_reopen and graph.get_attribute("id") == first_layout)
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         focus_restored = overlay.evaluate("button => button === document.activeElement")
@@ -275,10 +282,15 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             toggle.click()
         row.click()
         overlay_selected = overlay.get_attribute("aria-current") == "true"
+        all_claims_tab = inspector.get_by_role("tab", name="All claims", exact=False)
+        all_claims_tab.click()
+        preview.wait_for(state="hidden")
+        all_claims_tab.press("ArrowLeft")
+        preview.wait_for()
         with page.expect_download() as pending:
             page.get_by_role("link", name="Download PDF", exact=True).click()
         download = pending.value
-        page.get_by_text("PDF variants", exact=True).click()
+        page.locator("[aria-label='PDF download options']").click()
         exports = []
         page_count = document.locator(".stx-pdf-page").count()
         for title in ("With highlights", "With highlights and selected graph"):
@@ -319,7 +331,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, bookmarks_work, exports,
+            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, bookmarks_work, fresh_graph, exports,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -333,6 +345,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True, True,
+        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True, True, True,
         [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )

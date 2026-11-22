@@ -941,9 +941,11 @@ function el2(tag, className, text) {
   if (text !== void 0 && text !== null) node.textContent = text;
   return node;
 }
-function renderClaimDetail(sidebarEl, claim, apiBase) {
-  const active = sidebarEl.querySelector(":scope > .lp-claim-detail");
-  if (active?.dataset.claimId === claim.claim_id) return active;
+function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) {
+  const selection = sidebarEl.querySelector("#lp-selection-panel");
+  sidebarEl.querySelector("#lp-selection-tab").click();
+  const active = selection.querySelector(".lp-claim-detail");
+  if (!refresh && active?.dataset.claimId === claim.claim_id) return active;
   removeClaimDetail(sidebarEl);
   const pane = el2("div", "lp-claim-detail");
   pane.dataset.claimId = claim.claim_id;
@@ -1002,14 +1004,12 @@ function renderClaimDetail(sidebarEl, claim, apiBase) {
   } catch (err) {
     console.warn("[live-paper] comments section failed:", err);
   }
-  const claims = sidebarEl.querySelector(".lp-claims-list");
-  if (claims) claims.open = false;
-  sidebarEl.insertBefore(pane, claims);
+  selection.append(pane);
   sidebarEl.scrollTop = 0;
   return pane;
 }
 function removeClaimDetail(sidebarEl) {
-  const open = sidebarEl.querySelector(":scope > .lp-claim-detail");
+  const open = sidebarEl.querySelector("#lp-selection-panel > .lp-claim-detail");
   if (open) {
     detailRequests.get(open)?.abort();
     open.remove();
@@ -1018,8 +1018,7 @@ function removeClaimDetail(sidebarEl) {
 function closeClaimDetail(sidebarEl) {
   delete sidebarEl.dataset.pinnedClaim;
   removeClaimDetail(sidebarEl);
-  const claims = sidebarEl.querySelector(".lp-claims-list");
-  if (claims) claims.open = true;
+  sidebarEl.querySelector("#lp-all-claims-tab").click();
 }
 function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
@@ -1107,26 +1106,48 @@ function renderSourceContent(panel, result, load) {
     panel.append(el2("p", null, `${result.description} \xB7 ${size} bytes`), identity);
   }
 }
+var graphLayouts = /* @__PURE__ */ new Map();
+var maxLayouts = 32;
+function invalidateEvidenceGraphs() {
+  graphLayouts.clear();
+}
+function cachedLayout(hash, render) {
+  const hit = graphLayouts.get(hash);
+  if (hit) {
+    graphLayouts.delete(hash);
+    graphLayouts.set(hash, hit);
+    return hit;
+  }
+  const rendered = Promise.resolve().then(render).catch((error) => {
+    if (graphLayouts.get(hash) === rendered) graphLayouts.delete(hash);
+    throw error;
+  });
+  graphLayouts.set(hash, rendered);
+  if (graphLayouts.size > maxLayouts) graphLayouts.delete(graphLayouts.keys().next().value);
+  return rendered;
+}
 async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
-  let body = {};
+  let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
-    const res = await fetch(withBundleContext(apiBase + "dag?" + selector), {
+    const url = withBundleContext(apiBase + "dag?" + selector);
+    const res = await fetch(url, {
       headers: { Accept: "application/json" },
+      cache: "no-store",
       signal
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || "dag request failed: " + res.status);
   } catch (err) {
     if (signal?.aborted) return;
-    dagBox.innerHTML = "";
-    dagBox.appendChild(el2(
+    dagBox.replaceChildren(el2(
       "p",
       "lp-claim-dag-empty",
       String(err && err.message || "Evidence graph unavailable.")
     ));
     return;
   }
+  if (signal?.aborted) return;
   if (!body.mermaid) {
     dagBox.innerHTML = "";
     dagBox.appendChild(el2("p", "lp-claim-dag-empty", "DAG unavailable (empty)."));
@@ -1139,10 +1160,11 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     return;
   }
   try {
-    if (typeof window.mermaid.initialize === "function") {
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
-    }
-    const { svg } = await window.mermaid.render("lp-dag-" + ++graphSequence, body.mermaid);
+    const render = () => {
+      window.mermaid.initialize?.({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
+      return window.mermaid.render("lp-dag-" + ++graphSequence, body.mermaid);
+    };
+    const { svg } = body.graph_sha256 ? await cachedLayout(body.graph_sha256, render) : await render();
     if (signal?.aborted) return;
     const title = body.scope === "claim" ? "Evidence graph" : "Bundle graph";
     const heading = el2("h3", "lp-claim-graph-title", title);
@@ -1152,7 +1174,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     wrap.innerHTML = svg;
     dagBox.replaceChildren(heading);
     if (selectReference && body.reason) {
-      const status = el2("p", "lp-claim-trace-status", body.state === "supported" ? "Calculation trace verified" : body.reason);
+      const status = el2("p", "lp-claim-trace-status", body.state === "supported" ? "Recorded trace verified" : body.reason);
       status.dataset.state = body.state;
       dagBox.append(status);
     }
@@ -1491,7 +1513,7 @@ function bindEvidencePane(container) {
 
 // src/scitex_live_paper/_django/static/live_paper/js/pdf-downloads.js
 function bindPdfDownloads(root2, claims, original) {
-  const options = root2.querySelector(".lp-pdf-variants");
+  const options = root2.querySelector(".lp-pdf-download");
   if (!options) return;
   const status = options.querySelector("[role='status']");
   const buttons = [...options.querySelectorAll("button")];
@@ -1599,6 +1621,7 @@ async function reverifyAllClaims(btn, pinnedCommit, apiBase) {
       _markAllClaimRowsAsError();
       return;
     }
+    btn.dispatchEvent(new CustomEvent("live-paper:evidence-updated", { bubbles: true }));
     for (const result of payload.results) {
       _applyResultToRow(result);
     }
@@ -1658,33 +1681,54 @@ function _markAllClaimRowsAsError() {
 function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (!claimsPayload || !Array.isArray(claimsPayload.claims)) return;
   const sidebar = ensureClaimsSidebar(rootEl);
-  sidebar.replaceChildren();
   sidebar.hidden = false;
-  const header = document.createElement("h2");
-  header.className = "lp-claims-header";
-  header.textContent = "Claim evidence";
-  sidebar.appendChild(header);
+  bindClaimTabs(sidebar);
+  const allClaims = sidebar.querySelector("#lp-all-claims-panel");
   const count = claimsPayload.claims.length;
-  const summary = document.createElement("p");
-  summary.className = "lp-claims-summary";
-  summary.textContent = count === 0 ? "No claims are registered for this manuscript." : `${count} ${count === 1 ? "claim" : "claims"} \xB7 Select a claim to inspect its source and evidence graph.`;
-  sidebar.appendChild(summary);
+  sidebar.querySelector("#lp-all-claims-tab").textContent = `All claims (${count})`;
+  if (!count) {
+    const message = document.createElement("p");
+    message.textContent = "No claims are registered for this manuscript.";
+    allClaims.append(message);
+  }
   const reVerifyEnabled = !!claimsPayload.re_verify_enabled;
   const pinnedCommit = claimsPayload.pinned_commit || null;
   if (reVerifyEnabled) {
-    sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
+    allClaims.append(renderReverifyAllButton(apiBase, pinnedCommit));
   }
-  const container = document.createElement("details");
+  const container = document.createElement("div");
   container.className = "lp-claims-list";
-  container.open = true;
-  const label = document.createElement("summary");
-  label.textContent = "All claims (" + count + ")";
-  container.appendChild(label);
-  sidebar.appendChild(container);
+  allClaims.append(container);
   return {
     feedContainer: container,
     renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit)
   };
+}
+function bindClaimTabs(sidebar) {
+  const tabs = [...sidebar.querySelectorAll("[role='tab']")];
+  function select(tab, refresh = false) {
+    for (const button of tabs) {
+      const active = button === tab;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+      sidebar.querySelector("#" + button.getAttribute("aria-controls")).hidden = !active;
+    }
+    sidebar.scrollTop = 0;
+    if (refresh && tab.id === "lp-selection-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
+    }
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", (event) => select(tab, event.isTrusted));
+    tab.addEventListener("keydown", (event) => {
+      const direction = { ArrowLeft: -1, ArrowRight: 1 };
+      if (!(event.key in direction) && !["Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + direction[event.key] + tabs.length) % tabs.length;
+      select(tabs[next], true);
+      tabs[next].focus();
+    });
+  });
 }
 function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
   const li = document.createElement("div");
@@ -1741,6 +1785,7 @@ async function reverifyClaim(rowEl, claimId, pinnedCommit, apiBase) {
       body: JSON.stringify(body)
     });
     const payload = await res.json();
+    if (res.ok) rowEl.dispatchEvent(new CustomEvent("live-paper:evidence-updated", { bubbles: true }));
     let nextStatus;
     let statusNote = "";
     if (res.status === 200 && payload.ok === true) {
@@ -2138,6 +2183,16 @@ async function boot(rootEl) {
       console.warn("[live-paper] claims sidebar render failed", err);
     }
   }
+  rootEl.addEventListener("live-paper:evidence-updated", () => {
+    invalidateEvidenceGraphs();
+    closeClaimDetail(ensureClaimsSidebar(rootEl));
+  });
+  rootEl.addEventListener("live-paper:selection-tab", (event) => {
+    const sidebar = event.target;
+    const id = sidebar.querySelector(".lp-claim-detail")?.dataset.claimId;
+    const claim = claimsPayload?.claims?.find((entry) => entry.claim_id === id);
+    if (claim) renderClaimDetail(sidebar, claim, apiBase, { refresh: true });
+  });
   rootEl.addEventListener("live-paper:claim", (event) => {
     const id = event && event.detail ? event.detail.id : null;
     const claims = claimsPayload && Array.isArray(claimsPayload.claims) ? claimsPayload.claims : [];
@@ -2147,7 +2202,7 @@ async function boot(rootEl) {
       const sidebar = ensureClaimsSidebar(rootEl);
       if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
       if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
-      renderClaimDetail(sidebar, claim, apiBase);
+      renderClaimDetail(sidebar, claim, apiBase, { refresh: !event.detail?.preview });
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -2177,7 +2232,6 @@ async function boot(rootEl) {
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
-    download.hidden = false;
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
   await viewer.load();

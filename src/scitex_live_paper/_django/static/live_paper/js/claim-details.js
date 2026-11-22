@@ -22,9 +22,11 @@ function el(tag, className, text) {
   return node;
 }
 
-export function renderClaimDetail(sidebarEl, claim, apiBase) {
-  const active = sidebarEl.querySelector(":scope > .lp-claim-detail");
-  if (active?.dataset.claimId === claim.claim_id) return active;
+export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) {
+  const selection = sidebarEl.querySelector("#lp-selection-panel");
+  sidebarEl.querySelector("#lp-selection-tab").click();
+  const active = selection.querySelector(".lp-claim-detail");
+  if (!refresh && active?.dataset.claimId === claim.claim_id) return active;
   removeClaimDetail(sidebarEl);
   const pane = el("div", "lp-claim-detail");
   pane.dataset.claimId = claim.claim_id;
@@ -87,15 +89,13 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
     console.warn("[live-paper] comments section failed:", err);
   }
 
-  const claims = sidebarEl.querySelector(".lp-claims-list");
-  if (claims) claims.open = false;
-  sidebarEl.insertBefore(pane, claims);
+  selection.append(pane);
   sidebarEl.scrollTop = 0;
   return pane;
 }
 
 function removeClaimDetail(sidebarEl) {
-  const open = sidebarEl.querySelector(":scope > .lp-claim-detail");
+  const open = sidebarEl.querySelector("#lp-selection-panel > .lp-claim-detail");
   if (open) {
     detailRequests.get(open)?.abort();
     open.remove();
@@ -105,8 +105,7 @@ function removeClaimDetail(sidebarEl) {
 export function closeClaimDetail(sidebarEl) {
   delete sidebarEl.dataset.pinnedClaim;
   removeClaimDetail(sidebarEl);
-  const claims = sidebarEl.querySelector(".lp-claims-list");
-  if (claims) claims.open = true;
+  sidebarEl.querySelector("#lp-all-claims-tab").click();
 }
 
 export function renderEvidencePreview(panel, claim, apiBase, signal) {
@@ -202,23 +201,48 @@ function renderSourceContent(panel, result, load) {
   }
 }
 
+const graphLayouts = new Map();
+const maxLayouts = 32;
+
+export function invalidateEvidenceGraphs() {
+  graphLayouts.clear();
+}
+
+function cachedLayout(hash, render) {
+  const hit = graphLayouts.get(hash);
+  if (hit) {
+    graphLayouts.delete(hash);
+    graphLayouts.set(hash, hit);
+    return hit;
+  }
+  const rendered = Promise.resolve().then(render).catch((error) => {
+    if (graphLayouts.get(hash) === rendered) graphLayouts.delete(hash);
+    throw error;
+  });
+  graphLayouts.set(hash, rendered);
+  if (graphLayouts.size > maxLayouts) graphLayouts.delete(graphLayouts.keys().next().value);
+  return rendered;
+}
+
 export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
-  let body = {};
+  let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
-    const res = await fetch(withBundleContext(apiBase + "dag?" + selector), {
+    const url = withBundleContext(apiBase + "dag?" + selector);
+    const res = await fetch(url, {
       headers: { Accept: "application/json" },
+      cache: "no-store",
       signal,
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ("dag request failed: " + res.status));
   } catch (err) {
     if (signal?.aborted) return;
-    dagBox.innerHTML = "";
-    dagBox.appendChild(el("p", "lp-claim-dag-empty",
+    dagBox.replaceChildren(el("p", "lp-claim-dag-empty",
       String((err && err.message) || "Evidence graph unavailable.")));
     return;
   }
+  if (signal?.aborted) return;
   if (!body.mermaid) {
     dagBox.innerHTML = "";
     dagBox.appendChild(el("p", "lp-claim-dag-empty", "DAG unavailable (empty)."));
@@ -231,10 +255,13 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
     return;
   }
   try {
-    if (typeof window.mermaid.initialize === "function") {
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
-    }
-    const { svg } = await window.mermaid.render("lp-dag-" + (++graphSequence), body.mermaid);
+    const render = () => {
+      window.mermaid.initialize?.({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
+      return window.mermaid.render("lp-dag-" + (++graphSequence), body.mermaid);
+    };
+    const { svg } = body.graph_sha256
+      ? await cachedLayout(body.graph_sha256, render)
+      : await render();
     if (signal?.aborted) return;
     const title = body.scope === "claim" ? "Evidence graph" : "Bundle graph";
     const heading = el("h3", "lp-claim-graph-title", title);
@@ -245,7 +272,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
     dagBox.replaceChildren(heading);
     if (selectReference && body.reason) {
       const status = el("p", "lp-claim-trace-status", body.state === "supported"
-        ? "Calculation trace verified" : body.reason);
+        ? "Recorded trace verified" : body.reason);
       status.dataset.state = body.state;
       dagBox.append(status);
     }

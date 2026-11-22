@@ -29,7 +29,7 @@ import {
 } from "./_utils.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer } from "./pdf-viewer.js";
-import { renderClaimDetail } from "./claim-details.js";
+import { closeClaimDetail, invalidateEvidenceGraphs, renderClaimDetail } from "./claim-details.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
@@ -160,6 +160,18 @@ async function boot(rootEl) {
     }
   }
 
+  rootEl.addEventListener("live-paper:evidence-updated", () => {
+    invalidateEvidenceGraphs();
+    closeClaimDetail(ensureClaimsSidebar(rootEl));
+  });
+
+  rootEl.addEventListener("live-paper:selection-tab", (event) => {
+    const sidebar = event.target;
+    const id = sidebar.querySelector(".lp-claim-detail")?.dataset.claimId;
+    const claim = claimsPayload?.claims?.find((entry) => entry.claim_id === id);
+    if (claim) renderClaimDetail(sidebar, claim, apiBase, { refresh: true });
+  });
+
   // The PDF and the claim list both open the evidence sidebar.
   rootEl.addEventListener("live-paper:claim", (event) => {
     const id = event && event.detail ? event.detail.id : null;
@@ -173,7 +185,7 @@ async function boot(rootEl) {
       const sidebar = ensureClaimsSidebar(rootEl);
       if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
       if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
-      renderClaimDetail(sidebar, claim, apiBase);
+      renderClaimDetail(sidebar, claim, apiBase, { refresh: !event.detail?.preview });
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -208,7 +220,6 @@ async function boot(rootEl) {
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
-    download.hidden = false;
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
   await viewer.load();
