@@ -117,6 +117,10 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
     root = evidence_host.roots["alice"]
     shutil.copyfile(fixture, root / "manuscript.pdf")
+    from scitex_live_paper.evidence.citations import CITATION_REPORT, citation_verification
+    citation = {"status": "verified", "claim_id": "value", "resolver_source": "fixture provider",
+                "reason": "Fixture verification", "link": "https://example.org/article"}
+    (root / CITATION_REPORT).write_text(json.dumps(citation_verification(fixture, {"fixture": citation})))
     registry = root / "claims.json"
     claims = json.loads(registry.read_text())
     claims["claims"][0].update(claim_id="value", claim_type="value")
@@ -338,6 +342,17 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         navigation.get_by_role("button", name="References", exact=True).click()
         reference = document.locator(".lp-bibliography-highlight", has_text="Second page destination")
         reference.wait_for(state="visible")
+        assert reference.get_attribute("data-status") == "verified"
+        assert "rgb(46, 160, 67)" in reference.evaluate("node => getComputedStyle(node).boxShadow")
+        navigation_toggle.click()
+        reference.evaluate("node => node.click()")
+        citation_pane = inspector.get_by_role("region", name="Citation evidence")
+        citation_pane.get_by_text("Scholar provider · fixture provider").wait_for()
+        citation_pane.locator(".lp-claim-dag-svg").wait_for()
+        citation_pane.get_by_role("button", name="Close", exact=True).click()
+        if embed:
+            page.get_by_role("button", name="Claim evidence", exact=True).click()
+        navigation_toggle.click()
         docked_width = document.bounding_box()["width"]
         navigation_toggle.click()
         bookmarks_work = navigation.is_hidden() and navigation_toggle.get_attribute("aria-expanded") == "false"
@@ -355,7 +370,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         share.click()
         paper_link = page.get_by_role("textbox", name="Share link").input_value()
         assert paper_link == base + "?project=alice&shared=1"
-        inspector.get_by_role("tab", name="Selection", exact=True).click()
+        row.click()
         share.click()
         claim_link = page.get_by_role("textbox", name="Share link").input_value()
         assert claim_link == paper_link + "&claim=value"

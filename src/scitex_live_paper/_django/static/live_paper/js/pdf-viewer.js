@@ -30,7 +30,7 @@ export class PDFViewer {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    const bibliography = createBibliographyHighlights();
+    const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
       pdfjs: options.pdfjs,

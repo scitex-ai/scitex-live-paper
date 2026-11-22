@@ -255,3 +255,24 @@ if listing["kind"] == "archive" and listing["members"]:
 
 `PreviewError.code` lets clients handle a size limit, unavailable member, or
 invalid window without parsing the message.
+
+### Citation marks in the PDF reader
+
+Live Paper matches Writer's named PDF citation destinations to Clew verdicts by
+BibTeX key. The same verdict colors the inline link and its bibliography entry.
+The viewer treats a missing verdict as unknown.
+
+To package a verification run, pass the final PDF and the per-key output of
+`scitex_clew.verify_citations` to
+`scitex_live_paper.evidence.citations.citation_verification`. Save the returned
+object as `citation-verification.json` next to the bundle's `manuscript.pdf`.
+The reader checks the PDF digest before applying the verdicts. Optional
+`resolver_source` and `provenance` strings carry Scholar's reported attribution.
+An optional `claim_id` points to an existing claim-specific Clew retrieval
+graph. Include it only when that graph traces the same citation.
+
+A sentence uses Clew's existing `text` claim type. An incoming edge to the
+claim node can carry `"relation": "author_interpretation"` when the author
+uses the result as the basis for an interpretation. Claims that can be
+compared directly to recorded results can use the same type without that
+edge label.

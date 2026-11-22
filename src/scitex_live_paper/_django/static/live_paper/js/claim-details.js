@@ -43,6 +43,9 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
 
   pane.appendChild(el("p", "lp-claim-detail-value",
     claim.claim_value || claim.file_path || "(no value)"));
+  if (claim.extras?.evidence_relation === "author_interpretation") {
+    pane.append(el("p", "lp-claim-detail-status", "Author interpretation"));
+  }
 
   const status = el("p", "lp-claim-detail-status",
     "status: " + (claim.status || "registered"));
@@ -94,6 +97,54 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
   return pane;
 }
 
+export function renderCitationDetail(sidebar, key, citation, apiBase, goToReference) {
+  delete sidebar.dataset.pinnedClaim;
+  removeClaimDetail(sidebar);
+  sidebar.querySelector("#lp-selection-tab").click();
+  const pane = el("div", "lp-claim-detail");
+  pane.setAttribute("role", "region");
+  pane.setAttribute("aria-label", "Citation evidence");
+  pane.append(el("h3", "lp-evidence-preview-title", key));
+  const badge = el("p", "lp-citation-status", "Clew status · " + citation.status);
+  badge.dataset.status = citation.status;
+  pane.append(badge);
+  if (citation.reason) pane.append(el("p", "", citation.reason));
+  if (citation.resolver_source) pane.append(el("p", "", "Scholar provider · " + citation.resolver_source));
+  if (citation.provenance) pane.append(el("p", "", citation.provenance));
+  if (citation.doi) pane.append(el("p", "", "DOI · " + citation.doi));
+  if (citation.link) {
+    try {
+      const url = new URL(citation.link);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        const source = el("a", "stx-button", "Open source");
+        source.href = url.href;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        pane.append(source);
+      }
+    } catch { /* The provider did not supply an absolute web URL. */ }
+  }
+  if (goToReference) {
+    const jump = el("button", "stx-button", "Go to bibliography entry");
+    jump.type = "button";
+    jump.addEventListener("click", goToReference);
+    pane.append(jump);
+  }
+  if (citation.claim_id) {
+    const controller = new AbortController();
+    detailRequests.set(pane, controller);
+    renderEvidenceDetails(pane, { claim_id: citation.claim_id }, apiBase, controller.signal, true);
+  } else {
+    pane.append(el("p", "lp-claim-dag-empty", "No Clew retrieval graph is recorded for this citation."));
+  }
+  const close = el("button", "stx-button", "Close");
+  close.type = "button";
+  close.addEventListener("click", () => closeClaimDetail(sidebar));
+  pane.append(close);
+  sidebar.querySelector("#lp-selection-panel").append(pane);
+  sidebar.scrollTop = 0;
+}
+
 function removeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector("#lp-selection-panel > .lp-claim-detail");
   if (open) {
@@ -113,7 +164,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
   renderEvidenceDetails(panel, claim, apiBase, signal);
 }
 
-function renderEvidenceDetails(panel, claim, apiBase, signal) {
+function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = false) {
   const graph = el("div", "lp-claim-dag");
   graph.append(el("p", "lp-claim-dag-loading", "Loading evidence graph…"));
   panel.append(graph);
@@ -126,6 +177,7 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
     selectReference: (reference) => load(reference),
+    requireClaim,
   });
 
   function load(reference, { member } = {}) {
@@ -249,7 +301,7 @@ function cachedLayout(hash, render) {
   return rendered;
 }
 
-export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
+export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -261,6 +313,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ("dag request failed: " + res.status));
+    if (requireClaim && body.scope !== "claim") throw new Error("No Clew retrieval graph is recorded for this citation.");
   } catch (err) {
     if (signal?.aborted) return;
     dagBox.replaceChildren(el("p", "lp-claim-dag-empty",

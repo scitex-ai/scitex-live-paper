@@ -30,7 +30,7 @@ import {
 import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer } from "./pdf-viewer.js";
-import { closeClaimDetail, invalidateEvidenceGraphs, renderClaimDetail } from "./claim-details.js";
+import { closeClaimDetail, invalidateEvidenceGraphs, renderCitationDetail, renderClaimDetail } from "./claim-details.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
@@ -197,6 +197,15 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
+    citationVerification: claimsPayload?.citation_verification,
+    onCitationSelect(key, citation, goToReference) {
+      const sidebar = ensureClaimsSidebar(rootEl);
+      const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+      if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+        toggle.click();
+      }
+      renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
+    },
     navigation: {
       container: navigation,
       toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),

@@ -821,10 +821,18 @@ function pickAnchor(claim) {
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/bibliography-highlights.js
-function createBibliographyHighlights() {
+function createBibliographyHighlights(citations = {}, onSelect) {
   const pages = /* @__PURE__ */ new Map();
   let references = /* @__PURE__ */ new Map();
   let activeDocument;
+  function select(key, goToReference) {
+    onSelect?.(key, Object.hasOwn(citations, key) ? citations[key] : { status: "unknown" }, goToReference);
+  }
+  function mark(node, key) {
+    node.dataset.citationKey = key;
+    node.dataset.status = Object.hasOwn(citations, key) ? citations[key].status : "unknown";
+    node.title = key + " \xB7 " + node.dataset.status;
+  }
   return {
     documentLoaded(pdf) {
       activeDocument = pdf;
@@ -839,21 +847,28 @@ function createBibliographyHighlights() {
           const index = Number.isInteger(ref) ? ref : await pdf.getPageIndex(ref).catch(() => -1);
           if (index < 0 || index >= pdf.numPages) continue;
           const page = resolved.get(index + 1) ?? [];
-          page.push({ left, top });
+          page.push({ left, top, key: name.slice(5) });
           resolved.set(index + 1, page);
         }
         if (pdf !== activeDocument) return;
         references = resolved;
-        for (const [page, surface] of pages) markReferences(surface, references.get(page));
+        for (const [page, surface] of pages) markReferences(surface, references.get(page), mark, select);
       }).catch((error) => console.warn("[pdf-viewer] bibliography destinations unavailable", error));
     },
     pageRendered(page, surface) {
       pages.set(page, surface);
-      markReferences(surface, references.get(page));
+      markReferences(surface, references.get(page), mark, select);
+      const pdf = activeDocument;
+      if (!surface.element.querySelector('[data-stx-pdf-layer="links"]') || !pdf) return;
+      void pdf.getPage(page).then((proxy) => proxy.getAnnotations({ intent: "display" })).then((annotations) => {
+        if (pdf === activeDocument && pages.get(page) === surface) {
+          markCitationLinks(surface, annotations, mark, select);
+        }
+      }).catch((error) => console.warn("[pdf-viewer] citation links unavailable", error));
     }
   };
 }
-function markReferences(surface, references) {
+function markReferences(surface, references, mark, select) {
   if (!references?.length) return;
   const origin = surface.element.getBoundingClientRect();
   const spans = [...surface.element.querySelectorAll('[data-stx-pdf-layer="text"] span')].filter((span) => !span.childElementCount && span.textContent.trim()).map((span) => ({ span, bounds: span.getBoundingClientRect() }));
@@ -866,8 +881,46 @@ function markReferences(surface, references) {
     for (const { span, bounds } of spans) {
       if (bounds.left >= start.bounds.left - 1 && Math.abs(bounds.top - start.bounds.top) < start.bounds.height * 0.45) {
         span.classList.add("lp-bibliography-highlight");
+        mark(span, reference.key);
+        if (span === start.span) {
+          span.setAttribute("role", "button");
+          span.setAttribute("aria-label", "Inspect reference " + reference.key + " (" + span.dataset.status + ")");
+          span.tabIndex = 0;
+          span.onkeydown = (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            select(reference.key);
+          };
+        }
+        span.onclick = () => {
+          if (window.getSelection()?.isCollapsed !== false) select(reference.key);
+        };
       }
     }
+  }
+}
+function markCitationLinks(surface, annotations, mark, select) {
+  const links = [...surface.element.querySelectorAll('[data-stx-pdf-layer="links"] > a')];
+  for (const annotation of annotations) {
+    let inspect = function(event) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      select(key, () => {
+        link.removeEventListener("click", inspect, true);
+        link.click();
+        link.addEventListener("click", inspect, true);
+      });
+    };
+    if (annotation.subtype !== "Link" || typeof annotation.dest !== "string" || !annotation.dest.startsWith("cite.") || !Array.isArray(annotation.rect)) continue;
+    const [x0, y0, x1, y1] = surface.pdfToViewportRect(annotation.rect);
+    const rect = [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
+    const link = links.find((item) => !item.dataset.citationKey && ["left", "top", "width", "height"].every((prop, index) => Math.abs(parseFloat(item.style[prop]) - rect[index]) < 0.5));
+    if (!link) continue;
+    const key = annotation.dest.slice(5);
+    mark(link, key);
+    link.setAttribute("aria-label", "Inspect citation " + key + " (" + link.dataset.status + ")");
+    link.addEventListener("click", inspect, true);
   }
 }
 
@@ -1016,6 +1069,9 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) 
     "lp-claim-detail-value",
     claim.claim_value || claim.file_path || "(no value)"
   ));
+  if (claim.extras?.evidence_relation === "author_interpretation") {
+    pane.append(el2("p", "lp-claim-detail-status", "Author interpretation"));
+  }
   const status = el2(
     "p",
     "lp-claim-detail-status",
@@ -1061,6 +1117,54 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) 
   sidebarEl.scrollTop = 0;
   return pane;
 }
+function renderCitationDetail(sidebar, key, citation, apiBase, goToReference) {
+  delete sidebar.dataset.pinnedClaim;
+  removeClaimDetail(sidebar);
+  sidebar.querySelector("#lp-selection-tab").click();
+  const pane = el2("div", "lp-claim-detail");
+  pane.setAttribute("role", "region");
+  pane.setAttribute("aria-label", "Citation evidence");
+  pane.append(el2("h3", "lp-evidence-preview-title", key));
+  const badge = el2("p", "lp-citation-status", "Clew status \xB7 " + citation.status);
+  badge.dataset.status = citation.status;
+  pane.append(badge);
+  if (citation.reason) pane.append(el2("p", "", citation.reason));
+  if (citation.resolver_source) pane.append(el2("p", "", "Scholar provider \xB7 " + citation.resolver_source));
+  if (citation.provenance) pane.append(el2("p", "", citation.provenance));
+  if (citation.doi) pane.append(el2("p", "", "DOI \xB7 " + citation.doi));
+  if (citation.link) {
+    try {
+      const url = new URL(citation.link);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        const source = el2("a", "stx-button", "Open source");
+        source.href = url.href;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        pane.append(source);
+      }
+    } catch {
+    }
+  }
+  if (goToReference) {
+    const jump = el2("button", "stx-button", "Go to bibliography entry");
+    jump.type = "button";
+    jump.addEventListener("click", goToReference);
+    pane.append(jump);
+  }
+  if (citation.claim_id) {
+    const controller = new AbortController();
+    detailRequests.set(pane, controller);
+    renderEvidenceDetails(pane, { claim_id: citation.claim_id }, apiBase, controller.signal, true);
+  } else {
+    pane.append(el2("p", "lp-claim-dag-empty", "No Clew retrieval graph is recorded for this citation."));
+  }
+  const close = el2("button", "stx-button", "Close");
+  close.type = "button";
+  close.addEventListener("click", () => closeClaimDetail(sidebar));
+  pane.append(close);
+  sidebar.querySelector("#lp-selection-panel").append(pane);
+  sidebar.scrollTop = 0;
+}
 function removeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector("#lp-selection-panel > .lp-claim-detail");
   if (open) {
@@ -1077,7 +1181,7 @@ function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
   renderEvidenceDetails(panel, claim, apiBase, signal);
 }
-function renderEvidenceDetails(panel, claim, apiBase, signal) {
+function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = false) {
   const graph = el2("div", "lp-claim-dag");
   graph.append(el2("p", "lp-claim-dag-loading", "Loading evidence graph\u2026"));
   panel.append(graph);
@@ -1088,7 +1192,8 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
   let request = null;
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
-    selectReference: (reference) => load(reference)
+    selectReference: (reference) => load(reference),
+    requireClaim
   });
   function load(reference, { member } = {}) {
     request?.abort();
@@ -1203,7 +1308,7 @@ function cachedLayout(hash, render) {
   if (graphLayouts.size > maxLayouts) graphLayouts.delete(graphLayouts.keys().next().value);
   return rendered;
 }
-async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
+async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -1215,6 +1320,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || "dag request failed: " + res.status);
+    if (requireClaim && body.scope !== "claim") throw new Error("No Clew retrieval graph is recorded for this citation.");
   } catch (err) {
     if (signal?.aborted) return;
     dagBox.replaceChildren(el2(
@@ -1376,7 +1482,7 @@ var PDFViewer = class {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    const bibliography = createBibliographyHighlights();
+    const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
       pdfjs: options.pdfjs,
@@ -2291,6 +2397,15 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
+    citationVerification: claimsPayload?.citation_verification,
+    onCitationSelect(key, citation, goToReference) {
+      const sidebar = ensureClaimsSidebar(rootEl);
+      const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+      if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+        toggle.click();
+      }
+      renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
+    },
     navigation: {
       container: navigation,
       toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),

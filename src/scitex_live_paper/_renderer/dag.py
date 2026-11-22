@@ -241,8 +241,12 @@ def graph_to_mermaid(
         )
         if n.get("hash"):
             provenance[str(n["label"])] = str(n["hash"])
-    for e in graph["edges"]:
-        lines.append(f"  {ids[e['source']]} --> {ids[e['target']]}")
+    claim_nodes = {node["id"] for node in graph["nodes"] if node["kind"] == "claim"}
+    for edge in graph["edges"]:
+        source, target = edge["source"], edge["target"]
+        interpretation = edge.get("relation") == "author_interpretation" and target in claim_nodes
+        label = "|Author interpretation|" if interpretation else ""
+        lines.append(f"  {ids[source]} -->{label} {ids[target]}")
     lines += [
         "  classDef run fill:#e3f1fa,stroke:#005a8c",
         "  classDef file fill:#f6f8fa,stroke:#57606a",
