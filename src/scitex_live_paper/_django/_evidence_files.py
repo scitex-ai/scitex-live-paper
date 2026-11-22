@@ -90,6 +90,15 @@ class ResourceReader:
         finally:
             os.close(cursor)
 
+    def check_regular_file(self, name: str) -> None:
+        """Check that a source can be opened beneath the root without reading it."""
+        try:
+            with os.fdopen(self._open(name), "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise ResourceError("Paper resource must be a regular file", 403)
+        except OSError as error:
+            raise _filesystem_error(error) from None
+
     def read(self, name: str, *, limit: int) -> bytes:
         if type(limit) is not int or limit <= 0:
             raise ResourceError("Paper resource limits are not configured correctly", 503)

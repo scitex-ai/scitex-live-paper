@@ -49,6 +49,7 @@ def make_report():
 @pytest.fixture
 def evidence_host(tmp_path):
     roots, reports, contexts, calls = {}, {}, {}, []
+    navigation = {}
     for name in ("alice", "bob"):
         root = tmp_path / name
         shutil.copytree(FIXTURE, root)
@@ -67,6 +68,7 @@ def evidence_host(tmp_path):
         calls.append((name, request.path))
         if name not in contexts or request.headers.get("Authorization") != "Bearer " + name:
             raise BundleAccessDenied("Project is not accessible")
+        request.live_paper_evidence_links = navigation.get(name)
         return contexts[name]
 
     urlconf = type("EvidenceHostURLConf", (), {
@@ -76,6 +78,7 @@ def evidence_host(tmp_path):
         yield SimpleNamespace(
             client=Client(HTTP_AUTHORIZATION="Bearer alice"), roots=roots,
             reports=reports, contexts=contexts, calls=calls, urlconf=urlconf,
+            navigation=navigation,
         )
 
 
@@ -417,6 +420,39 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
         unknown.status_code, changed.status_code, symlink.status_code,
     ) == (200, recorded.decode(), "private, no-store", 404, 409, 403)
 
+
+
+def test_navigation_links_require_a_real_file_and_survive_a_hash_mismatch(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    name = "results/run #1.py"
+    path = root / name
+    path.parent.mkdir()
+    path.write_bytes(b"print('recorded')\n")
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "script", "kind": "input", "label": name,
+        "hash": hashlib.sha256(path.read_bytes()).hexdigest(),
+    })
+    links = {"file": "/alice/demo/blob/results/run%20%231.py", "folder": "/alice/demo/results/"}
+    evidence_host.navigation["alice"] = lambda path: links if path.as_posix() == name else None
+
+    # Act
+    ready = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.write_bytes(b"print('changed')\n")
+    changed = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.unlink()
+    missing = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.symlink_to(evidence_host.roots["bob"] / "paper.tex")
+    symlink = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+
+    # Assert
+    assert (
+        ready.status_code, ready.json()["links"],
+        changed.status_code, changed.json()["links"], "text" in changed.json(),
+        missing.status_code, "links" in missing.json(),
+        symlink.status_code, "links" in symlink.json(),
+    ) == (200, links, 409, links, False, 404, False, 403, False)
 
 
 def test_gzip_preview_reports_original_file_metadata(evidence_host):

@@ -25,7 +25,7 @@ _PREVIEW_STATUS = {
 _DIGEST = re.compile(r"(?:sha256:)?([0-9a-f]{32}|[0-9a-f]{64})", re.IGNORECASE)
 
 
-def _preview(root: Path, entry: Mapping, node_id: str, *, start: int, member: int | None) -> dict:
+def _source(entry: Mapping, node_id: str) -> tuple[str, str | None]:
     node = next(
         (node for node in (entry.get("graph") or {}).get("nodes", []) if node["id"] == node_id),
         None,
@@ -43,6 +43,23 @@ def _preview(root: Path, entry: Mapping, node_id: str, *, start: int, member: in
         raise ResourceError("This evidence node has no project file available for preview.", 404)
     if not isinstance(name, str) or not name or Path(name).is_absolute():
         raise ResourceError("This evidence file is outside the project.", 403)
+    return name, digest
+
+
+def _links(request, root: Path, name: str) -> dict:
+    resolver = getattr(request, "live_paper_evidence_links", None)
+    if resolver is None:
+        return {}
+    try:
+        with ResourceReader(root) as reader:
+            reader.check_regular_file(name)
+    except ResourceError:
+        return {}
+    links = resolver(Path(name))
+    return {"links": links} if links else {}
+
+
+def _preview(root: Path, name: str, digest: str | None, *, start: int, member: int | None) -> dict:
     match = _DIGEST.fullmatch(digest) if isinstance(digest, str) else None
     if match is None:
         raise ResourceError("A comparable file hash was not recorded.", 409)
@@ -79,11 +96,18 @@ def handle_evidence_preview(request):
         entry = find_claim(packet, claim_id)
         if entry is None:
             raise ResourceError("Registered claim not found.", 404)
-        return respond(_preview(
-            root, entry, node_id, start=int(start),
-            member=int(member) if member is not None else None,
-        ))
-    except PreviewError as error:
-        return respond({"error": str(error), "code": error.code}, _PREVIEW_STATUS[error.code])
+        name, digest = _source(entry, node_id)
     except ResourceError as error:
         return respond({"error": str(error)}, error.status)
+    links = _links(request, root, name)
+    try:
+        return respond({**_preview(
+            root, name, digest, start=int(start),
+            member=int(member) if member is not None else None,
+        ), **links})
+    except PreviewError as error:
+        return respond({"error": str(error), "code": error.code, **links}, _PREVIEW_STATUS[error.code])
+    except ResourceError as error:
+        if error.status in {403, 404}:
+            links = {}
+        return respond({"error": str(error), **links}, error.status)

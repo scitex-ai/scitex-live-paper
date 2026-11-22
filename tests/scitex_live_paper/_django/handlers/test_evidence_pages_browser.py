@@ -126,6 +126,10 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
         "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
     }))
+    evidence_host.navigation["alice"] = lambda path: {
+        "file": "/alice/demo/blob/" + path.as_posix(),
+        "folder": "/alice/demo/",
+    }
     script = b"print('computed value')\n"
     (root / "analysis.py").write_bytes(script)
     graph = evidence_host.reports["alice"]["claims"][0]["graph"]
@@ -238,9 +242,20 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         preview.get_by_text("print('computed value')", exact=True).wait_for()
         graph.locator("g.lp-source-highlight").wait_for()
         language = preview.locator("pre code").get_attribute("class")
-        preview_has_background = preview.locator(".lp-source-preview pre").evaluate(
-            "node => getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)'"
+        file_action = preview.get_by_role("link", name="Open file", exact=True)
+        folder_action = preview.get_by_role("link", name="Open containing folder", exact=True)
+        source_action_urls = (
+            file_action.get_attribute("href"), folder_action.get_attribute("href"),
+            file_action.get_attribute("target"),
         )
+        code = preview.locator(".lp-source-preview pre")
+        code_colors = []
+        for theme in ("light", "dark"):
+            page.evaluate("""theme => {
+              document.documentElement.dataset.theme = theme;
+              document.querySelectorAll("[data-theme]").forEach(node => node.dataset.theme = theme);
+            }""", theme)
+            code_colors.append(code.evaluate("node => getComputedStyle(node).color"))
         comment_height = preview.get_by_role("button", name="Comment", exact=True).evaluate(
             "node => node.getBoundingClientRect().height"
         )
@@ -331,7 +346,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, bookmarks_work, fresh_graph, exports,
+            page.locator(".lp-rich-preview").count(), source_action_urls, code_colors, comment_height >= 30, bookmarks_work, fresh_graph, exports,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -345,6 +360,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True, True, True,
+        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0,
+        ("/alice/demo/blob/analysis.py", "/alice/demo/", "_blank"),
+        ["rgb(36, 41, 47)", "rgb(230, 237, 243)"], True, True, True,
         [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )

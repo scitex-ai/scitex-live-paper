@@ -1122,10 +1122,16 @@
   font-size: 0.78rem;
 }
 
-/* The shared syntax tokens are light and require a dark code surface. */
+.lp-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 8px;
+}
+
 .lp-source-preview pre {
-  background: #20262e;
-  color: #e6edf3;
+  background: #f6f8fa;
+  color: #24292f;
   border: 1px solid var(--lp-border);
   border-radius: 4px;
   padding: 8px 10px;
@@ -1137,6 +1143,35 @@
 .lp-source-preview pre > code {
   color: inherit;
   background: transparent;
+}
+
+/* The Hub highlighter sets global token colors, so scope the light palette. */
+[data-theme="light"] .lp-source-preview pre [class^="hljs-"] {
+  color: inherit !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-attr, .hljs-number, .hljs-literal, .hljs-symbol, .hljs-params) {
+  color: #0550ae !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-string, .hljs-link) {
+  color: #0a6335 !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-keyword, .hljs-built_in, .hljs-type, .hljs-title, .hljs-section, .hljs-name, .hljs-tag) {
+  color: #6a2da8 !important;
+}
+
+[data-theme="light"] .lp-source-preview pre .hljs-comment {
+  color: #53606c !important;
+}
+
+[data-theme="dark"] .lp-source-preview pre {
+  background: #20262e;
+  color: #e6edf3;
 }
 
 .lp-source-preview img {

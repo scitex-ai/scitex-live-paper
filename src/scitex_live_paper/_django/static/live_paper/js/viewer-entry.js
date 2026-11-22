@@ -1052,12 +1052,20 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
       headers: { Accept: "application/json" }
     }).then(async (response) => {
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
       if (current.signal.aborted || signal.aborted) return;
+      if (!response.ok) {
+        preview.replaceChildren(
+          el2("code", null, reference.script_file || reference.label),
+          el2("p", null, result.error || "File preview unavailable.")
+        );
+        appendSourceLinks(preview, result.links, { current: true });
+        return;
+      }
       preview.replaceChildren(
         el2("code", null, result.file),
         el2("span", "lp-source-preview-status", result.truncated ? "Matches recorded hash \xB7 excerpt" : "Matches recorded hash")
       );
+      appendSourceLinks(preview, result.links);
       if (result.member) {
         const back = previewButton("Archive contents", () => load(reference));
         preview.append(el2("p", null, result.member), back);
@@ -1072,6 +1080,22 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
       }
     });
   }
+}
+function appendSourceLinks(preview, links, { current = false } = {}) {
+  const actions = el2("div", "lp-source-actions");
+  const choices = [
+    [links?.file, current ? "Open current file" : "Open file"],
+    [links?.folder, "Open containing folder"]
+  ];
+  for (const [url, label] of choices) {
+    if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//") || url.includes("\\")) continue;
+    const action = el2("a", "stx-button", label);
+    action.href = url;
+    action.target = "_blank";
+    action.rel = "noopener";
+    actions.append(action);
+  }
+  if (actions.childElementCount) preview.append(actions);
 }
 function previewButton(label, action) {
   const button = el2("button", null, label);
