@@ -265,6 +265,10 @@ def graph_to_mermaid(
         edge["source"] for edge in graph["edges"]
         if claim_type == "figure" and edge["target"] in claim_nodes
     }
+    statistic_sources = {
+        edge["source"] for edge in graph["edges"]
+        if claim_type == "statistic" and edge["target"] in claim_nodes
+    }
     for n in graph["nodes"]:
         role = n["kind"]
         shape = role
@@ -280,6 +284,8 @@ def graph_to_mermaid(
                 kind += " · ✒ Author interpretation"
         elif role in {"input", "output"}:
             shape, artifact = _file_presentation(n, n["id"] in figure_sources)
+            if n["id"] in statistic_sources:
+                shape, artifact = "figure", "Σ Statistics"
             if artifact:
                 kind += " · " + artifact
             if n.get("author_registered") is True:

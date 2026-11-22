@@ -11,6 +11,8 @@ try:
 except ImportError as exc:
     raise ImportError("Mounted evidence requires scitex-live-paper[server]") from exc
 
+from scitex_live_paper._renderer._compiled_paper import COMPILED_PAPER, COMPILED_SCHEMA
+from scitex_live_paper.evidence.citations import stream_sha256
 from scitex_live_paper._renderer.paper import manuscript_text_entries
 from scitex_live_paper.evidence import ContractError, build_review_packet, validate_report
 
@@ -78,6 +80,27 @@ def request_evidence(request):
     return root, packet
 
 
+def read_compiled_manuscript(reader, limit):
+    """Return the HTML reported for this PDF, if the project publishes it."""
+    try:
+        encoded = reader.read(COMPILED_PAPER, limit=limit)
+    except ResourceError as error:
+        if error.status == 404:
+            return None
+        raise
+    try:
+        artifact = json.loads(encoded.decode("utf-8"))
+        if (not isinstance(artifact, dict) or artifact.get("schema") != COMPILED_SCHEMA
+            or not isinstance(artifact.get("html"), str) or not artifact["html"].strip()):
+            raise ValueError
+    except (UnicodeError, ValueError, RecursionError):
+        raise ResourceError("Compiled manuscript HTML is invalid", 400) from None
+    with reader.open_regular_file("manuscript.pdf") as pdf:
+        if stream_sha256(pdf) != artifact.get("pdf_sha256"):
+            raise ResourceError("Rebuild the HTML for this manuscript PDF.", 409)
+    return artifact["html"]
+
+
 def manuscript_url(request, *, inline=False):
     """Offer the HTML reader when the authorized report names manuscript text."""
     from scitex_live_paper.bundle import BundleMissingError
@@ -92,7 +115,7 @@ def manuscript_url(request, *, inline=False):
             return None
     parameters = {"inline": "1"} if inline else {}
     try:
-        _, review = request_evidence(request)
+        root, review = request_evidence(request)
     except BundleMissingError:
         return None
     except ResourceError as error:
@@ -101,4 +124,11 @@ def manuscript_url(request, *, inline=False):
         # A present, invalid or inaccessible report still has an actionable
         # route; opening it surfaces the precise refusal instead of hiding it.
         return resource_url(request, "paper.html", **parameters)
-    return resource_url(request, "paper.html", **parameters) if manuscript_text_entries(review) else None
+    if not manuscript_text_entries(review):
+        try:
+            with ResourceReader(root) as reader:
+                reader.check_regular_file(COMPILED_PAPER)
+        except ResourceError as error:
+            if error.status == 404:
+                return None
+    return resource_url(request, "paper.html", **parameters)

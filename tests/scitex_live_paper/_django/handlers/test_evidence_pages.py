@@ -274,6 +274,49 @@ def test_report_metadata_is_escaped_in_manuscript_and_graph(evidence_host):
     assert observed == [(200, True, True, True)] * 2
 
 
+def test_compiled_html_replaces_latex_and_uses_authoritative_claim_marks(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    artifact = root / "manuscript-html.json"
+    artifact.write_text(json.dumps({
+        "schema": "scitex-live-paper.manuscript-html/v1",
+        "pdf_sha256": hashlib.sha256((root / "manuscript.pdf").read_bytes()).hexdigest(),
+        "html": '<h2 id="results">Results</h2><table><tr><td>'
+        '<a href="#lp-claim-value" onclick="window.attack()">20</a>'
+        '</td></tr></table><script>window.attack()</script>'
+        '<img src="https://example.org/outside.png" onload="window.attack()">',
+    }))
+
+    # Act
+    response = get(evidence_host, "paper.html", inline="1")
+
+    # Assert
+    html = response.content.decode()
+    assert response.status_code == 200
+    assert response["X-Frame-Options"] == "SAMEORIGIN"
+    assert '<h2 id="manuscript-results">Results</h2>' in html
+    assert 'href="#manuscript-results">Results</a>' in html
+    assert '<table><tr><td><mark' in html and 'data-support="not_supported"' in html
+    assert "window.attack" not in html and "outside.png" not in html
+    assert "Show LaTeX source" not in html
+
+
+def test_compiled_html_rejects_an_artifact_for_another_pdf(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    (root / "manuscript-html.json").write_text(json.dumps({
+        "schema": "scitex-live-paper.manuscript-html/v1",
+        "pdf_sha256": "0" * 64,
+        "html": "<p>Earlier manuscript</p>",
+    }))
+
+    # Act
+    response = get(evidence_host, "paper.html", inline="1")
+
+    # Assert
+    assert response.status_code == 409
+
+
 def test_viewer_offers_inline_html_when_report_names_manuscript_text(evidence_host):
     # Arrange
     observed = []

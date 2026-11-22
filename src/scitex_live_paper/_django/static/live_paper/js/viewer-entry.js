@@ -196,9 +196,9 @@ function createRichPdfViewer(options) {
   function repaint() {
     for (const page of pages.keys()) paint(page);
   }
-  function rectStyle(element, surface, bbox) {
+  function rectStyle(element2, surface, bbox) {
     const [x0, y0, x1, y1] = surface.pdfToViewportRect(bbox);
-    Object.assign(element.style, { position: "absolute", left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`, width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`, pointerEvents: "auto" });
+    Object.assign(element2.style, { position: "absolute", left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`, width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`, pointerEvents: "auto" });
   }
   function paint(page) {
     const surface = pages.get(page);
@@ -269,11 +269,11 @@ function createRichPdfViewer(options) {
   function selectOverlay(overlayId) {
     selectedOverlayId = overlayId ?? null;
     for (const layer of layers.values()) {
-      for (const element of layer.querySelectorAll("[data-overlay-id]")) {
-        if (element.dataset.overlayId === selectedOverlayId) {
-          element.setAttribute("aria-current", "true");
+      for (const element2 of layer.querySelectorAll("[data-overlay-id]")) {
+        if (element2.dataset.overlayId === selectedOverlayId) {
+          element2.setAttribute("aria-current", "true");
         } else {
-          element.removeAttribute("aria-current");
+          element2.removeAttribute("aria-current");
         }
       }
     }
@@ -285,7 +285,7 @@ function createRichPdfViewer(options) {
     if (overlay && ports.feed?.navigate) {
       ports.feed.navigate(overlay);
     } else {
-      const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element) => element.dataset.overlayId === entry.overlayId);
+      const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element2) => element2.dataset.overlayId === entry.overlayId);
       anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
     emit({ type: "feed-select", entry, overlay: overlay ?? null });
@@ -539,7 +539,7 @@ function createOverlayPreview(container, port) {
     if (!active || !previousLayer?.contains(active.anchor)) return;
     const { anchor } = active;
     const replacement = [...newLayer.children].find(
-      (element) => element.dataset.overlayId === anchor.dataset.overlayId
+      (element2) => element2.dataset.overlayId === anchor.dataset.overlayId
     );
     if (!replacement) {
       close();
@@ -580,18 +580,18 @@ function createFeed(container, choose, renderEntry) {
     const selectedId = selected?.entry.id;
     select(null);
     rows = entries.map((entry) => {
-      const element = list.ownerDocument.createElement("li");
+      const element2 = list.ownerDocument.createElement("li");
       const button = list.ownerDocument.createElement("button");
       button.type = "button";
       button.textContent = entry.label;
-      const row = { entry, element, button };
+      const row = { entry, element: element2, button };
       button.addEventListener("click", () => {
         select(row);
         choose(entry);
       });
-      element.append(button);
+      element2.append(button);
       const content = renderEntry?.(entry);
-      if (content) element.append(content);
+      if (content) element2.append(content);
       return row;
     });
     updateVisibility();
@@ -784,14 +784,14 @@ function createPdfNavigation({ container, pdfjs, onDocument }) {
     }
   };
 }
-function closestScrollContainer(element) {
-  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+function closestScrollContainer(element2) {
+  for (let parent = element2.parentElement; parent; parent = parent.parentElement) {
     if (["auto", "scroll"].includes(getComputedStyle(parent).overflowY)) return parent;
   }
   return null;
 }
-async function renderThumbnail(pdf, number, canvas, isCurrent) {
-  const page = await pdf.getPage(number);
+async function renderThumbnail(pdf, number2, canvas, isCurrent) {
+  const page = await pdf.getPage(number2);
   if (!isCurrent() || !canvas.isConnected) return;
   const view = page.getViewport({ scale: 1 });
   const viewport = page.getViewport({ scale: Math.min(112 / view.width, 146 / view.height) });
@@ -1055,6 +1055,158 @@ async function renderCommentSection(containerEl, claimId, apiBase) {
   });
   section.appendChild(form);
   return section;
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/statistics-preview.js
+var MISSING = "\u2014";
+function element(tag, text) {
+  const node = document.createElement(tag);
+  if (text !== void 0) node.textContent = text;
+  return node;
+}
+function number(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return MISSING;
+  return value !== 0 && Math.abs(value) < 1e-3 ? value.toExponential(3) : Number(value.toPrecision(5)).toString();
+}
+function effect(row) {
+  if (typeof row.effect_size !== "number") return MISSING;
+  const result = [row.effect_size_metric, number(row.effect_size)].filter(Boolean).join(" ");
+  const interval = Array.isArray(row.effect_ci) ? row.effect_ci.map(number).join(" \u2013 ") : "";
+  return interval ? result + " [" + interval + "]" : result;
+}
+function resultTable(rows) {
+  const wrap = element("div");
+  wrap.className = "lp-stats-table-scroll";
+  const table = element("table");
+  const header = table.createTHead().insertRow();
+  const hasInterval = rows.some((row) => Array.isArray(row?.ci));
+  const headers = ["Test", "Role", "Statistic", "df", "p", "Effect size"];
+  if (hasInterval) headers.push("Confidence interval");
+  for (const label of headers) {
+    const heading = element("th", label);
+    heading.scope = "col";
+    header.append(heading);
+  }
+  const body = table.createTBody();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const values = [
+      row.method || row.label || row.test_method || row.test || MISSING,
+      typeof row.role === "string" && row.role ? row.role[0].toUpperCase() + row.role.slice(1) : MISSING,
+      number(row.statistic),
+      Array.isArray(row.df) ? row.df.map(number).join(", ") : number(row.df),
+      number(row.p_value ?? row.pvalue),
+      effect(row)
+    ];
+    if (hasInterval) values.push(Array.isArray(row.ci) ? row.ci.map(number).join(" \u2013 ") : MISSING);
+    const tr = body.insertRow();
+    for (const value of values) tr.insertCell().textContent = value;
+  }
+  wrap.append(table);
+  return wrap;
+}
+function appendApa(node, segments, plain) {
+  if (!Array.isArray(segments) || !segments.length) {
+    node.textContent = plain;
+    return;
+  }
+  for (const segment of segments) {
+    if (typeof segment?.text !== "string") continue;
+    const tag = { sym: "i", sup: "sup", sub: "sub" }[segment.kind];
+    node.append(tag ? element(tag, segment.text) : segment.text);
+  }
+}
+function detailedResult(row, open) {
+  const rows = row.apa_table ?? row.apa?.table;
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const detail = element("details");
+  detail.open = open;
+  detail.append(element("summary", row.method || row.label || row.test_method || row.test));
+  const table = element("table");
+  const body = table.createTBody();
+  for (const row2 of rows) {
+    if (typeof row2?.label_plain !== "string" || typeof row2.value_plain !== "string") continue;
+    const tr = body.insertRow();
+    const label = element("th");
+    label.scope = "row";
+    const value = element("td");
+    appendApa(label, row2.label, row2.label_plain);
+    appendApa(value, row2.value, row2.value_plain);
+    tr.append(label, value);
+  }
+  detail.append(table);
+  return detail;
+}
+function renderStatistics(panel, data, loadPlot) {
+  if (!data || typeof data !== "object") return;
+  const card = element("section");
+  card.className = "lp-stats-card";
+  card.setAttribute("aria-label", "SciTeX Stats");
+  card.append(element("h3", "SciTeX Stats"));
+  if (data.missing_effect_sizes?.length) {
+    const incomplete = element("p", "Incomplete report \xB7 effect size required for " + data.missing_effect_sizes.join(", "));
+    incomplete.setAttribute("role", "status");
+    card.append(incomplete);
+  }
+  const comparisons = Object.values(data.comparisons || {});
+  for (const study of comparisons) {
+    if (!study || !Array.isArray(study.results) || !study.results.length) continue;
+    const group = element("section");
+    if (study.title) group.append(element("h4", study.title));
+    if (study.note) group.append(element("p", study.note));
+    const first = study.results[0] || {};
+    const alpha = study.alpha ?? first.alpha;
+    const power = study.power ?? first.power;
+    const beta = study.beta ?? first.beta;
+    const thresholds = ["\u03B1 " + number(alpha), "\u03B2 " + (Number.isFinite(beta) ? number(beta) : "not estimated")];
+    if (Number.isFinite(power)) thresholds.push("Power " + number(power));
+    group.append(element("p", thresholds.join(" \xB7 ")), resultTable(study.results));
+    for (const row of study.results) {
+      const line = row?.apa_plain ?? row?.apa?.plain;
+      if (typeof line === "string" && line) {
+        const report = element("p");
+        appendApa(report, row.apa_segments ?? row.apa?.segments, line);
+        report.className = "lp-stats-reported-line";
+        group.append(report);
+      }
+    }
+    for (const [index, row] of study.results.entries()) {
+      if (!row || typeof row !== "object") continue;
+      const details = detailedResult(row, index === 0);
+      if (details) group.append(details);
+    }
+    const check = study.assumptions;
+    if (Number.isFinite(check?.min_expected)) {
+      group.append(element(
+        "p",
+        "Expected counts \xB7 minimum " + number(check.min_expected) + " \xB7 " + check.cells_below + " of " + check.cells + " below " + number(check.threshold)
+      ));
+    } else if (Number.isFinite(first.expected_min)) {
+      group.append(element("p", "Minimum expected count \xB7 " + number(first.expected_min)));
+    }
+    const checks = study.checks;
+    if (Array.isArray(checks?.normality?.samples)) {
+      for (const sample of checks.normality.samples) {
+        if (!sample || !Number.isFinite(sample.p)) continue;
+        group.append(element(
+          "p",
+          "Shapiro\u2013Wilk \xB7 " + sample.sample + " \xB7 W " + number(sample.W) + " \xB7 p " + number(sample.p)
+        ));
+      }
+    }
+    const variance = checks?.equal_variance?.brown_forsythe;
+    if (Number.isFinite(variance?.p)) {
+      group.append(element("p", "Brown\u2013Forsythe \xB7 F " + number(variance.statistic) + " \xB7 p " + number(variance.p)));
+    }
+    if (study.agreement) group.append(element("p", study.agreement));
+    if (typeof study.visual === "string" && loadPlot) {
+      const plot = element("figure");
+      loadPlot(study.visual, plot, study.title, study.visual_sha256);
+      group.append(plot);
+    }
+    card.append(group);
+  }
+  panel.append(card);
 }
 
 // src/scitex_live_paper/_renderer/assets/graph-controls.js
@@ -1374,49 +1526,93 @@ function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = fal
   preview.setAttribute("aria-live", "polite");
   preview.hidden = true;
   panel.append(preview);
-  let request = null;
+  const requests = /* @__PURE__ */ new WeakMap();
+  let references = [];
+  const statistics = claim.claim_type === "statistic" && el2("div", "lp-statistics-selection");
+  if (statistics) panel.insertBefore(statistics, graph);
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
     selectReference: (reference) => load(reference),
+    onReferences(nodes) {
+      references = nodes || [];
+      if (statistics) {
+        const source = references.find((node) => node.label === claim.source_file);
+        if (source) load(source, { destination: statistics });
+      }
+    },
     requireClaim
   });
-  function load(reference, { member } = {}) {
-    request?.abort();
-    request = new AbortController();
-    const current = request;
-    preview.hidden = false;
-    preview.replaceChildren(el2("p", null, "Loading file preview\u2026"));
+  function previewUrl(reference, member) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
     if (member !== void 0) url.searchParams.set("member", member);
-    fetch(withBundleContext(url.href), {
-      signal: AbortSignal.any([signal, current.signal]),
+    return withBundleContext(url.href);
+  }
+  function loadPlot(file, name, target, title, checksum, requestSignal) {
+    if (typeof file !== "string" || !/^[\w.-]+\.(png|jpe?g)$/i.test(name)) return;
+    const path = file.slice(0, file.lastIndexOf("/") + 1) + name;
+    const reference = references.find((item) => item.label === path);
+    if (!reference) return;
+    fetch(previewUrl(reference), { signal: requestSignal }).then(async (response) => {
+      if (!response.ok) return;
+      const image = await response.json();
+      if (image.kind !== "image" || requestSignal.aborted) return;
+      const recorded = image.hash?.replace(/^sha256:/i, "").toLowerCase();
+      if (typeof checksum === "string" && (!recorded || !checksum.startsWith(recorded))) return;
+      renderSourceContent(target, { ...image, file: title || name });
+    }).catch(() => {
+    });
+  }
+  function load(reference, { member, destination = preview } = {}) {
+    requests.get(destination)?.abort();
+    const current = new AbortController();
+    requests.set(destination, current);
+    const requestSignal = AbortSignal.any([signal, current.signal]);
+    destination.hidden = false;
+    destination.replaceChildren(el2("p", null, "Loading evidence\u2026"));
+    fetch(previewUrl(reference, member), {
+      signal: requestSignal,
       headers: { Accept: "application/json" }
     }).then(async (response) => {
       const result = await response.json();
       if (current.signal.aborted || signal.aborted) return;
       if (!response.ok) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el2("code", null, reference.script_file || reference.label),
           el2("p", null, result.error || "File preview unavailable.")
         );
-        appendSourceLinks(preview, result.links, { current: true });
+        appendSourceLinks(destination, result.links, { current: true });
         return;
       }
-      preview.replaceChildren(
+      if (result.kind === "statistics") {
+        destination.replaceChildren();
+        renderStatistics(
+          destination,
+          result.statistics,
+          (name, target, title, checksum) => {
+            if (!result.member) loadPlot(result.file, name, target, title, checksum, requestSignal);
+          }
+        );
+        appendSourceLinks(destination, result.links);
+        if (result.member) {
+          destination.append(previewButton("Archive contents", () => load(reference)));
+        }
+        return;
+      }
+      destination.replaceChildren(
         el2("code", null, result.file),
         el2("span", "lp-source-preview-status", result.truncated ? "Matches recorded hash \xB7 excerpt" : "Matches recorded hash")
       );
-      appendSourceLinks(preview, result.links);
+      appendSourceLinks(destination, result.links);
       if (result.member) {
         const back = previewButton("Archive contents", () => load(reference));
-        preview.append(el2("p", null, result.member), back);
+        destination.append(el2("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options));
+      renderSourceContent(destination, result, (options) => load(reference, { ...options, destination }));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el2("code", null, reference.script_file || reference.label),
           el2("p", null, error.message || "File preview unavailable.")
         );
@@ -1493,7 +1689,7 @@ function cachedLayout(hash, render) {
   if (graphLayouts.size > maxLayouts) graphLayouts.delete(graphLayouts.keys().next().value);
   return rendered;
 }
-async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim } = {}) {
+async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim, onReferences } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -1561,6 +1757,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
       link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
+      onReferences?.(body.references);
     }
   } catch (err) {
     if (signal?.aborted) return;
@@ -1577,7 +1774,7 @@ function bindReferences(dagBox, graph, references, selectReference) {
   const nodes = [...graph.querySelectorAll("g.node")];
   const entries = references.map((reference) => ({
     reference,
-    node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-"))
+    node: nodes.find((element2) => element2.id.startsWith("flowchart-" + reference.id + "-"))
   }));
   let activeReference;
   let pinnedReference = false;

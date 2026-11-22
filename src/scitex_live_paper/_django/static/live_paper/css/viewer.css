@@ -1582,3 +1582,19 @@
 @media print {
   .lp-format-tabs { display: none; }
 }
+
+.lp-statistics-selection:empty { display: none; }
+.lp-statistics-selection { margin-block: 12px; }
+.lp-stats-card { margin-block: 8px; }
+.lp-stats-card h3 { margin-block: 8px; font-size: 1.05rem; }
+.lp-stats-card h4 { margin-block: 10px 4px; font-size: 0.95rem; }
+.lp-stats-card p { margin-block: 4px; }
+.lp-stats-table-scroll { overflow: auto; }
+.lp-stats-card table { width: 100%; border-collapse: collapse; }
+.lp-stats-card :is(td, th) { padding: 4px 6px; border-bottom: 1px solid var(--lp-border); text-align: start; }
+.lp-stats-card td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+.lp-stats-card figure { margin: 8px 0; }
+.lp-stats-card img { max-width: 100%; height: auto; }
+.lp-stats-reported-line { font-family: ui-serif, Georgia, serif; }
+.lp-stats-card details { margin-block: 6px; }
+.lp-stats-card summary { cursor: pointer; font-weight: 600; }

@@ -21,7 +21,17 @@
 </div>
 {% endif %}
 
-<div class="lp-paper-layout">
+<div class="lp-paper-layout{% if compiled is not none %} lp-compiled-layout{% endif %}">
+  {% if headings %}
+  <nav class="lp-section-nav" aria-label="Manuscript sections">
+    <details open>
+      <summary>Sections</summary>
+      {% for id, label, level in headings %}
+      <a class="lp-section-level-{{ level }}" href="#{{ id }}">{{ label }}</a>
+      {% endfor %}
+    </details>
+  </nav>
+  {% endif %}
   {# Claims navigator: needs inspection first (the packet's order). Plain
      #claim-<id> links, so it works without JavaScript; paper.js turns each
      into "scroll to the mark, highlight it, open its evidence panel". #}
@@ -50,6 +60,9 @@
     <p class="lp-support-legend" aria-label="Legend">
       {% for state, label in review.states.items() %}<span class="lp-support-badge" data-support="{{ state }}">{{ review.symbols[state] }} {{ label }}: {{ review.counts[state] }}</span>{% endfor %}
     </p>
+    {% endif %}
+    {% if compiled is not none %}
+    <article class="lp-paper-text lp-compiled-article">{{ compiled }}</article>
     {% endif %}
     {% for s in sections %}
     <section class="lp-paper-section">

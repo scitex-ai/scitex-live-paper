@@ -11,6 +11,7 @@ import { withBundleContext } from "./_utils.js";
 // never an empty pane.
 
 import { renderCommentSection } from "./comments.js";
+import { renderStatistics } from "./statistics-preview.js";
 import { graphControls } from "../../../../_renderer/assets/graph-controls.js";
 
 let graphSequence = 0;
@@ -181,52 +182,94 @@ function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = fal
   preview.setAttribute("aria-live", "polite");
   preview.hidden = true;
   panel.append(preview);
-  let request = null;
+  const requests = new WeakMap();
+  let references = [];
+  const statistics = claim.claim_type === "statistic" && el("div", "lp-statistics-selection");
+  if (statistics) panel.insertBefore(statistics, graph);
 
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
     selectReference: (reference) => load(reference),
+    onReferences(nodes) {
+      references = nodes || [];
+      if (statistics) {
+        const source = references.find((node) => node.label === claim.source_file);
+        if (source) load(source, { destination: statistics });
+      }
+    },
     requireClaim,
   });
 
-  function load(reference, { member } = {}) {
-    request?.abort();
-    request = new AbortController();
-    const current = request;
-    preview.hidden = false;
-    preview.replaceChildren(el("p", null, "Loading file preview…"));
+  function previewUrl(reference, member) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
     if (member !== undefined) url.searchParams.set("member", member);
-    fetch(withBundleContext(url.href), {
-      signal: AbortSignal.any([signal, current.signal]),
+    return withBundleContext(url.href);
+  }
+
+  function loadPlot(file, name, target, title, checksum, requestSignal) {
+    if (typeof file !== "string" || !/^[\w.-]+\.(png|jpe?g)$/i.test(name)) return;
+    const path = file.slice(0, file.lastIndexOf("/") + 1) + name;
+    const reference = references.find((item) => item.label === path);
+    if (!reference) return;
+    fetch(previewUrl(reference), { signal: requestSignal }).then(async (response) => {
+      if (!response.ok) return;
+      const image = await response.json();
+      if (image.kind !== "image" || requestSignal.aborted) return;
+      const recorded = image.hash?.replace(/^sha256:/i, "").toLowerCase();
+      if (typeof checksum === "string" && (!recorded || !checksum.startsWith(recorded))) return;
+      renderSourceContent(target, { ...image, file: title || name });
+    }).catch(() => {});
+  }
+
+  function load(reference, { member, destination = preview } = {}) {
+    requests.get(destination)?.abort();
+    const current = new AbortController();
+    requests.set(destination, current);
+    const requestSignal = AbortSignal.any([signal, current.signal]);
+    destination.hidden = false;
+    destination.replaceChildren(el("p", null, "Loading evidence…"));
+    fetch(previewUrl(reference, member), {
+      signal: requestSignal,
       headers: { Accept: "application/json" },
     }).then(async (response) => {
       const result = await response.json();
       if (current.signal.aborted || signal.aborted) return;
       if (!response.ok) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el("code", null, reference.script_file || reference.label),
           el("p", null, result.error || "File preview unavailable."),
         );
-        appendSourceLinks(preview, result.links, { current: true });
+        appendSourceLinks(destination, result.links, { current: true });
         return;
       }
-      preview.replaceChildren(
+      if (result.kind === "statistics") {
+        destination.replaceChildren();
+        renderStatistics(destination, result.statistics,
+          (name, target, title, checksum) => {
+            if (!result.member) loadPlot(result.file, name, target, title, checksum, requestSignal);
+          });
+        appendSourceLinks(destination, result.links);
+        if (result.member) {
+          destination.append(previewButton("Archive contents", () => load(reference)));
+        }
+        return;
+      }
+      destination.replaceChildren(
         el("code", null, result.file),
         el("span", "lp-source-preview-status", result.truncated
           ? "Matches recorded hash · excerpt" : "Matches recorded hash"),
       );
-      appendSourceLinks(preview, result.links);
+      appendSourceLinks(destination, result.links);
       if (result.member) {
         const back = previewButton("Archive contents", () => load(reference));
-        preview.append(el("p", null, result.member), back);
+        destination.append(el("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options));
+      renderSourceContent(destination, result, (options) => load(reference, { ...options, destination }));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el("code", null, reference.script_file || reference.label),
           el("p", null, error.message || "File preview unavailable."),
         );
@@ -310,7 +353,7 @@ function cachedLayout(hash, render) {
   return rendered;
 }
 
-export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim } = {}) {
+export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim, onReferences } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -378,6 +421,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
       link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
+      onReferences?.(body.references);
     }
   } catch (err) {
     if (signal?.aborted) return;

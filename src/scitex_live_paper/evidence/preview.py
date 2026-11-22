@@ -46,6 +46,14 @@ def preview_byte_limit(name: str) -> int:
     return MAX_CONTAINER_BYTES if _has(name, _CONTAINERS) else MAX_INLINE_BYTES
 
 
+def _statistics(text):
+    try:
+        from scitex_stats.result_preview import preview_result
+    except ImportError:
+        return None
+    return preview_result(text)
+
+
 def _regular(name, content):
     suffix = Path(name).suffix.lower()
     if suffix in {".gz", ".tgz"} or content.startswith(b"\x1f\x8b"):
@@ -60,6 +68,8 @@ def _regular(name, content):
             text = content.decode("utf-8")
         except UnicodeDecodeError:
             raise PreviewError("This evidence file is not UTF-8 text.", "cannot_decode") from None
+        if suffix == ".json" and (statistics := _statistics(text)) is not None:
+            return {"kind": "statistics", "statistics": statistics}
         result = {"kind": "text", "text": text[:_MAX_TEXT], "truncated": len(text) > _MAX_TEXT}
         if language := _CODE_LANGUAGE.get(suffix):
             result["language"] = language

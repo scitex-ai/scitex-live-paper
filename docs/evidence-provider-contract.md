@@ -280,3 +280,18 @@ uses the result as the basis for an interpretation. Claims that can be
 compared directly to recorded results can use the same type without that
 edge label. Live Paper marks the interpreted claim with a pen and the label
 **Author interpretation**. The verification state describes the linked trace.
+
+
+## Manuscript HTML and statistics previews
+
+The hosted reader accepts a UTF-8 `manuscript-html.json` sidecar with schema
+`scitex-live-paper.manuscript-html/v1`, the compiled manuscript in `html`,
+and the corresponding PDF's full `pdf_sha256`. Use a self-contained HTML
+article with links of the form `#lp-claim-<id>` for registered claims. Live
+Paper checks the PDF binding, sanitizes the markup, and derives navigation
+from the article headings.
+
+On file preview, Live Paper checks the evidence node's recorded file hash
+before passing recognized JSON to the optional SciTeX Stats preview provider.
+The provider supplies the reported quantities and APA formatting. Plot
+previews use image files recorded in the same claim graph.

@@ -37,6 +37,7 @@ from markupsafe import Markup, escape
 from scitex_live_paper.evidence import SYMBOLS, iter_entries
 
 from ._sdk_header import copy_sdk_header_assets, header_context
+from ._compiled_paper import compiled_presentation
 from ._paper_presentation import presentation_lines
 from .dag import MERMAID_VERSION, graph_to_mermaid
 
@@ -189,6 +190,7 @@ def render_paper(
     read_text: Callable[[str], str | None] | None = None,
     asset_url: Callable[[str], str] | None = None,
     inline: bool = False,
+    compiled_html: str | None = None,
 ) -> PaperArtifacts | None:
     """Render ``paper.html`` from *review*; ``None`` when no source text is readable.
 
@@ -198,10 +200,10 @@ def render_paper(
     authorized storage capability, and ``asset_url`` to bind resource URLs.
     """
     base = text_root or review.get("project_root")
-    if base is None and read_text is None:
+    if base is None and read_text is None and compiled_html is None:
         return None
     root = Path(base) if base is not None else None
-    by_file = manuscript_text_entries(review)
+    by_file = manuscript_text_entries(review) if compiled_html is None else {}
 
     sections = []
     for rel in sorted(by_file):
@@ -222,7 +224,7 @@ def render_paper(
             "is_latex": is_latex,
             "reader_lines": presentation_lines(text, lines, is_latex=is_latex),
         })
-    if not sections:
+    if not sections and compiled_html is None:
         return None
 
     out_dir = Path(out_dir).expanduser().resolve()
@@ -238,10 +240,20 @@ def render_paper(
         keep_trailing_newline=True,
     )
     entries = list(iter_entries(review))
+    compiled = None
+    headings = []
+    if compiled_html is not None:
+        marks = {
+            entry["claim_id"]: _mark(entry, "\x00").split("\x00", 1)
+            for entry in entries
+        }
+        compiled, headings = compiled_presentation(compiled_html, marks)
     asset = asset_url if asset_url is not None else str
     html = env.get_template("paper.html.j2").render(
         title=title or "Live Paper — Paper",
         inline=inline,
+        compiled=compiled,
+        headings=headings,
         review=review,
         symbols=SYMBOLS,
         sections=sections,
@@ -250,7 +262,7 @@ def render_paper(
             ("Needs inspection", [e for e in entries if e["needs_inspection"]]),
             ("Supported", [e for e in entries if not e["needs_inspection"]]),
         ],
-        claims_data=claims_data(review),
+        claims_data=[] if inline else claims_data(review),
         css_url=asset("assets/claims.css"),
         support_css_url=asset("assets/support.css"),
         paper_css_url=asset("assets/paper.css"),
