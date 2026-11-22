@@ -939,7 +939,6 @@
   }
 }
 
-#live-paper-pdf .lp-rich-overlay:hover,
 #live-paper-pdf .lp-rich-overlay:focus-visible {
   outline: 2px solid var(--lp-accent);
   outline-offset: 1px;
@@ -984,4 +983,61 @@
 .lp-claim-dag-svg .lp-source-highlight > :is(rect, polygon, path, circle) {
   stroke: #1769aa !important;
   stroke-width: 4px !important;
+}
+
+.lp-evidence-preview-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.lp-rich-preview .lp-claim-dag-svg {
+  max-block-size: 42vh;
+  overflow: auto;
+}
+
+.lp-rich-preview .lp-claim-dag-svg svg {
+  max-block-size: 420px;
+  min-inline-size: 220px;
+}
+
+.lp-source-kind {
+  font-weight: 600;
+  margin-inline-end: 6px;
+}
+
+.lp-claim-trace-status {
+  margin-block: 4px;
+  font-size: 0.85rem;
+}
+
+.lp-source-preview {
+  margin-block-start: 12px;
+  border-block-start: 1px solid var(--border-color, #a4afbd);
+  padding-block-start: 8px;
+}
+
+.lp-source-preview-status {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.lp-source-preview pre {
+  overflow: auto;
+  max-block-size: 13rem;
+  white-space: pre;
+}
+
+.lp-source-preview img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 14rem;
+  object-fit: contain;
+}
+
+.lp-trace-summary {
+  display: inline-block;
+  margin-inline-start: 10px;
+  font-size: 0.82rem;
+  color: var(--accent, #285876);
 }

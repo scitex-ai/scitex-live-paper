@@ -221,3 +221,13 @@ Local clients can generate the packet through `scitex-live-paper export-review`
 or `scitex_live_paper.evidence.build_review_packet`. The browser, CLI, and HTTP
 API use the same claim entries and provider states. A provider's supported state
 describes the recorded trace. Authors own the claim wording and source selection.
+
+### Files recorded in a claim graph
+
+A Clew process node may carry a provider extension, `script`, with `file`
+(project-relative path) and `hash` (recorded script digest). Input and output
+nodes use their existing path label and hash. For bytes that the authorized
+host can still read, send `GET preview.json?claim_id=<id>&node_id=<graph-node-id>`.
+The response gives the recorded file and hash, plus either a UTF-8 excerpt
+or a PNG/JPEG preview. A current file that differs from the recorded digest
+returns 409. An unavailable file leaves the inspected graph usable.

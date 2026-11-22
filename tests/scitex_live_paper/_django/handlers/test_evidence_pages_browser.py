@@ -114,13 +114,21 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     shutil.copyfile(fixture, root / "manuscript.pdf")
     registry = root / "claims.json"
     claims = json.loads(registry.read_text())
-    claims["claims"][0].update(claim_id="value", claim_type="figure")
+    claims["claims"][0].update(claim_id="value", claim_type="value")
     registry.write_text(json.dumps(claims))
     claim_id = "value"
     (root / "pdf-anchors.json").write_text(json.dumps({
         "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
         "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
     }))
+    script = b"print('computed value')\n"
+    (root / "analysis.py").write_bytes(script)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "p1", "kind": "process", "label": "recorded-run",
+        "script": {"file": "analysis.py", "hash": hashlib.sha256(script).hexdigest()},
+    })
+    graph["edges"].append({"source": "p1", "target": "output"})
     server = make_server(
         "127.0.0.1", 0, StaticFilesHandler(WSGIHandler()), handler_class=QuietHandler
     )
@@ -155,15 +163,29 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
         overlay.hover()
-        inspector.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
-        graph = inspector.locator(".lp-claim-dag svg")
+        preview = page.locator(".lp-rich-preview")
+        preview.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
+        graph = preview.locator(".lp-claim-dag svg")
         graph.wait_for()
-        reference = inspector.get_by_role("button", name="result.json", exact=True)
-        reference.click()
+        reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
+        reference.hover()
+        preview.get_by_text("print('computed value')", exact=True).wait_for()
         graph.locator("g.lp-source-highlight").wait_for()
-        source_link_is_claim_bound = "claim_id=value" in inspector.get_by_role(
+        source_link_is_claim_bound = "claim_id=value" in preview.get_by_role(
             "link", name="Open full evidence graph"
         ).get_attribute("href")
+        trace_summary = page.get_by_role("link", name="Calculation traces", exact=False)
+        trace_summary.wait_for()
+        marked = overlay.get_attribute("data-appearance") == "highlight"
+        source_selected = reference.get_attribute("aria-pressed")
+        page.keyboard.press("Escape")
+        preview.wait_for(state="hidden")
+        overlay.focus()
+        overlay.press("Enter")
+        preview.wait_for()
+        page.keyboard.press("Escape")
+        preview.wait_for(state="hidden")
+        focus_restored = overlay.evaluate("button => button === document.activeElement")
         row.click()
         overlay_selected = overlay.get_attribute("aria-current") == "true"
         with page.expect_download() as pending:
@@ -177,8 +199,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             overlay_selected,
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
-            reference.get_attribute("aria-pressed"),
-            source_link_is_claim_bound,
+            source_selected, source_link_is_claim_bound, marked, focus_restored,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -192,5 +213,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True
     )

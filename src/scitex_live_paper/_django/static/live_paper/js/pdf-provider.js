@@ -25,6 +25,7 @@ export function createRichPdfViewer(options) {
     const canonical = target?.overlayId ? overlays.find((item) => item.id === target.overlayId) : null;
     return Boolean(current && !current.readonly && !disposed && !target?.readonly && !canonical?.readonly && ports.policy?.canMutate?.({ document: current, action, target }) !== false);
   };
+  const preview = ports.preview && createOverlayPreview(container, ports.preview);
   const hooks = rendererOptions.hooks ?? {};
   const renderer = createPdfViewer({
     ...rendererOptions,
@@ -63,6 +64,7 @@ export function createRichPdfViewer(options) {
   function paint(page) {
     const surface = pages.get(page);
     if (!surface?.element.isConnected || disposed) return;
+    preview?.removeWithin(layers.get(page));
     layers.get(page)?.remove();
     const layer = document.createElement("div");
     layer.className = "lp-rich-overlays";
@@ -75,15 +77,34 @@ export function createRichPdfViewer(options) {
       button.className = "lp-rich-overlay";
       button.dataset.overlayId = overlay.id;
       button.dataset.status = overlay.status ?? "";
+      if (overlay.appearance) button.dataset.appearance = overlay.appearance;
       if (overlay.id === selectedOverlayId) button.setAttribute("aria-current", "true");
       button.setAttribute("aria-label", overlay.label || `Overlay ${overlay.id}`);
-      button.title = overlay.label || overlay.id;
+      if (preview) {
+        button.setAttribute("aria-haspopup", "dialog");
+        button.setAttribute("aria-expanded", "false");
+      } else button.title = overlay.label || overlay.id;
       rectStyle(button, surface, overlay.bbox);
       const count = comments.filter((comment) => comment.target?.overlayId === overlay.id).length;
       if (count) { const badge = document.createElement("span"); badge.className = "lp-rich-comment-count"; badge.textContent = `✎${count}`; button.append(badge); }
-      button.addEventListener("click", () => selectTarget({ overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly }, button, overlay));
+      const target = { overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly };
+      button.addEventListener("click", () => {
+        if (preview) {
+          selectOverlay(overlay.id);
+          feed?.selectOverlay(overlay.id);
+          preview.show(button, overlay, true);
+          emit({ type: "overlay-select", target, overlay });
+        } else selectTarget(target, button, overlay);
+      });
       for (const type of ["pointerenter", "focus"]) {
-        button.addEventListener(type, () => emit({ type: "overlay-preview", overlay }));
+        button.addEventListener(type, (event) => {
+          if (event.pointerType === "touch") return;
+          preview?.show(button, overlay);
+          emit({ type: "overlay-preview", overlay });
+        });
+      }
+      for (const type of ["pointerleave", "blur"]) {
+        button.addEventListener(type, () => preview?.leave(button));
       }
       layer.append(button);
     }
@@ -111,6 +132,7 @@ export function createRichPdfViewer(options) {
   }
 
   function chooseFeedEntry(entry) {
+    preview?.close();
     const overlay = overlays.find((item) => item.id === entry.overlayId);
     selectOverlay(overlay?.id);
     const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
@@ -195,6 +217,7 @@ export function createRichPdfViewer(options) {
   async function load(key) {
     if (disposed) throw new Error("PDF provider has been destroyed");
     const token = ++sequence;
+    preview?.close();
     popup?.remove(); popup = null;
     current = null;
     selectedOverlayId = null;
@@ -215,11 +238,117 @@ export function createRichPdfViewer(options) {
   function destroy() {
     if (disposed) return;
     disposed = true; sequence++; popup?.remove();
+    preview?.close();
     feed?.destroy();
     for (const layer of layers.values()) layer.remove();
     layers.clear(); pages.clear(); renderer.destroy();
   }
   return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+}
+
+function createOverlayPreview(container, port) {
+  let active = null;
+  let timer;
+  let restoringFocus = false;
+
+  function close(restore = false) {
+    clearTimeout(timer);
+    if (!active) return;
+    const { anchor, panel, listeners } = active;
+    active = null;
+    listeners.abort();
+    anchor.setAttribute("aria-expanded", "false");
+    panel.remove();
+    if (restore && anchor.isConnected) {
+      restoringFocus = true;
+      anchor.focus({ preventScroll: true });
+      restoringFocus = false;
+    }
+  }
+
+  function leave(anchor) {
+    clearTimeout(timer);
+    if (active?.anchor !== anchor || active.pinned) return;
+    timer = setTimeout(() => close(), 180);
+  }
+
+  function show(anchor, overlay, pin = false) {
+    if (restoringFocus) return;
+    clearTimeout(timer);
+    if (active?.anchor === anchor) {
+      if (pin) {
+        active.pinned = true;
+        active.panel.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (active?.pinned && !pin) return;
+    close();
+
+    const panel = document.createElement("section");
+    panel.className = "lp-rich-preview";
+    panel.setAttribute("popover", "manual");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", overlay.label || "PDF evidence");
+    panel.tabIndex = -1;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lp-rich-preview-close";
+    button.setAttribute("aria-label", "Close evidence preview");
+    button.textContent = "×";
+    button.addEventListener("click", () => close(true));
+    const content = document.createElement("div");
+    panel.append(button, content);
+    container.append(panel);
+    panel.showPopover?.();
+
+    const listeners = new AbortController();
+    const { signal } = listeners;
+    active = { anchor, panel, listeners, pinned: pin };
+    anchor.setAttribute("aria-expanded", "true");
+
+    function place() {
+      const rect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const horizontal = rect.right + panel.offsetWidth + margin <= innerWidth
+        ? rect.right + margin : rect.left - panel.offsetWidth - margin;
+      const hasSideRoom = horizontal >= margin && rect.width < innerWidth / 2;
+      const left = hasSideRoom ? horizontal : rect.left;
+      const top = hasSideRoom ? rect.top : rect.bottom + margin;
+      panel.style.left = Math.max(margin, Math.min(left, innerWidth - panel.offsetWidth - margin)) + "px";
+      panel.style.top = Math.max(margin, Math.min(top, innerHeight - panel.offsetHeight - margin)) + "px";
+    }
+
+    const resize = new ResizeObserver(place);
+    resize.observe(panel);
+    signal.addEventListener("abort", () => resize.disconnect(), { once: true });
+    panel.addEventListener("pointerenter", () => clearTimeout(timer));
+    panel.addEventListener("pointerleave", () => leave(anchor));
+    panel.addEventListener("focusin", () => clearTimeout(timer));
+    panel.addEventListener("focusout", (event) => {
+      if (!panel.contains(event.relatedTarget) && event.relatedTarget !== anchor) leave(anchor);
+    });
+    document.addEventListener("scroll", place, { capture: true, signal });
+    window.addEventListener("resize", place, { signal });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(active.pinned || panel.contains(document.activeElement));
+      }
+    }, { signal });
+    document.addEventListener("pointerdown", (event) => {
+      if (!anchor.contains(event.target) && !panel.contains(event.target)) close();
+    }, { signal });
+    port.render(content, overlay, signal);
+    place();
+    if (pin) panel.focus({ preventScroll: true });
+  }
+
+  function removeWithin(layer) {
+    if (active && layer?.contains(active.anchor)) close();
+  }
+
+  return { show, leave, close, removeWithin };
 }
 
 function validBox(box) { return Array.isArray(box) && box.length === 4 && box.every(Number.isFinite); }

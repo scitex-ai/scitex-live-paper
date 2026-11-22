@@ -5,12 +5,15 @@ import { createRichPdfViewer } from "./pdf-provider.js";
 import { withBundleContext } from "./_utils.js";
 import { pickAnchor } from "./claim-overlays.js";
 import { postComment } from "./comments.js";
+import { renderEvidencePreview } from "./claim-details.js";
 
 export function toOverlay(claim) {
   const anchor = pickAnchor(claim);
   if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  const figure = claim.claim_type === "figure" || claim.figure_id || claim.extras?.figure_id;
   return { id: claim.claim_id, page: anchor.page, bbox: anchor.bbox,
-    label: "Trace evidence for " + (claim.claim_value || claim.claim_id), status: claim.status,
+    appearance: figure ? "region" : "highlight",
+    label: "Trace evidence for " + (claim.claim_value ?? claim.claim_id), status: claim.status,
     readonly: claim.readonly === true || claim.extras?.locked === true,
     target: { figureId: claim.figure_id ?? claim.extras?.figure_id ?? null } };
 }
@@ -55,11 +58,15 @@ export class PDFViewer {
             return toComment(comment);
           },
         },
+        preview: { render: (panel, overlay, signal) => {
+          const claim = this.claims.find((claim) => claim.claim_id === overlay.id);
+          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal);
+        } },
         events: { emit: (event) => {
-          if (event.type === "feed-select" || ((event.type === "overlay-select" || event.type === "overlay-preview") && event.overlay)) {
-            const id = event.type === "feed-select" ? event.entry.id : event.overlay.id;
-            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id, preview: event.type === "overlay-preview" } }));
-            if (event.type === "overlay-select" && event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
+          if (event.type === "feed-select") {
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", {
+              bubbles: true, detail: { id: event.entry.id },
+            }));
           }
           this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
         } },

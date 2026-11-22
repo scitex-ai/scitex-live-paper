@@ -50,6 +50,7 @@ from .evidence_pages import (
     handle_review_json,
     handle_review_text,
 )
+from .evidence_preview import handle_evidence_preview
 from .pdf import handle_pdf
 from .reverify import handle_reverify, handle_reverify_all
 
@@ -59,6 +60,7 @@ HandlerFn = Callable[..., object]
 HANDLERS: Dict[str, HandlerFn] = {
     "paper.html":         handle_paper,
     "graph.html":         handle_graph,
+    "preview.json":       handle_evidence_preview,
     "claim.json":         handle_claim_json,
     "review.json":        handle_review_json,
     "review.txt":         handle_review_text,

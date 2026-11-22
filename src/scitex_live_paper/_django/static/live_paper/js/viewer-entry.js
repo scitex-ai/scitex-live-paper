@@ -130,6 +130,7 @@ function createRichPdfViewer(options) {
     const canonical = target?.overlayId ? overlays.find((item) => item.id === target.overlayId) : null;
     return Boolean(current && !current.readonly && !disposed && !target?.readonly && !canonical?.readonly && ports.policy?.canMutate?.({ document: current, action, target }) !== false);
   };
+  const preview = ports.preview && createOverlayPreview(container, ports.preview);
   const hooks = rendererOptions.hooks ?? {};
   const renderer = createPdfViewer({
     ...rendererOptions,
@@ -178,6 +179,7 @@ function createRichPdfViewer(options) {
   function paint(page) {
     const surface = pages.get(page);
     if (!surface?.element.isConnected || disposed) return;
+    preview?.removeWithin(layers.get(page));
     layers.get(page)?.remove();
     const layer = document.createElement("div");
     layer.className = "lp-rich-overlays";
@@ -190,9 +192,13 @@ function createRichPdfViewer(options) {
       button.className = "lp-rich-overlay";
       button.dataset.overlayId = overlay.id;
       button.dataset.status = overlay.status ?? "";
+      if (overlay.appearance) button.dataset.appearance = overlay.appearance;
       if (overlay.id === selectedOverlayId) button.setAttribute("aria-current", "true");
       button.setAttribute("aria-label", overlay.label || `Overlay ${overlay.id}`);
-      button.title = overlay.label || overlay.id;
+      if (preview) {
+        button.setAttribute("aria-haspopup", "dialog");
+        button.setAttribute("aria-expanded", "false");
+      } else button.title = overlay.label || overlay.id;
       rectStyle(button, surface, overlay.bbox);
       const count = comments.filter((comment) => comment.target?.overlayId === overlay.id).length;
       if (count) {
@@ -201,9 +207,24 @@ function createRichPdfViewer(options) {
         badge.textContent = `\u270E${count}`;
         button.append(badge);
       }
-      button.addEventListener("click", () => selectTarget({ overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly }, button, overlay));
+      const target = { overlayId: overlay.id, page, bbox: overlay.bbox, readonly: overlay.readonly };
+      button.addEventListener("click", () => {
+        if (preview) {
+          selectOverlay(overlay.id);
+          feed?.selectOverlay(overlay.id);
+          preview.show(button, overlay, true);
+          emit({ type: "overlay-select", target, overlay });
+        } else selectTarget(target, button, overlay);
+      });
       for (const type of ["pointerenter", "focus"]) {
-        button.addEventListener(type, () => emit({ type: "overlay-preview", overlay }));
+        button.addEventListener(type, (event) => {
+          if (event.pointerType === "touch") return;
+          preview?.show(button, overlay);
+          emit({ type: "overlay-preview", overlay });
+        });
+      }
+      for (const type of ["pointerleave", "blur"]) {
+        button.addEventListener(type, () => preview?.leave(button));
       }
       layer.append(button);
     }
@@ -233,6 +254,7 @@ function createRichPdfViewer(options) {
     }
   }
   function chooseFeedEntry(entry) {
+    preview?.close();
     const overlay = overlays.find((item) => item.id === entry.overlayId);
     selectOverlay(overlay?.id);
     const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element) => element.dataset.overlayId === entry.overlayId);
@@ -346,6 +368,7 @@ function createRichPdfViewer(options) {
   async function load(key) {
     if (disposed) throw new Error("PDF provider has been destroyed");
     const token = ++sequence;
+    preview?.close();
     popup?.remove();
     popup = null;
     current = null;
@@ -373,6 +396,7 @@ function createRichPdfViewer(options) {
     disposed = true;
     sequence++;
     popup?.remove();
+    preview?.close();
     feed?.destroy();
     for (const layer of layers.values()) layer.remove();
     layers.clear();
@@ -380,6 +404,100 @@ function createRichPdfViewer(options) {
     renderer.destroy();
   }
   return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+}
+function createOverlayPreview(container, port) {
+  let active = null;
+  let timer;
+  let restoringFocus = false;
+  function close(restore = false) {
+    clearTimeout(timer);
+    if (!active) return;
+    const { anchor, panel, listeners } = active;
+    active = null;
+    listeners.abort();
+    anchor.setAttribute("aria-expanded", "false");
+    panel.remove();
+    if (restore && anchor.isConnected) {
+      restoringFocus = true;
+      anchor.focus({ preventScroll: true });
+      restoringFocus = false;
+    }
+  }
+  function leave(anchor) {
+    clearTimeout(timer);
+    if (active?.anchor !== anchor || active.pinned) return;
+    timer = setTimeout(() => close(), 180);
+  }
+  function show(anchor, overlay, pin = false) {
+    if (restoringFocus) return;
+    clearTimeout(timer);
+    if (active?.anchor === anchor) {
+      if (pin) {
+        active.pinned = true;
+        active.panel.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (active?.pinned && !pin) return;
+    close();
+    const panel = document.createElement("section");
+    panel.className = "lp-rich-preview";
+    panel.setAttribute("popover", "manual");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", overlay.label || "PDF evidence");
+    panel.tabIndex = -1;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lp-rich-preview-close";
+    button.setAttribute("aria-label", "Close evidence preview");
+    button.textContent = "\xD7";
+    button.addEventListener("click", () => close(true));
+    const content = document.createElement("div");
+    panel.append(button, content);
+    container.append(panel);
+    panel.showPopover?.();
+    const listeners = new AbortController();
+    const { signal } = listeners;
+    active = { anchor, panel, listeners, pinned: pin };
+    anchor.setAttribute("aria-expanded", "true");
+    function place() {
+      const rect = anchor.getBoundingClientRect();
+      const margin = 8;
+      const horizontal = rect.right + panel.offsetWidth + margin <= innerWidth ? rect.right + margin : rect.left - panel.offsetWidth - margin;
+      const hasSideRoom = horizontal >= margin && rect.width < innerWidth / 2;
+      const left = hasSideRoom ? horizontal : rect.left;
+      const top = hasSideRoom ? rect.top : rect.bottom + margin;
+      panel.style.left = Math.max(margin, Math.min(left, innerWidth - panel.offsetWidth - margin)) + "px";
+      panel.style.top = Math.max(margin, Math.min(top, innerHeight - panel.offsetHeight - margin)) + "px";
+    }
+    const resize = new ResizeObserver(place);
+    resize.observe(panel);
+    signal.addEventListener("abort", () => resize.disconnect(), { once: true });
+    panel.addEventListener("pointerenter", () => clearTimeout(timer));
+    panel.addEventListener("pointerleave", () => leave(anchor));
+    panel.addEventListener("focusin", () => clearTimeout(timer));
+    panel.addEventListener("focusout", (event) => {
+      if (!panel.contains(event.relatedTarget) && event.relatedTarget !== anchor) leave(anchor);
+    });
+    document.addEventListener("scroll", place, { capture: true, signal });
+    window.addEventListener("resize", place, { signal });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close(active.pinned || panel.contains(document.activeElement));
+      }
+    }, { signal });
+    document.addEventListener("pointerdown", (event) => {
+      if (!anchor.contains(event.target) && !panel.contains(event.target)) close();
+    }, { signal });
+    port.render(content, overlay, signal);
+    place();
+    if (pin) panel.focus({ preventScroll: true });
+  }
+  function removeWithin(layer) {
+    if (active && layer?.contains(active.anchor)) close();
+  }
+  return { show, leave, close, removeWithin };
 }
 function validBox(box) {
   return Array.isArray(box) && box.length === 4 && box.every(Number.isFinite);
@@ -555,128 +673,6 @@ async function renderCommentSection(containerEl, claimId, apiBase) {
   return section;
 }
 
-// src/scitex_live_paper/_django/static/live_paper/js/pdf-viewer.js
-function toOverlay(claim) {
-  const anchor = pickAnchor(claim);
-  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
-  return {
-    id: claim.claim_id,
-    page: anchor.page,
-    bbox: anchor.bbox,
-    label: "Trace evidence for " + (claim.claim_value || claim.claim_id),
-    status: claim.status,
-    readonly: claim.readonly === true || claim.extras?.locked === true,
-    target: { figureId: claim.figure_id ?? claim.extras?.figure_id ?? null }
-  };
-}
-function toComment(comment) {
-  const { claim_id, ...region } = comment.target || {};
-  return {
-    id: comment.id,
-    body: comment.body,
-    author: comment.author,
-    target: claim_id ? { overlayId: claim_id } : region
-  };
-}
-var PDFViewer = class {
-  constructor(options) {
-    this.container = options.container;
-    this.apiBase = options.apiBase;
-    this.claims = [];
-    this.comments = [];
-    this.container.classList.add("pdf-viewer-host");
-    this.provider = createRichPdfViewer({
-      container: this.container,
-      feedContainer: options.feedContainer,
-      createPdfViewer: options.createPdfViewer,
-      rendererOptions: {
-        pdfjs: options.pdfjs,
-        workerSrc: options.workerSrc,
-        textLayer: true,
-        linkLayer: true
-      },
-      ports: {
-        documents: { resolve: (docType) => ({
-          id: String(docType || "manuscript"),
-          src: withBundleContext(this.apiBase + "pdf?doc_type=" + encodeURIComponent(docType || "manuscript") + "&t=" + Date.now())
-        }) },
-        overlays: { list: () => this.claims.map(toOverlay).filter(Boolean) },
-        feed: options.feedContainer && {
-          list: () => this.claims.map((claim) => ({
-            id: claim.claim_id,
-            label: claim.claim_id,
-            overlayId: toOverlay(claim)?.id,
-            data: claim
-          })),
-          renderEntry: (entry) => options.renderFeedEntry(entry.data)
-        },
-        comments: {
-          list: () => this.comments.map(toComment),
-          create: async (_document, target, body) => {
-            const nativeTarget = target.overlayId ? { claim_id: target.overlayId } : { page: target.page, bbox: target.bbox };
-            const comment = await postComment(this.apiBase, { body, target: nativeTarget });
-            this.comments.push(comment);
-            return toComment(comment);
-          }
-        },
-        events: { emit: (event) => {
-          if (event.type === "feed-select" || (event.type === "overlay-select" || event.type === "overlay-preview") && event.overlay) {
-            const id = event.type === "feed-select" ? event.entry.id : event.overlay.id;
-            this.container.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id, preview: event.type === "overlay-preview" } }));
-            if (event.type === "overlay-select" && event.overlay?.target?.figureId) this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", { bubbles: true, detail: { port: "figure", target: event.overlay.target.figureId } }));
-          }
-          this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
-        } }
-      }
-    });
-    this.provider.renderer.setInteractive(false);
-  }
-  setClaims(claims) {
-    this.claims = claims || [];
-    this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean));
-  }
-  setComments(comments) {
-    this.comments = comments || [];
-    this.provider.setComments(this.comments.map(toComment));
-  }
-  async load(docType = "manuscript") {
-    try {
-      await this.provider.load(docType);
-      await this.provider.renderer.fitWidth();
-      return true;
-    } catch (error) {
-      console.warn("[pdf-viewer] load failed:", error);
-      this.renderPlaceholder("No PDF available.");
-      return false;
-    }
-  }
-  clear() {
-    this.container.replaceChildren();
-  }
-  renderPlaceholder(message = "No PDF available.") {
-    this.clear();
-    const placeholder = document.createElement("p");
-    placeholder.className = "pdf-placeholder";
-    placeholder.textContent = message;
-    this.container.append(placeholder);
-  }
-  render() {
-    return this.provider.renderer.setScale(this.provider.renderer.getScale());
-  }
-  setZoom(delta) {
-    return this.provider.renderer.setScale(Math.max(0.4, Math.min(3, this.provider.renderer.getScale() + delta)));
-  }
-  setFitWidth() {
-    return this.provider.renderer.fitWidth();
-  }
-  get zoomPercent() {
-    return Math.round(this.provider.renderer.getScale() * 100);
-  }
-  destroy() {
-    this.provider.destroy();
-  }
-};
-
 // src/scitex_live_paper/_django/static/live_paper/js/claim-details.js
 var graphSequence = 0;
 function el2(tag, className, text) {
@@ -751,16 +747,66 @@ function closeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector(":scope > .lp-claim-detail");
   if (open) open.remove();
 }
-async function renderDagPane(dagBox, claimId, apiBase) {
+function renderEvidencePreview(panel, claim, apiBase, signal) {
+  panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
+  const graph = el2("div", "lp-claim-dag");
+  graph.append(el2("p", "lp-claim-dag-loading", "Loading evidence graph\u2026"));
+  panel.append(graph);
+  const preview = el2("div", "lp-source-preview");
+  preview.setAttribute("aria-live", "polite");
+  preview.hidden = true;
+  panel.append(preview);
+  let request = null;
+  renderDagPane(graph, claim.claim_id, apiBase, {
+    signal,
+    selectReference(reference) {
+      request?.abort();
+      request = new AbortController();
+      const current = request;
+      preview.hidden = false;
+      preview.replaceChildren(el2("p", null, "Loading file preview\u2026"));
+      const url = new URL("../preview.json", new URL(apiBase, location.href));
+      url.searchParams.set("claim_id", claim.claim_id);
+      url.searchParams.set("node_id", reference.node_id);
+      fetch(withBundleContext(url.href), {
+        signal: AbortSignal.any([signal, current.signal]),
+        headers: { Accept: "application/json" }
+      }).then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+        if (current.signal.aborted || signal.aborted) return;
+        preview.replaceChildren(
+          el2("code", null, result.file),
+          el2("span", "lp-source-preview-status", result.truncated ? "Matches recorded hash \xB7 excerpt" : "Matches recorded hash")
+        );
+        if (result.kind === "image") {
+          const image = el2("img");
+          image.src = `data:${result.media_type};base64,${result.data}`;
+          image.alt = result.file;
+          preview.append(image);
+        } else {
+          preview.append(el2("pre", null, result.text));
+        }
+      }).catch((error) => {
+        if (!current.signal.aborted && !signal.aborted) {
+          preview.replaceChildren(el2("p", null, error.message || "File preview unavailable."));
+        }
+      });
+    }
+  });
+}
+async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
   let body = {};
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
     const res = await fetch(withBundleContext(apiBase + "dag?" + selector), {
-      headers: { Accept: "application/json" }
+      headers: { Accept: "application/json" },
+      signal
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || "dag request failed: " + res.status);
   } catch (err) {
+    if (signal?.aborted) return;
     dagBox.innerHTML = "";
     dagBox.appendChild(el2(
       "p",
@@ -785,21 +831,29 @@ async function renderDagPane(dagBox, claimId, apiBase) {
       window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
     }
     const { svg } = await window.mermaid.render("lp-dag-" + ++graphSequence, body.mermaid);
+    if (signal?.aborted) return;
     const title = body.scope === "claim" ? "Evidence graph" : "Bundle graph";
     const heading = el2("h3", "lp-claim-graph-title", title);
     if (body.provider) heading.append(" (" + body.provider + ")");
     const wrap = el2("div", "lp-claim-dag-svg");
     wrap.innerHTML = svg;
-    dagBox.replaceChildren(heading, wrap);
+    dagBox.replaceChildren(heading);
+    if (selectReference && body.reason) {
+      const status = el2("p", "lp-claim-trace-status", body.state === "supported" ? "Calculation trace verified" : body.reason);
+      status.dataset.state = body.state;
+      dagBox.append(status);
+    }
+    dagBox.append(wrap);
     if (body.scope === "claim") {
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);
       const link = el2("a", "lp-claim-graph-link", "Open full evidence graph");
       link.href = withBundleContext(graphPage.href);
       dagBox.append(link);
-      bindReferences(dagBox, wrap, body.references);
+      bindReferences(dagBox, wrap, body.references, selectReference);
     }
   } catch (err) {
+    if (signal?.aborted) return;
     dagBox.innerHTML = "";
     dagBox.appendChild(el2(
       "p",
@@ -808,7 +862,7 @@ async function renderDagPane(dagBox, claimId, apiBase) {
     ));
   }
 }
-function bindReferences(dagBox, graph, references) {
+function bindReferences(dagBox, graph, references, selectReference) {
   if (!Array.isArray(references) || !references.length) return;
   const list = el2("ul", "lp-claim-references");
   dagBox.append(el2("h4", "lp-claim-graph-title", "Source references"), list);
@@ -820,24 +874,167 @@ function bindReferences(dagBox, graph, references) {
     }
   }
   for (const reference of references) {
+    let select = function() {
+      if (selectReference && button.getAttribute("aria-pressed") === "true") return;
+      highlight(reference.id);
+      selectReference?.(reference);
+    };
     const node = [...graph.querySelectorAll("g.node")].find(
       (element) => element.id.startsWith("flowchart-" + reference.id + "-")
     );
     if (!node) continue;
     const item = el2("li", null);
-    const button = el2("button", null, reference.label);
+    const label = reference.script_file || reference.label;
+    const button = el2("button", null, label);
+    if (selectReference) {
+      const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
+      button.prepend(el2("span", "lp-source-kind", role + " "));
+    }
     button.type = "button";
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
-      highlight(reference.id);
-      node.scrollIntoView({ block: "nearest", inline: "nearest" });
+      select();
+      if (!selectReference) node.scrollIntoView({ block: "nearest", inline: "nearest" });
     });
-    node.addEventListener("click", () => highlight(reference.id));
+    node.addEventListener("click", select);
+    if (selectReference) {
+      for (const target of [node, button]) target.addEventListener("pointerenter", select);
+      button.addEventListener("focus", select);
+    }
     entries.set(reference.id, { button, node });
     item.append(button);
     list.append(item);
   }
 }
+
+// src/scitex_live_paper/_django/static/live_paper/js/pdf-viewer.js
+function toOverlay(claim) {
+  const anchor = pickAnchor(claim);
+  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  const figure = claim.claim_type === "figure" || claim.figure_id || claim.extras?.figure_id;
+  return {
+    id: claim.claim_id,
+    page: anchor.page,
+    bbox: anchor.bbox,
+    appearance: figure ? "region" : "highlight",
+    label: "Trace evidence for " + (claim.claim_value ?? claim.claim_id),
+    status: claim.status,
+    readonly: claim.readonly === true || claim.extras?.locked === true,
+    target: { figureId: claim.figure_id ?? claim.extras?.figure_id ?? null }
+  };
+}
+function toComment(comment) {
+  const { claim_id, ...region } = comment.target || {};
+  return {
+    id: comment.id,
+    body: comment.body,
+    author: comment.author,
+    target: claim_id ? { overlayId: claim_id } : region
+  };
+}
+var PDFViewer = class {
+  constructor(options) {
+    this.container = options.container;
+    this.apiBase = options.apiBase;
+    this.claims = [];
+    this.comments = [];
+    this.container.classList.add("pdf-viewer-host");
+    this.provider = createRichPdfViewer({
+      container: this.container,
+      feedContainer: options.feedContainer,
+      createPdfViewer: options.createPdfViewer,
+      rendererOptions: {
+        pdfjs: options.pdfjs,
+        workerSrc: options.workerSrc,
+        textLayer: true,
+        linkLayer: true
+      },
+      ports: {
+        documents: { resolve: (docType) => ({
+          id: String(docType || "manuscript"),
+          src: withBundleContext(this.apiBase + "pdf?doc_type=" + encodeURIComponent(docType || "manuscript") + "&t=" + Date.now())
+        }) },
+        overlays: { list: () => this.claims.map(toOverlay).filter(Boolean) },
+        feed: options.feedContainer && {
+          list: () => this.claims.map((claim) => ({
+            id: claim.claim_id,
+            label: claim.claim_id,
+            overlayId: toOverlay(claim)?.id,
+            data: claim
+          })),
+          renderEntry: (entry) => options.renderFeedEntry(entry.data)
+        },
+        comments: {
+          list: () => this.comments.map(toComment),
+          create: async (_document, target, body) => {
+            const nativeTarget = target.overlayId ? { claim_id: target.overlayId } : { page: target.page, bbox: target.bbox };
+            const comment = await postComment(this.apiBase, { body, target: nativeTarget });
+            this.comments.push(comment);
+            return toComment(comment);
+          }
+        },
+        preview: { render: (panel, overlay, signal) => {
+          const claim = this.claims.find((claim2) => claim2.claim_id === overlay.id);
+          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal);
+        } },
+        events: { emit: (event) => {
+          if (event.type === "feed-select") {
+            this.container.dispatchEvent(new CustomEvent("live-paper:claim", {
+              bubbles: true,
+              detail: { id: event.entry.id }
+            }));
+          }
+          this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
+        } }
+      }
+    });
+    this.provider.renderer.setInteractive(false);
+  }
+  setClaims(claims) {
+    this.claims = claims || [];
+    this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean));
+  }
+  setComments(comments) {
+    this.comments = comments || [];
+    this.provider.setComments(this.comments.map(toComment));
+  }
+  async load(docType = "manuscript") {
+    try {
+      await this.provider.load(docType);
+      await this.provider.renderer.fitWidth();
+      return true;
+    } catch (error) {
+      console.warn("[pdf-viewer] load failed:", error);
+      this.renderPlaceholder("No PDF available.");
+      return false;
+    }
+  }
+  clear() {
+    this.container.replaceChildren();
+  }
+  renderPlaceholder(message = "No PDF available.") {
+    this.clear();
+    const placeholder = document.createElement("p");
+    placeholder.className = "pdf-placeholder";
+    placeholder.textContent = message;
+    this.container.append(placeholder);
+  }
+  render() {
+    return this.provider.renderer.setScale(this.provider.renderer.getScale());
+  }
+  setZoom(delta) {
+    return this.provider.renderer.setScale(Math.max(0.4, Math.min(3, this.provider.renderer.getScale() + delta)));
+  }
+  setFitWidth() {
+    return this.provider.renderer.fitWidth();
+  }
+  get zoomPercent() {
+    return Math.round(this.provider.renderer.getScale() * 100);
+  }
+  destroy() {
+    this.provider.destroy();
+  }
+};
 
 // src/scitex_live_paper/_django/static/live_paper/js/reverify-all.js
 function renderReverifyAllButton(apiBase, pinnedCommit) {
@@ -1393,6 +1590,7 @@ async function boot(rootEl) {
       claimsPayload = await fetchJson(apiBase + "claims");
     }
     setStatus(bundleInfo);
+    void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     rootEl._livePaperBundle = bundleInfo;
   } catch (err) {
@@ -1452,6 +1650,21 @@ async function boot(rootEl) {
     }
   }
 }
+async function renderTraceSummary(rootEl, apiBase) {
+  const url = new URL("../review.json", new URL(apiBase, location.href));
+  const packet = await fetchOrNull(url.href);
+  if (!packet?.counts) return;
+  const header = rootEl.querySelector("#live-paper-bundle-header");
+  if (!header) return;
+  const summary = document.createElement("a");
+  summary.className = "lp-trace-summary";
+  summary.href = withBundleContext(url.href);
+  const total = packet.supported.length + packet.needs_inspection.length;
+  if (total === 0) return;
+  const label = packet.provider?.name === "clew" ? "Clew calculation traces" : "Calculation traces";
+  summary.textContent = `${label} \xB7 ${packet.counts.supported} verified \xB7 ${packet.needs_inspection.length} to inspect`;
+  header.append(summary);
+}
 function movePickerIntoHeaderSlot(rootEl) {
   const headerRoot = rootEl.previousElementSibling;
   if (!headerRoot?.matches("[data-stx-app-header]")) return;
@@ -1473,5 +1686,5 @@ function movePickerIntoHeaderSlot(rootEl) {
 }
 window.LivePaperPDFViewer = PDFViewer;
 export {
-  movePickerIntoHeaderSlot
+  renderTraceSummary
 };

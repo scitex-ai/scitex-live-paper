@@ -158,7 +158,7 @@ def test_claim_json_reuses_review_packet_entry(evidence_host):
     assert missing.json() == {"error": "claim_not_found"}
 
 
-@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "claim.json", "assets"])
+@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "claim.json", "preview.json", "assets"])
 def test_every_page_and_asset_runs_host_authorization(evidence_host, endpoint):
     # Arrange
     before = len(evidence_host.calls)
@@ -326,10 +326,40 @@ def test_claim_rectangles_are_bound_to_the_downloaded_pdf(evidence_host, valid_p
 
 def test_dag_selector_exposes_only_the_requested_claims_references(evidence_host):
     # Arrange
-    references = [{"id": "n0", "label": "result.json", "kind": "output"}]
+    references = [{
+        "id": "n0", "node_id": "output", "label": "result.json",
+        "kind": "output", "script_file": None,
+    }]
     # Act
     chosen = get(evidence_host, "api/dag", claim_id="value").json()
     missing = get(evidence_host, "api/dag", claim_id="unregistered")
     # Assert
     assert (chosen["scope"], chosen["references"], "result.json" in chosen["mermaid"],
             missing.status_code) == ("claim", references, True, 404)
+
+
+
+def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evidence_host):
+    root = evidence_host.roots["alice"]
+    script = root / "analysis.py"
+    recorded = b"print('recorded')\n"
+    script.write_bytes(recorded)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "run", "kind": "process", "label": "run-1",
+        "script": {"file": "analysis.py", "hash": hashlib.sha256(recorded).hexdigest()},
+    })
+    graph["edges"].append({"source": "run", "target": "output"})
+
+    ready = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+    unknown = get(evidence_host, "preview.json", claim_id="value", node_id="analysis.py")
+    script.write_bytes(b"print('changed')\n")
+    changed = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+    script.unlink()
+    script.symlink_to(evidence_host.roots["bob"] / "paper.tex")
+    symlink = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+
+    assert (
+        ready.status_code, ready.json()["text"], ready["Cache-Control"],
+        unknown.status_code, changed.status_code, symlink.status_code,
+    ) == (200, recorded.decode(), "private, no-store", 404, 409, 403)
