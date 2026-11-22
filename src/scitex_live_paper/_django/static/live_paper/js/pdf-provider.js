@@ -64,8 +64,7 @@ export function createRichPdfViewer(options) {
   function paint(page) {
     const surface = pages.get(page);
     if (!surface?.element.isConnected || disposed) return;
-    preview?.removeWithin(layers.get(page));
-    layers.get(page)?.remove();
+    const previousLayer = layers.get(page);
     const layer = document.createElement("div");
     layer.className = "lp-rich-overlays";
     Object.assign(layer.style, { position: "absolute", inset: "0", pointerEvents: "none", zIndex: "4" });
@@ -117,6 +116,8 @@ export function createRichPdfViewer(options) {
       button.addEventListener("click", () => selectTarget(comment.target, button));
       layer.append(button);
     }
+    preview?.reanchor(previousLayer, layer);
+    previousLayer?.remove();
   }
   function selectOverlay(overlayId) {
     selectedOverlayId = overlayId ?? null;
@@ -268,7 +269,7 @@ function createOverlayPreview(container, port) {
 
   function leave(anchor) {
     clearTimeout(timer);
-    if (active?.anchor !== anchor || active.pinned) return;
+    if (!active || active.anchor !== anchor || active.pinned) return;
     timer = setTimeout(() => close(), 180);
   }
 
@@ -304,11 +305,12 @@ function createOverlayPreview(container, port) {
 
     const listeners = new AbortController();
     const { signal } = listeners;
-    active = { anchor, panel, listeners, pinned: pin };
+    active = { anchor, panel, listeners, pinned: pin, place };
     anchor.setAttribute("aria-expanded", "true");
 
     function place() {
-      const rect = anchor.getBoundingClientRect();
+      const rect = active?.anchor.getBoundingClientRect();
+      if (!rect) return;
       const margin = 8;
       const horizontal = rect.right + panel.offsetWidth + margin <= innerWidth
         ? rect.right + margin : rect.left - panel.offsetWidth - margin;
@@ -323,10 +325,10 @@ function createOverlayPreview(container, port) {
     resize.observe(panel);
     signal.addEventListener("abort", () => resize.disconnect(), { once: true });
     panel.addEventListener("pointerenter", () => clearTimeout(timer));
-    panel.addEventListener("pointerleave", () => leave(anchor));
+    panel.addEventListener("pointerleave", () => leave(active?.anchor));
     panel.addEventListener("focusin", () => clearTimeout(timer));
     panel.addEventListener("focusout", (event) => {
-      if (!panel.contains(event.relatedTarget) && event.relatedTarget !== anchor) leave(anchor);
+      if (!panel.contains(event.relatedTarget) && event.relatedTarget !== active?.anchor) leave(active?.anchor);
     });
     document.addEventListener("scroll", place, { capture: true, signal });
     window.addEventListener("resize", place, { signal });
@@ -337,18 +339,30 @@ function createOverlayPreview(container, port) {
       }
     }, { signal });
     document.addEventListener("pointerdown", (event) => {
-      if (!anchor.contains(event.target) && !panel.contains(event.target)) close();
+      if (!active?.anchor.contains(event.target) && !panel.contains(event.target)) close();
     }, { signal });
     port.render(content, overlay, signal);
     place();
     if (pin) panel.focus({ preventScroll: true });
   }
 
-  function removeWithin(layer) {
-    if (active && layer?.contains(active.anchor)) close();
+  function reanchor(previousLayer, newLayer) {
+    if (!active || !previousLayer?.contains(active.anchor)) return;
+    const { anchor } = active;
+    const replacement = [...newLayer.children].find(
+      (element) => element.dataset.overlayId === anchor.dataset.overlayId,
+    );
+    if (!replacement) {
+      close();
+      return;
+    }
+    active.anchor = replacement;
+    replacement.setAttribute("aria-expanded", "true");
+    if (document.activeElement === anchor) replacement.focus({ preventScroll: true });
+    active.place();
   }
 
-  return { show, leave, close, removeWithin };
+  return { show, leave, close, reanchor };
 }
 
 function validBox(box) { return Array.isArray(box) && box.length === 4 && box.every(Number.isFinite); }
