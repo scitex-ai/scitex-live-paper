@@ -373,6 +373,23 @@ def test_dag_selector_exposes_only_the_requested_claims_references(evidence_host
 
 
 
+def test_dag_hash_changes_when_reported_evidence_changes(evidence_host):
+    # Arrange
+    claim = evidence_host.reports["alice"]["claims"][0]
+    original = get(evidence_host, "api/dag", claim_id="value")
+
+    # Act
+    claim["reason"] = "Recorded evidence was updated"
+    updated = get(evidence_host, "api/dag", claim_id="value")
+
+    # Assert
+    assert (
+        len(original.json()["graph_sha256"]),
+        original.json()["graph_sha256"] != updated.json()["graph_sha256"],
+        updated["Cache-Control"],
+    ) == (64, True, "private, no-store")
+
+
 def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evidence_host):
     # Arrange
     root = evidence_host.roots["alice"]

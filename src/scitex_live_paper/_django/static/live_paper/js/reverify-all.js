@@ -59,6 +59,7 @@ export async function reverifyAllClaims(btn, pinnedCommit, apiBase) {
       return;
     }
 
+    btn.dispatchEvent(new CustomEvent("live-paper:evidence-updated", { bubbles: true }));
     for (const result of payload.results) {
       _applyResultToRow(result);
     }

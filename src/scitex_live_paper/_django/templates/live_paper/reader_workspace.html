@@ -8,13 +8,21 @@
     <button type="button" class="stx-button lp-pdf-navigation-toggle" aria-expanded="false"
             aria-controls="live-paper-navigation">Pages &amp; bookmarks</button>
     {% endif %}
-    <a id="live-paper-download-pdf" hidden>Download PDF</a>
-    <details class="lp-pdf-variants" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
-      <summary>PDF variants</summary>
-      <button type="button" data-pdf-export="highlights">With highlights</button>
-      <button type="button" data-pdf-export="graph" disabled>With highlights and selected graph</button>
-      <span role="status"></span>
-    </details>
+    <div class="lp-pdf-download" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
+      <a class="stx-button" id="live-paper-download-pdf" title="Download original PDF">
+        <span class="lp-download-icon" aria-hidden="true">↓</span> Download PDF
+      </a>
+      <details class="lp-pdf-variants">
+        <summary class="stx-button" aria-label="PDF download options" title="PDF download options">
+          <span aria-hidden="true">▾</span>
+        </summary>
+        <div class="lp-pdf-variants-menu">
+          <button type="button" data-pdf-export="highlights">With highlights</button>
+          <button type="button" data-pdf-export="graph" disabled>With highlights and selected graph</button>
+          <span role="status"></span>
+        </div>
+      </details>
+    </div>
     {% if project_tools_url %}<a href="{{ project_tools_url }}">Open project tools</a>{% endif %}
     {% if manuscript_url %}<a href="{{ manuscript_url }}">Read manuscript with evidence</a>{% endif %}
     <details id="live-paper-bundle-diagnostics" hidden>
@@ -30,6 +38,17 @@
   <section aria-label="Manuscript" tabindex="0" class="lp-reader-document">
     <div id="live-paper-pdf" class="live-paper-pdf"></div>
   </section>
-  <aside aria-label="Claim evidence" id="live-paper-claims" class="live-paper-claims" hidden></aside>
+  <aside aria-label="Claim evidence" id="live-paper-claims" class="live-paper-claims" hidden>
+    <div class="stx-content-tabs lp-claims-tabs" role="tablist" aria-label="Evidence">
+      <button class="stx-content-tabs__tab" type="button" role="tab" id="lp-selection-tab"
+              aria-selected="false" aria-controls="lp-selection-panel" tabindex="-1">Selection</button>
+      <button class="stx-content-tabs__tab" type="button" role="tab" id="lp-all-claims-tab"
+              aria-selected="true" aria-controls="lp-all-claims-panel">All claims</button>
+    </div>
+    <div id="lp-selection-panel" role="tabpanel" aria-labelledby="lp-selection-tab" hidden>
+      <p class="lp-selection-empty">Select a highlight or a claim to see its evidence.</p>
+    </div>
+    <div id="lp-all-claims-panel" role="tabpanel" aria-labelledby="lp-all-claims-tab"></div>
+  </aside>
 </div>
 {% endif %}

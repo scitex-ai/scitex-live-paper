@@ -1,7 +1,7 @@
 import { toOverlay } from "./pdf-viewer.js";
 
 export function bindPdfDownloads(root, claims, original) {
-  const options = root.querySelector(".lp-pdf-variants");
+  const options = root.querySelector(".lp-pdf-download");
   if (!options) return;
   const status = options.querySelector("[role='status']");
   const buttons = [...options.querySelectorAll("button")];

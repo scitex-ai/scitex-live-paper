@@ -11,41 +11,60 @@ export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (!claimsPayload || !Array.isArray(claimsPayload.claims)) return;
 
   const sidebar = ensureClaimsSidebar(rootEl);
-  sidebar.replaceChildren();
   sidebar.hidden = false;
-
-  const header = document.createElement("h2");
-  header.className = "lp-claims-header";
-  header.textContent = "Claim evidence";
-  sidebar.appendChild(header);
-
+  bindClaimTabs(sidebar);
+  const allClaims = sidebar.querySelector("#lp-all-claims-panel");
   const count = claimsPayload.claims.length;
-  const summary = document.createElement("p");
-  summary.className = "lp-claims-summary";
-  summary.textContent = count === 0
-    ? "No claims are registered for this manuscript."
-    : `${count} ${count === 1 ? "claim" : "claims"} · Select a claim to inspect its source and evidence graph.`;
-  sidebar.appendChild(summary);
+  sidebar.querySelector("#lp-all-claims-tab").textContent = `All claims (${count})`;
+  if (!count) {
+    const message = document.createElement("p");
+    message.textContent = "No claims are registered for this manuscript.";
+    allClaims.append(message);
+  }
 
   const reVerifyEnabled = !!claimsPayload.re_verify_enabled;
   const pinnedCommit = claimsPayload.pinned_commit || null;
 
   // "Re-verify all" — same visibility gate as per-claim button.
   if (reVerifyEnabled) {
-    sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
+    allClaims.append(renderReverifyAllButton(apiBase, pinnedCommit));
   }
 
-  const container = document.createElement("details");
+  const container = document.createElement("div");
   container.className = "lp-claims-list";
-  container.open = true;
-  const label = document.createElement("summary");
-  label.textContent = "All claims (" + count + ")";
-  container.appendChild(label);
-  sidebar.appendChild(container);
+  allClaims.append(container);
   return {
     feedContainer: container,
     renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit),
   };
+}
+
+function bindClaimTabs(sidebar) {
+  const tabs = [...sidebar.querySelectorAll("[role='tab']")];
+  function select(tab, refresh = false) {
+    for (const button of tabs) {
+      const active = button === tab;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+      sidebar.querySelector("#" + button.getAttribute("aria-controls")).hidden = !active;
+    }
+    sidebar.scrollTop = 0;
+    if (refresh && tab.id === "lp-selection-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
+    }
+  }
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", (event) => select(tab, event.isTrusted));
+    tab.addEventListener("keydown", (event) => {
+      const direction = { ArrowLeft: -1, ArrowRight: 1 };
+      if (!(event.key in direction) && !["Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+        : (index + direction[event.key] + tabs.length) % tabs.length;
+      select(tabs[next], true);
+      tabs[next].focus();
+    });
+  });
 }
 
 export function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
@@ -114,6 +133,7 @@ export async function reverifyClaim(rowEl, claimId, pinnedCommit, apiBase) {
       body: JSON.stringify(body),
     });
     const payload = await res.json();
+    if (res.ok) rowEl.dispatchEvent(new CustomEvent("live-paper:evidence-updated", { bubbles: true }));
 
     let nextStatus;
     let statusNote = "";

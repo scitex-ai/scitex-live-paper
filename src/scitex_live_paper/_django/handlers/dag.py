@@ -9,6 +9,8 @@ rendering an empty graph.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any, Mapping
 
 try:
@@ -29,7 +31,7 @@ from ..services import get_request_bundle_state
 __all__ = ["handle_dag"]
 
 
-def handle_dag(request) -> Mapping[str, Any]:
+def handle_dag(request) -> JsonResponse:
     """Serve the selected claim's evidence, or the legacy bundle graph."""
     claim_id = request.GET.get("claim_id")
     if claim_id:
@@ -56,7 +58,7 @@ def handle_dag(request) -> Mapping[str, Any]:
                 for index, node in enumerate(graph["nodes"])
                 if node["kind"] in {"input", "output", "process"}
             ]
-            return {
+            return _graph_response({
                 "mermaid": mermaid,
                 "present": True,
                 "scope": "claim",
@@ -64,10 +66,17 @@ def handle_dag(request) -> Mapping[str, Any]:
                 "state": entry["state"],
                 "reason": entry["reason"],
                 "references": references,
-            }
+            })
 
     state = get_request_bundle_state(request)
     mermaid = (state.bundle.dag or "").strip()
     if not mermaid:
         return JsonResponse({"error": "no dag.mmd in bundle"}, status=404)
-    return {"mermaid": mermaid, "present": True, "scope": "bundle"}
+    return _graph_response({"mermaid": mermaid, "present": True, "scope": "bundle"})
+
+
+def _graph_response(payload: dict[str, Any]) -> JsonResponse:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    response = JsonResponse({**payload, "graph_sha256": hashlib.sha256(encoded).hexdigest()})
+    response["Cache-Control"] = "private, no-store"
+    return response

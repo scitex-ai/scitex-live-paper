@@ -993,11 +993,11 @@
 }
 
 @container (max-width: 750px) {
-  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(> .lp-claim-detail)) {
+  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(.lp-claim-detail)) {
     display: none;
   }
 
-  .lp-reader-workspace > .live-paper-claims:is([data-drawer-open], :has(> .lp-claim-detail)) {
+  .lp-reader-workspace > .live-paper-claims:is([data-drawer-open], :has(.lp-claim-detail)) {
     position: absolute;
     z-index: 3;
     inset-inline: 0;
@@ -1010,9 +1010,6 @@
     border-radius: 8px 8px 0 0;
   }
 
-  .live-paper-claims:has(> .lp-claim-detail) > .lp-claims-list {
-    display: none;
-  }
 }
 
 /* Keep the mark aligned with the PDF glyphs while making it easier to hit. */
@@ -1170,10 +1167,16 @@
   color: var(--color-warning, var(--lp-status-suspect));
 }
 
-.lp-claims-list > summary {
-  cursor: pointer;
-  margin-block: 6px;
-  font-weight: 600;
+.lp-claims-tabs {
+  position: sticky;
+  inset-block-start: -16px;
+  z-index: 2;
+  margin: -16px -16px 12px;
+  border-radius: 8px 8px 0 0;
+}
+
+#lp-selection-panel:has(.lp-claim-detail) > .lp-selection-empty {
+  display: none;
 }
 
 @media print {
@@ -1197,30 +1200,66 @@
   block-size: min(35rem, calc(100vh - 16px));
 }
 
-.lp-pdf-variants > summary {
-  color: var(--lp-accent);
-  cursor: pointer;
+.lp-pdf-download:not([hidden]) {
+  display: inline-flex;
 }
 
-.lp-pdf-variants[open] {
+#live-paper-download-pdf {
+  gap: 6px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.lp-download-icon {
+  line-height: 1;
+  border-block-end: 1px solid currentColor;
+}
+
+.lp-pdf-variants {
+  position: relative;
+  z-index: 6;
+}
+
+.lp-pdf-variants > summary {
+  display: flex;
+  padding-inline: 10px;
+  border-inline-start: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  list-style: none;
+}
+
+.lp-pdf-variants > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lp-pdf-variants-menu {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 4px);
   display: grid;
-  gap: 4px;
-  padding: 4px 8px;
+  min-inline-size: min(220px, 70vw);
+  padding: 4px;
   border: 1px solid var(--lp-border);
   border-radius: 6px;
   background: var(--lp-surface);
+  box-shadow: 0 4px 12px #0002;
 }
 
-.lp-pdf-variants button {
+.lp-pdf-variants-menu button {
   color: var(--lp-fg);
-  background: var(--lp-raised);
-  border: 1px solid var(--lp-border);
+  background: transparent;
+  border: 0;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 6px 8px;
   text-align: start;
 }
 
-.lp-pdf-variants button:disabled {
+.lp-pdf-variants-menu button:not(:disabled):is(:hover, :focus-visible) {
+  background: var(--lp-raised);
+}
+
+.lp-pdf-variants-menu button:disabled {
   opacity: .55;
 }
 
