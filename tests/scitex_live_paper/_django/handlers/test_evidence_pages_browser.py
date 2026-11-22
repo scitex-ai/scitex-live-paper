@@ -171,6 +171,12 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             navigation_ok = pdf["width"] > 600
         overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
+        assert overlay.get_attribute("data-status") == "verified"
+        assert overlay.evaluate("""element => {
+            const style = getComputedStyle(element);
+            const verified = style.getPropertyValue("--lp-status-verified").trim();
+            return verified && style.getPropertyValue("--lp-rich-mark").trim() === verified;
+        }""")
         overlay.hover()
         preview = page.locator(".lp-rich-preview")
         preview.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
