@@ -42,6 +42,40 @@ The PDF and browser views point back to the same repository. The mounted host
 owns file navigation and execution authorization. A new run has its own identity
 and can inform a new paper revision.
 
+## Details for the selected item
+
+Use **Selection** for the current manuscript mark and **All claims** to browse
+the paper. Keep the graph and the associated source, statistical result, or
+citation record under the current selection. Use **Open full evidence graph**
+for a larger view of that same graph. Add a paper-wide tab only when there is
+paper-wide content to browse.
+
+| Selected item | Details | Record owner |
+| --- | --- | --- |
+| Claim or figure | Calculation trace, verification state, and drill-down into recorded inputs and outputs | Clew evidence report |
+| Citation | Bibliography record, identifier, resolver, verification state, and available citation provenance | Scholar verification record, with optional Clew trace |
+| Statistical result | Full result for the selected analysis, including sample sizes, estimates, effect sizes, intervals, assumptions, and corrections whenever the analysis reports them | Stats bundle, linked through the recorded Clew output |
+
+Connect a Writer citation key to the Scholar record for that key. Show the
+publication link and the metadata resolver as separate fields. A DOI link can
+coexist with a Scholar record resolved through another service. Clew can
+ingest Scholar's existing `scitex-clew/citations/v1` artifact when configured.
+Render citation provenance as citation evidence, with its own status, so the
+calculation verification totals retain their meaning.
+
+Connect a statistical selection to a versioned, hash-checked Stats artifact
+using the graph's output identity and selector. Use the Stats bundle API and
+retain the complete machine-readable result alongside the human-readable
+sections. A plain number or an arbitrary JSON file with similar keys carries
+no Stats type by inference. Generic archives retain the regular file preview
+behavior. Missing package records leave the graph or native citation link
+available.
+
+Live Paper owns selection, layout, and navigation. Each producing package
+owns its fields and their interpretation. The SDK supplies shared controls
+and the PDF layer. Expose the same authorized, revision-bound records to the
+pane and to programmatic readers.
+
 ## Relationships on the paper
 
 When a text claim and its supporting statistic both have anchors in the same PDF revision, hover or focus either one to highlight the other and draw a single labeled connector. Point a support arrow from the recorded result toward the statement it supports. Live Paper chooses the label and visibility from the relationship, and Rich PDF draws the connector from the existing SDK page geometry. Keep the rest of the page clear. If the result is on another page, offer its label and a jump to that page. If it lives in a separate artifact, open it in the evidence popup.
