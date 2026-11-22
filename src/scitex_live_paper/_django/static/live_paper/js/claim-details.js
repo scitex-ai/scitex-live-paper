@@ -55,7 +55,7 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, 
   pane.appendChild(status);
 
   if (goToPdf) {
-    const jump = el("button", "stx-button", "Go to in PDF");
+    const jump = el("button", "stx-button", "Show in PDF");
     jump.type = "button";
     jump.addEventListener("click", goToPdf);
     pane.append(jump);

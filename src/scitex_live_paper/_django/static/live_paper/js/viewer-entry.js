@@ -43,38 +43,10 @@ function hideLoading(rootEl) {
 function setStatus(payload) {
   hideLoading();
   const header = document.getElementById("live-paper-bundle-header");
-  const diagnostics = document.getElementById(
-    "live-paper-bundle-diagnostics"
-  );
-  const pre = document.getElementById("live-paper-bundle-info");
-  if (pre) {
-    pre.textContent = JSON.stringify(payload, null, 2);
-  }
-  if (diagnostics) diagnostics.hidden = false;
-  if (!header) return;
+  if (!header || !payload?.error) return;
   header.hidden = false;
-  header.textContent = "";
-  if (payload && payload.error) {
-    header.className = "lp-bundle-header lp-bundle-error";
-    header.textContent = "Couldn't load bundle info: " + payload.error;
-    return;
-  }
-  header.className = "lp-bundle-header";
-  const ps = payload && payload.paper_state || {};
-  const title = document.createElement("strong");
-  title.className = "lp-bundle-title";
-  title.textContent = ps.header_label || ps.stage || "Live paper";
-  header.appendChild(title);
-  const meta = document.createElement("span");
-  meta.className = "lp-bundle-meta";
-  const parts = [];
-  if (ps.journal) parts.push(ps.journal);
-  if (ps.doi) parts.push(ps.doi);
-  if (payload && payload.manuscript) parts.push(payload.manuscript);
-  if (payload && payload.claim_count != null)
-    parts.push(payload.claim_count + " claims");
-  meta.textContent = parts.join(" \xB7 ");
-  header.appendChild(meta);
+  header.className = "lp-bundle-header lp-bundle-error";
+  header.textContent = "Couldn't load manuscript information: " + payload.error;
 }
 function ensurePdfContainer(rootEl) {
   let host = document.getElementById("live-paper-pdf");
@@ -643,13 +615,23 @@ function createFeed(container, choose, renderEntry) {
     }
   };
 }
-function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, onDocument }) {
+function createPdfNavigation({ container, pdfjs, onDocument }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
   content.className = "rpdf-nav-content";
   container.classList.add("rpdf-navigation");
-  container.replaceChildren(controls, content);
+  container.hidden = false;
+  const titlebar = document.createElement("div");
+  titlebar.className = "rpdf-nav-titlebar";
+  const title = document.createElement("span");
+  title.textContent = "Pages & bookmarks";
+  const toggle = control("", () => setOpen(container.hasAttribute("data-collapsed")));
+  toggle.className = "rpdf-nav-toggle";
+  content.id = container.id + "-content";
+  toggle.setAttribute("aria-controls", content.id);
+  titlebar.append(title, toggle);
+  container.replaceChildren(titlebar, controls, content);
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
   content.append(pagePanel, bookmarkPanel);
@@ -678,19 +660,21 @@ function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, 
     content.scrollTop = 0;
   }
   function setOpen(open) {
-    container.hidden = !open;
+    container.toggleAttribute("data-collapsed", !open);
+    title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
-    toggle.title = open ? "Hide pages and bookmarks" : "Show pages and bookmarks";
+    toggle.textContent = open ? "\u2039" : "\u203A";
+    toggle.title = open ? "Minimize PDF navigation" : "Expand PDF navigation";
+    toggle.setAttribute("aria-label", toggle.title);
   }
-  toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
     toggle.focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(initiallyOpen);
+  setOpen(true);
   function choose(target) {
     destination = target;
     jump();
@@ -796,7 +780,7 @@ function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, 
       observer?.disconnect();
       surfaces.clear();
       container.replaceChildren();
-      setOpen(false);
+      container.hidden = true;
     }
   };
 }
@@ -1275,7 +1259,7 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, goToPdf
   status.dataset.status = claim.status || "registered";
   pane.appendChild(status);
   if (goToPdf) {
-    const jump = el2("button", "stx-button", "Go to in PDF");
+    const jump = el2("button", "stx-button", "Show in PDF");
     jump.type = "button";
     jump.addEventListener("click", goToPdf);
     pane.append(jump);
@@ -1727,7 +1711,10 @@ var PDFViewer = class {
             data: claim
           })),
           renderEntry: (entry) => options.renderFeedEntry(entry.data),
-          navigate: (overlay) => this.navigation.goTo(overlay)
+          navigate: (overlay) => {
+            options.showPdf?.();
+            this.navigation.goTo(overlay);
+          }
         },
         comments: {
           list: () => this.comments.map(toComment),
@@ -2427,45 +2414,6 @@ function recordEvent(log, kind, payload) {
   log.push(entry);
   return entry;
 }
-function exportSidecar(log, meta) {
-  return {
-    schema: "scitex-live-paper.event-log/v1",
-    exported_at: (/* @__PURE__ */ new Date()).toISOString(),
-    bundle: meta && meta.bundle || null,
-    events: Array.isArray(log) ? log.slice() : []
-  };
-}
-function downloadSidecar(log, meta, filename) {
-  const sidecar = exportSidecar(log, meta);
-  const blob = new Blob([JSON.stringify(sidecar, null, 2)], {
-    type: "application/json"
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename || "live-paper-events.json";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1e3);
-  return sidecar;
-}
-async function persistSidecar(log, meta, options) {
-  const apiBase = options && options.apiBase || "/api/";
-  const sidecar = exportSidecar(log, meta);
-  const response = await fetch(withBundleContext(apiBase + "event-log"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(sidecar)
-  });
-  if (!response.ok) {
-    throw new Error(
-      "persistSidecar failed: HTTP " + response.status
-    );
-  }
-  const receipt = await response.json();
-  return { sidecar, receipt };
-}
 function bindEventLog(rootEl, log, meta) {
   const kinds = [
     "live-paper:claim",
@@ -2483,51 +2431,6 @@ function bindEventLog(rootEl, log, meta) {
       rootEl.removeEventListener(kind, handler);
     }
   };
-}
-
-// src/scitex_live_paper/_django/static/live_paper/js/archive.js
-function renderArchiveButton(rootEl, apiBase) {
-  const host = rootEl.querySelector(".lp-reader-actions, .live-paper-header") || rootEl;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "lp-archive-button";
-  btn.textContent = "Archive event log";
-  btn.addEventListener("click", () => {
-    void archiveEventLog(btn, rootEl, apiBase);
-  });
-  const status = document.createElement("span");
-  status.className = "lp-archive-status";
-  status.setAttribute("aria-live", "polite");
-  host.appendChild(btn);
-  host.appendChild(status);
-  return btn;
-}
-async function archiveEventLog(btn, rootEl, apiBase) {
-  const status = rootEl.querySelector(".lp-archive-status") || btn.parentElement.querySelector(".lp-archive-status");
-  const log = rootEl._livePaperEventLog || [];
-  const meta = { bundle: rootEl._livePaperBundle || null };
-  const count = Array.isArray(log) ? log.length : 0;
-  btn.disabled = true;
-  try {
-    const { receipt } = await persistSidecar(log, meta, { apiBase });
-    if (status) {
-      status.textContent = "Archived " + count + " events (server: " + receipt.filename + ")";
-    }
-  } catch (err) {
-    try {
-      downloadSidecar(log, meta);
-    } catch (dlErr) {
-      if (status) {
-        status.textContent = "Archive failed: " + String(err);
-      }
-      btn.disabled = false;
-      return;
-    }
-    if (status) {
-      status.textContent = "Saved " + count + " events (download \u2014 server persist failed: " + String(err) + ")";
-    }
-  }
-  btn.disabled = false;
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/empty-state.js
@@ -2582,11 +2485,6 @@ async function boot(rootEl) {
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
   rootEl._livePaperEventLog = eventLog;
-  try {
-    renderArchiveButton(rootEl, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] archive button render failed", err);
-  }
   let pdfjs;
   let createPdfViewer;
   try {
@@ -2616,6 +2514,7 @@ async function boot(rootEl) {
       claimsPayload = await fetchJson(apiBase + "claims");
     }
     setStatus(bundleInfo);
+    rootEl.dataset.paperStage = bundleInfo.paper_state?.stage || "";
     void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     rootEl._livePaperBundle = bundleInfo;
@@ -2645,13 +2544,8 @@ async function boot(rootEl) {
     renderClaimDetail(sidebar, claim, apiBase, {
       refresh,
       goToPdf: overlay && (() => {
-        const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
-        if (getComputedStyle(toggle).display !== "none") {
-          sidebar.removeAttribute("data-drawer-open");
-          sidebar.setAttribute("data-pdf-focused", "");
-          toggle.setAttribute("aria-expanded", "false");
-          toggle.focus({ preventScroll: true });
-        }
+        showPdf();
+        hideEvidenceDrawer(rootEl)?.focus({ preventScroll: true });
         viewer.goToClaim(overlay);
       })
     });
@@ -2671,7 +2565,7 @@ async function boot(rootEl) {
       const sidebar = ensureClaimsSidebar(rootEl);
       if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
       if (!event.detail?.preview) {
-        sidebar.removeAttribute("data-pdf-focused");
+        sidebar.removeAttribute("data-document-focused");
         sidebar.dataset.pinnedClaim = id;
       }
       showClaim(sidebar, claim, !event.detail?.preview);
@@ -2681,8 +2575,10 @@ async function boot(rootEl) {
   });
   const pdfContainer = ensurePdfContainer(rootEl);
   const navigation = rootEl.querySelector("#live-paper-navigation");
+  const showPdf = bindManuscriptFormats(rootEl, navigation);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    showPdf,
     evidencePane: true,
     citationVerification: claimsPayload?.citation_verification,
     onCitationSelect(key, citation, goToReference) {
@@ -2694,9 +2590,7 @@ async function boot(rootEl) {
       renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
     },
     navigation: {
-      container: navigation,
-      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
-      initiallyOpen: getComputedStyle(navigation).getPropertyValue("--lp-navigation-default").trim() === "expanded"
+      container: navigation
     },
     container: pdfContainer,
     pdfjs,
@@ -2745,6 +2639,41 @@ async function renderTraceSummary(rootEl, apiBase) {
   banner.replaceChildren(summary);
   banner.hidden = false;
 }
+function hideEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display === "none") return null;
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  sidebar.removeAttribute("data-drawer-open");
+  sidebar.setAttribute("data-document-focused", "");
+  toggle.setAttribute("aria-expanded", "false");
+  return toggle;
+}
+function bindManuscriptFormats(rootEl, navigation) {
+  const tabs = rootEl.querySelector(".lp-format-tabs");
+  if (!tabs) return () => {
+  };
+  const pdfTab = tabs.querySelector("#lp-format-pdf");
+  const pdf = rootEl.querySelector("#lp-format-panel-pdf");
+  const html = rootEl.querySelector("#lp-format-panel-html");
+  const frame = html.querySelector("iframe");
+  bindTabs(tabs, (selected) => {
+    const showPdf = selected === pdfTab;
+    rootEl.dataset.manuscriptFormat = showPdf ? "pdf" : "html";
+    pdf.hidden = navigation.hidden = !showPdf;
+    html.hidden = showPdf;
+    if (!showPdf) {
+      hideEvidenceDrawer(rootEl);
+      if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
+    }
+  });
+  window.addEventListener("message", (event) => {
+    if (html.hidden || event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== "live-paper:html-claim" || typeof event.data.id !== "string") return;
+    rootEl.dispatchEvent(new CustomEvent("live-paper:claim", { detail: { id: event.data.id } }));
+  });
+  return () => {
+    if (pdf.hidden) pdfTab.click();
+  };
+}
 function bindPdfTheme(rootEl) {
   const picker = rootEl.querySelector(".lp-pdf-theme");
   const key = "live-paper.pdf-theme";
@@ -2755,7 +2684,7 @@ function bindPdfTheme(rootEl) {
   }
   if (saved === "light" || saved === "dark") picker.value = saved;
   rootEl.dataset.pdfTheme = picker.value;
-  picker.hidden = false;
+  picker.closest("label").hidden = false;
   picker.addEventListener("change", () => {
     rootEl.dataset.pdfTheme = picker.value;
     try {
@@ -2781,7 +2710,7 @@ function bindReaderLayout(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
   const sidebar = rootEl.querySelector("#live-paper-claims");
   toggle.addEventListener("click", () => {
-    sidebar.removeAttribute("data-pdf-focused");
+    sidebar.removeAttribute("data-document-focused");
     const open = sidebar.toggleAttribute("data-drawer-open");
     toggle.setAttribute("aria-expanded", String(open));
   });

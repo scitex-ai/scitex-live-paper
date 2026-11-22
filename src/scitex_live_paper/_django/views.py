@@ -159,7 +159,7 @@ def viewer_page(request) -> HttpResponse:
             or "",
             "view_scope": getattr(view_selection, "scope", None),
             "view_project": getattr(view_selection, "id", None) or "",
-            "manuscript_url": manuscript_url(request),
+            "manuscript_url": manuscript_url(request, inline=True),
             "project_tools_url": getattr(request, "live_paper_project_tools_url", ""),
         },
         request=request,

@@ -435,13 +435,23 @@ function createFeed(container, choose, renderEntry) {
 }
 
 /** Shared PDF navigation. Wrap the PDF.js runtime passed to the renderer once. */
-export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, onDocument }) {
+export function createPdfNavigation({ container, pdfjs, onDocument }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
   content.className = "rpdf-nav-content";
   container.classList.add("rpdf-navigation");
-  container.replaceChildren(controls, content);
+  container.hidden = false;
+  const titlebar = document.createElement("div");
+  titlebar.className = "rpdf-nav-titlebar";
+  const title = document.createElement("span");
+  title.textContent = "Pages & bookmarks";
+  const toggle = control("", () => setOpen(container.hasAttribute("data-collapsed")));
+  toggle.className = "rpdf-nav-toggle";
+  content.id = container.id + "-content";
+  toggle.setAttribute("aria-controls", content.id);
+  titlebar.append(title, toggle);
+  container.replaceChildren(titlebar, controls, content);
 
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
@@ -474,20 +484,22 @@ export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = 
   }
 
   function setOpen(open) {
-    container.hidden = !open;
+    container.toggleAttribute("data-collapsed", !open);
+    title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
-    toggle.title = open ? "Hide pages and bookmarks" : "Show pages and bookmarks";
+    toggle.textContent = open ? "‹" : "›";
+    toggle.title = open ? "Minimize PDF navigation" : "Expand PDF navigation";
+    toggle.setAttribute("aria-label", toggle.title);
   }
 
-  toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
     toggle.focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(initiallyOpen);
+  setOpen(true);
 
   function choose(target) {
     destination = target;
@@ -602,7 +614,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = 
       observer?.disconnect();
       surfaces.clear();
       container.replaceChildren();
-      setOpen(false);
+      container.hidden = true;
     },
   };
 }

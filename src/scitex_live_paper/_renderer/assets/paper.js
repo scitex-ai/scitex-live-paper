@@ -17,6 +17,19 @@
 (function () {
   'use strict';
 
+  if (window.parent !== window && document.body.classList.contains('lp-paper-inline')) {
+    document.addEventListener('click', function (event) {
+      if (!(event.target instanceof Element) || !plainClick(event)) return;
+      var link = event.target.closest('mark.lp-claim-span[data-claim-id] a');
+      if (!link) return;
+      event.preventDefault();
+      var id = link.closest('mark').dataset.claimId;
+      window.parent.postMessage({ type: 'live-paper:html-claim', id: id }, window.location.origin);
+    });
+    document.documentElement.setAttribute('data-lp-paper-ready', '');
+    return;
+  }
+
   var dataEl = document.getElementById('lp-claims-data');
   var panel = document.getElementById('lp-claim-panel');
   var Panel = window.LivePaperPanel;

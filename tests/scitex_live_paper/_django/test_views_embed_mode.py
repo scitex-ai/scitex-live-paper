@@ -262,22 +262,22 @@ def test_both_shells_share_live_paper_root_id__assert_id_live_paper_root_in_emb(
 
 
 
-def test_both_shells_share_bundle_info_pre_id__assert_id_live_paper_bundle_info(rf):
+def test_reader_toolbar_omits_live_paper_bundle_info(rf):
     # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
     # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
     # Assert
-    assert 'id="live-paper-bundle-info"' in default_body
+    assert 'id="live-paper-bundle-info"' not in default_body
 
 
-def test_both_shells_share_bundle_info_pre_id__assert_id_live_paper_bundle_info_2(rf):
+def test_reader_toolbar_omits_live_paper_bundle_info_2(rf):
     # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
     # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
     # Assert
-    assert 'id="live-paper-bundle-info"' in embed_body
+    assert 'id="live-paper-bundle-info"' not in embed_body
 
 
 
@@ -318,19 +318,19 @@ def test_both_shells_share_header_id__assert_id_live_paper_bundle_header_2(rf):
     assert 'id="live-paper-bundle-header"' in embed_body
 
 
-def test_both_shells_share_diagnostics_id__assert_id_live_paper_bundle_diagnostics(rf):
+def test_reader_toolbar_omits_live_paper_bundle_diagnostics(rf):
     # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
     # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
     # Assert
-    assert 'id="live-paper-bundle-diagnostics"' in default_body
+    assert 'id="live-paper-bundle-diagnostics"' not in default_body
 
 
-def test_both_shells_share_diagnostics_id__assert_id_live_paper_bundle_diagnostics_2(rf):
+def test_reader_toolbar_omits_live_paper_bundle_diagnostics_2(rf):
     # Arrange
     default_body = views.viewer_page(rf.get("/")).content.decode("utf-8")
     # Act
     embed_body = views.viewer_page(rf.get("/?embed=1")).content.decode("utf-8")
     # Assert
-    assert 'id="live-paper-bundle-diagnostics"' in embed_body
+    assert 'id="live-paper-bundle-diagnostics"' not in embed_body

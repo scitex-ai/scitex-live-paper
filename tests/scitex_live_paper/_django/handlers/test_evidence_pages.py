@@ -274,15 +274,15 @@ def test_report_metadata_is_escaped_in_manuscript_and_graph(evidence_host):
     assert observed == [(200, True, True, True)] * 2
 
 
-def test_viewer_links_to_the_bound_manuscript_when_report_exists(evidence_host):
+def test_viewer_offers_inline_html_when_report_names_manuscript_text(evidence_host):
     # Arrange
     observed = []
     # Act
     for embed in ("0", "1"):
         response = get(evidence_host, "", embed=embed, working_dir="chosen")
         html = response.content.decode()
-        observed.append((response.status_code, "Read manuscript with evidence" in html,
-                         "paper.html?project=alice&amp;embed=" in html, "working_dir=chosen" in html))
+        observed.append((response.status_code, 'aria-label="Manuscript format"' in html,
+                         "paper.html?project=alice&amp;embed=" in html, "inline=1" in html))
     # Assert
     assert observed == [(200, True, True, True)] * 2
 

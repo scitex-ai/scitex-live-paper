@@ -113,8 +113,28 @@
   color: var(--rpdf-nav-text, #202733);
 }
 
+.rpdf-nav-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px;
+  color: var(--rpdf-nav-text, #202733);
+  font-size: 0.75rem;
+}
+
+.rpdf-nav-toggle {
+  font-size: 1.1rem !important;
+}
+
+.rpdf-nav-controls[hidden],
+.rpdf-nav-content[hidden] {
+  display: none;
+}
+
 .rpdf-nav-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 6px;
   border-block-end: 1px solid var(--rpdf-nav-border, #d6dce1);

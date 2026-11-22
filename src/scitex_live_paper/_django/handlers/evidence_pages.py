@@ -75,9 +75,10 @@ def _page(request, kind):
             )
         if kind == "review.txt":
             return _response(review_text(packet), content_type="text/plain; charset=utf-8")
+        inline_paper = kind == "paper.html" and request.GET.get("inline") == "1"
         if kind == "paper.html" and not manuscript_text_entries(packet):
             bundle = services.get_request_bundle_state(request).bundle
-            if bundle.manuscript_path.suffix.lower() == ".pdf":
+            if not inline_paper and bundle.manuscript_path.suffix.lower() == ".pdf":
                 return _private_response(HttpResponseRedirect(resource_url(request, "")))
             raise ResourceError("No registered manuscript text is available", 404)
 
@@ -109,12 +110,15 @@ def _page(request, kind):
                             raise ResourceError("Manuscript text must be UTF-8", 400) from None
                     result = render_paper(
                         packet, temporary, claims_url=paper_url,
-                        read_text=read_text, asset_url=asset,
+                        read_text=read_text, asset_url=asset, inline=inline_paper,
                     )
                 if result is None:
                     raise ResourceError("No registered manuscript text is available", 404)
                 page = result.paper_html
-            return _response(page.read_bytes())
+            response = _response(page.read_bytes())
+            if inline_paper:
+                response["X-Frame-Options"] = "SAMEORIGIN"
+            return response
     except ResourceError as error:
         return _response(str(error), status=error.status, content_type="text/plain; charset=utf-8")
     except BundleMissingError:

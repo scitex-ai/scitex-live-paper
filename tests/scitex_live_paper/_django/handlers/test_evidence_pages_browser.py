@@ -193,12 +193,19 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         document = page.get_by_role("region", name="Manuscript", exact=True)
         document.locator("canvas").first.wait_for()
         page.get_by_role("link", name="Download PDF", exact=True).wait_for()
-        navigation_toggle = page.get_by_role("button", name="Pages & bookmarks", exact=True)
-        navigation = page.locator("#live-paper-navigation")
-        assert navigation_toggle.get_attribute("aria-expanded") == str(not embed).lower()
-        assert navigation.is_visible() == (not embed)
-        if not embed:
-            assert navigation.bounding_box()["x"] < document.bounding_box()["x"]
+        navigation = page.get_by_role("navigation", name="PDF navigation")
+        navigation_toggle = navigation.locator(".rpdf-nav-toggle")
+        assert navigation_toggle.get_attribute("aria-expanded") == "true"
+        assert navigation.is_visible()
+        assert navigation.bounding_box()["x"] < document.bounding_box()["x"]
+        assert not page.get_by_text("Bundle diagnostics", exact=True).count()
+        assert not page.get_by_text("Archive event log", exact=True).count()
+        assert page.get_by_role("combobox", name="PDF theme").is_visible()
+        root = page.locator("#live-paper-root")
+        root.evaluate("node => node.dataset.paperStage = 'preprint'")
+        assert document.locator(".stx-pdf-page").first.evaluate(
+            "node => getComputedStyle(node, '::after').content"
+        ) == '"Preprint"'
         inspector = page.get_by_role("complementary", name="Claim evidence")
         row = inspector.locator(".scitex-rich-pdf-feed button").first
         pdf = document.bounding_box()
@@ -215,7 +222,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             row.wait_for()
             evidence = inspector.bounding_box()
             arrangement_ok = (
-                abs(evidence["y"] - pdf["y"]) < 2
+                abs(evidence["y"] - page.locator(".lp-manuscript-pane").bounding_box()["y"]) < 2
                 and evidence["x"] >= pdf["x"] + pdf["width"]
             )
             navigation_ok = pdf["width"] > 600
@@ -443,27 +450,25 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
               if (!anchor) return false;
               const rect = anchor.getBoundingClientRect();
               const view = pane.getBoundingClientRect();
-              return pane.scrollTop > 300 && rect.top >= view.top && rect.bottom <= view.bottom;
+              return rect.top >= view.top && rect.bottom <= view.bottom;
             }""")
             assert page.evaluate("window.scrollY") == scroller["host"]
             assert sentence_overlay.get_attribute("aria-current") == "true"
 
         all_claims_tab.click()
         feed.get_by_role("button", name="test-statistic", exact=True).click()
-        assert preview.get_by_role("button", name="Go to in PDF").count() == 0
+        assert preview.get_by_role("button", name="Show in PDF").count() == 0
         all_claims_tab.click()
         document.evaluate("node => node.scrollTop = 0")
         feed.get_by_role("button", name="classifier-sentence", exact=True).press("Enter")
         expect_pdf_jump()
         document.evaluate("node => node.scrollTop = 0")
-        preview.get_by_role("button", name="Go to in PDF", exact=True).click()
+        preview.get_by_role("button", name="Show in PDF", exact=True).click()
         expect_pdf_jump()
         if embed:
             assert not inspector.is_visible()
             toggle.click()
 
-        if embed:
-            navigation_toggle.click()
         navigation.get_by_role("button", name="Page 1", exact=True).wait_for()
         navigation.locator("canvas").first.wait_for()
         navigation.get_by_role("button", name="Page 2", exact=True).click()
@@ -485,13 +490,14 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         navigation_toggle.click()
         docked_width = document.bounding_box()["width"]
         navigation_toggle.click()
-        bookmarks_work = navigation.is_hidden() and navigation_toggle.get_attribute("aria-expanded") == "false"
+        bookmarks_work = navigation.is_visible() and navigation_toggle.get_attribute("aria-expanded") == "false"
         if not embed:
             assert document.bounding_box()["width"] > docked_width
         navigation_toggle.click()
         assert navigation.get_by_role("button", name="References", exact=True).is_visible()
         navigation.get_by_role("button", name="References", exact=True).press("Escape")
-        assert navigation.is_hidden()
+        assert navigation.is_visible() and navigation_toggle.get_attribute("aria-expanded") == "false"
+        assert navigation_toggle.evaluate("node => node === document.activeElement")
         share = page.get_by_role("button", name="Share", exact=True)
         page.evaluate("Object.defineProperty(navigator, 'clipboard', {value: undefined})")
         if embed:
@@ -510,6 +516,22 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert linked.locator(".lp-claim-detail").get_attribute("data-claim-id") == claim_id
         assert linked.locator('[data-overlay-id="value"]').get_attribute("aria-current") == "true"
         linked.close()
+        format_tabs = page.get_by_role("tablist", name="Manuscript format")
+        pdf_tab = format_tabs.get_by_role("tab", name="PDF", exact=True)
+        html_tab = format_tabs.get_by_role("tab", name="HTML", exact=True)
+        assert pdf_tab.get_attribute("aria-selected") == "true"
+        original_url = page.url
+        original_scroll = document.evaluate("node => node.scrollTop")
+        html_tab.click()
+        frame = page.frame_locator('iframe[title="Manuscript in HTML"]')
+        frame.locator("html[data-lp-paper-ready]").wait_for(state="attached")
+        frame.locator("mark#claim-value a").click()
+        assert page.url == original_url and document.is_hidden()
+        assert frame.locator("[data-stx-app-header]").count() == 0
+        preview.get_by_role("button", name="Show in PDF", exact=True).wait_for()
+        pdf_tab.click()
+        assert page.url == original_url and document.is_visible()
+        assert document.evaluate("node => node.scrollTop") == original_scroll
         observed = (
             response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),

@@ -105,7 +105,7 @@ function bindClaimTabs(sidebar) {
   });
 }
 
-function bindTabs(tabList, onSelect) {
+export function bindTabs(tabList, onSelect) {
   const tabs = [...tabList.querySelectorAll(":scope > [role='tab']:not([hidden])")];
   function select(tab, refresh) {
     for (const button of tabs) {

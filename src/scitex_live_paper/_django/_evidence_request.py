@@ -78,7 +78,7 @@ def request_evidence(request):
     return root, packet
 
 
-def manuscript_url(request):
+def manuscript_url(request, *, inline=False):
     """Offer the HTML reader when the authorized report names manuscript text."""
     from scitex_live_paper.bundle import BundleMissingError
 
@@ -90,6 +90,7 @@ def manuscript_url(request):
             services.resolve_bundle_path()
         except RuntimeError:  # An unconfigured shell has no bundle to advertise.
             return None
+    parameters = {"inline": "1"} if inline else {}
     try:
         _, review = request_evidence(request)
     except BundleMissingError:
@@ -99,5 +100,5 @@ def manuscript_url(request):
             return None
         # A present, invalid or inaccessible report still has an actionable
         # route; opening it surfaces the precise refusal instead of hiding it.
-        return resource_url(request, "paper.html")
-    return resource_url(request, "paper.html") if manuscript_text_entries(review) else None
+        return resource_url(request, "paper.html", **parameters)
+    return resource_url(request, "paper.html", **parameters) if manuscript_text_entries(review) else None

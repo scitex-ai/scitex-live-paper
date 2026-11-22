@@ -62,7 +62,10 @@ export class PDFViewer {
             data: claim,
           })),
           renderEntry: (entry) => options.renderFeedEntry(entry.data),
-          navigate: (overlay) => this.navigation.goTo(overlay),
+          navigate: (overlay) => {
+            options.showPdf?.();
+            this.navigation.goTo(overlay);
+          },
         },
         comments: {
           list: () => this.comments.map(toComment),

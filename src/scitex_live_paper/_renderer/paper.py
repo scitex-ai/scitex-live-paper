@@ -188,6 +188,7 @@ def render_paper(
     project_label: str | None = None,
     read_text: Callable[[str], str | None] | None = None,
     asset_url: Callable[[str], str] | None = None,
+    inline: bool = False,
 ) -> PaperArtifacts | None:
     """Render ``paper.html`` from *review*; ``None`` when no source text is readable.
 
@@ -240,6 +241,7 @@ def render_paper(
     asset = asset_url if asset_url is not None else str
     html = env.get_template("paper.html.j2").render(
         title=title or "Live Paper — Paper",
+        inline=inline,
         review=review,
         symbols=SYMBOLS,
         sections=sections,

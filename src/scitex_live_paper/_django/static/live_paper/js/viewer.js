@@ -31,12 +31,11 @@ import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer, toOverlay } from "./pdf-viewer.js";
 import { closeClaimDetail, invalidateEvidenceGraphs, renderCitationDetail, renderClaimDetail } from "./claim-details.js";
-import { renderClaimsSidebar } from "./claims-sidebar.js";
+import { bindTabs, renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
 import { fetchComments } from "./comments.js";
-import { renderArchiveButton } from "./archive.js";
 import { isMissingPaper, renderEmptyState } from "./empty-state.js";
 import { hideLoading } from "./_utils.js";
 
@@ -84,14 +83,6 @@ async function boot(rootEl) {
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
   rootEl._livePaperEventLog = eventLog;
-  // Archive action renders immediately (reads log + bundle lazily
-  // at click time) so it survives failed boot RPCs.
-  try {
-    renderArchiveButton(rootEl, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] archive button render failed", err);
-  }
-
   let pdfjs;
   let createPdfViewer;
   try {
@@ -134,6 +125,7 @@ async function boot(rootEl) {
     }
 
     setStatus(bundleInfo);
+    rootEl.dataset.paperStage = bundleInfo.paper_state?.stage || "";
     void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     // Stash for the Archive action (archive.js reads it lazily at
@@ -172,13 +164,8 @@ async function boot(rootEl) {
     renderClaimDetail(sidebar, claim, apiBase, {
       refresh,
       goToPdf: overlay && (() => {
-        const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
-        if (getComputedStyle(toggle).display !== "none") {
-          sidebar.removeAttribute("data-drawer-open");
-          sidebar.setAttribute("data-pdf-focused", "");
-          toggle.setAttribute("aria-expanded", "false");
-          toggle.focus({ preventScroll: true });
-        }
+        showPdf();
+        hideEvidenceDrawer(rootEl)?.focus({ preventScroll: true });
         viewer.goToClaim(overlay);
       }),
     });
@@ -204,7 +191,7 @@ async function boot(rootEl) {
       const sidebar = ensureClaimsSidebar(rootEl);
       if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
       if (!event.detail?.preview) {
-        sidebar.removeAttribute("data-pdf-focused");
+        sidebar.removeAttribute("data-document-focused");
         sidebar.dataset.pinnedClaim = id;
       }
       showClaim(sidebar, claim, !event.detail?.preview);
@@ -215,8 +202,10 @@ async function boot(rootEl) {
 
   const pdfContainer = ensurePdfContainer(rootEl);
   const navigation = rootEl.querySelector("#live-paper-navigation");
+  const showPdf = bindManuscriptFormats(rootEl, navigation);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    showPdf,
     evidencePane: true,
     citationVerification: claimsPayload?.citation_verification,
     onCitationSelect(key, citation, goToReference) {
@@ -229,8 +218,6 @@ async function boot(rootEl) {
     },
     navigation: {
       container: navigation,
-      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
-      initiallyOpen: getComputedStyle(navigation).getPropertyValue("--lp-navigation-default").trim() === "expanded",
     },
     container: pdfContainer,
     pdfjs: pdfjs,
@@ -293,6 +280,41 @@ export async function renderTraceSummary(rootEl, apiBase) {
   banner.hidden = false;
 }
 
+function hideEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display === "none") return null;
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  sidebar.removeAttribute("data-drawer-open");
+  sidebar.setAttribute("data-document-focused", "");
+  toggle.setAttribute("aria-expanded", "false");
+  return toggle;
+}
+
+function bindManuscriptFormats(rootEl, navigation) {
+  const tabs = rootEl.querySelector(".lp-format-tabs");
+  if (!tabs) return () => {};
+  const pdfTab = tabs.querySelector("#lp-format-pdf");
+  const pdf = rootEl.querySelector("#lp-format-panel-pdf");
+  const html = rootEl.querySelector("#lp-format-panel-html");
+  const frame = html.querySelector("iframe");
+  bindTabs(tabs, (selected) => {
+    const showPdf = selected === pdfTab;
+    rootEl.dataset.manuscriptFormat = showPdf ? "pdf" : "html";
+    pdf.hidden = navigation.hidden = !showPdf;
+    html.hidden = showPdf;
+    if (!showPdf) {
+      hideEvidenceDrawer(rootEl);
+      if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
+    }
+  });
+  window.addEventListener("message", (event) => {
+    if (html.hidden || event.origin !== location.origin || event.source !== frame.contentWindow ||
+        event.data?.type !== "live-paper:html-claim" || typeof event.data.id !== "string") return;
+    rootEl.dispatchEvent(new CustomEvent("live-paper:claim", { detail: { id: event.data.id } }));
+  });
+  return () => { if (pdf.hidden) pdfTab.click(); };
+}
+
 function bindPdfTheme(rootEl) {
   const picker = rootEl.querySelector(".lp-pdf-theme");
   const key = "live-paper.pdf-theme";
@@ -302,7 +324,7 @@ function bindPdfTheme(rootEl) {
   } catch { /* Embedded readers can have storage disabled. */ }
   if (saved === "light" || saved === "dark") picker.value = saved;
   rootEl.dataset.pdfTheme = picker.value;
-  picker.hidden = false;
+  picker.closest("label").hidden = false;
   picker.addEventListener("change", () => {
     rootEl.dataset.pdfTheme = picker.value;
     try {
@@ -329,7 +351,7 @@ function bindReaderLayout(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
   const sidebar = rootEl.querySelector("#live-paper-claims");
   toggle.addEventListener("click", () => {
-    sidebar.removeAttribute("data-pdf-focused");
+    sidebar.removeAttribute("data-document-focused");
     const open = sidebar.toggleAttribute("data-drawer-open");
     toggle.setAttribute("aria-expanded", String(open));
   });

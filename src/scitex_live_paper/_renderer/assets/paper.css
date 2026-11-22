@@ -316,3 +316,8 @@ mark.lp-claim-span.lp-claim-flash { animation: lp-claim-flash 1.2s ease-out 1; }
 .lp-node-details dt { font-weight: 600; }
 .lp-node-details dd { margin: 0; overflow-wrap: anywhere; }
 .lp-node-details code { font-size: 12px; }
+
+.lp-paper-inline .lp-paper-layout {
+  grid-template-columns: minmax(0, 1fr);
+  padding: clamp(12px, 3vw, 28px);
+}
