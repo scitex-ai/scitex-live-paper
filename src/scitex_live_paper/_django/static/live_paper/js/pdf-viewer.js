@@ -4,6 +4,7 @@
 import { createRichPdfViewer } from "./pdf-provider.js";
 import { withBundleContext } from "./_utils.js";
 import { pickAnchor } from "./claim-overlays.js";
+import { bindPdfNavigation } from "./pdf-navigation.js";
 import { postComment } from "./comments.js";
 import { renderEvidencePreview } from "./claim-details.js";
 
@@ -29,12 +30,14 @@ export class PDFViewer {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
+    this.navigation = bindPdfNavigation(options.pdfjs, options.outline);
     this.container.classList.add("pdf-viewer-host");
     this.provider = createRichPdfViewer({
       container: this.container,
       feedContainer: options.feedContainer,
       createPdfViewer: options.createPdfViewer,
-      rendererOptions: { pdfjs: options.pdfjs, workerSrc: options.workerSrc,
+      rendererOptions: { pdfjs: this.navigation.runtime, workerSrc: options.workerSrc,
+        hooks: { onPageRender: this.navigation.pageRendered },
         textLayer: true, linkLayer: true },
       ports: {
         documents: { resolve: (docType) => ({ id: String(docType || "manuscript"),
@@ -93,6 +96,7 @@ export class PDFViewer {
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
+      void this.navigation.load().catch((error) => console.warn("[pdf-viewer] navigation unavailable", error));
       this.watchFitWidth();
       return true;
     } catch (error) {

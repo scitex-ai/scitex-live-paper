@@ -1223,3 +1223,55 @@
 .lp-pdf-variants button:disabled {
   opacity: .55;
 }
+
+.lp-pdf-bookmarks {
+  position: relative;
+  color: var(--lp-accent);
+  z-index: 5;
+}
+
+.lp-pdf-bookmarks > summary {
+  cursor: pointer;
+}
+
+.lp-pdf-bookmarks nav {
+  position: absolute;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-start: 0;
+  inline-size: min(22rem, 70vw);
+  max-block-size: min(24rem, 48dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px 12px;
+  color: var(--lp-fg);
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
+  border-radius: 6px;
+}
+
+.lp-pdf-bookmarks ul {
+  list-style: none;
+  padding-inline-start: 12px;
+  margin: 0;
+}
+
+.lp-pdf-bookmarks nav > ul {
+  padding-inline-start: 0;
+}
+
+.lp-pdf-bookmarks button {
+  border: 0;
+  color: var(--lp-accent);
+  background: transparent;
+  padding: 4px 0;
+  text-align: start;
+}
+
+.lp-pdf-bookmarks button:is(:hover, :focus-visible) {
+  text-decoration: underline;
+}
+
+.live-paper-pdf .lp-bibliography-highlight {
+  background: #72ace66b;
+  box-shadow: inset 0 -2px #2364a3;
+}

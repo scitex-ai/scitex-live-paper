@@ -1,6 +1,6 @@
 %PDF-1.4
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<< /Type /Catalog /Pages 2 0 R /Outlines 9 0 R /Names << /Dests << /Names [(cite.fixture) [4 0 R /XYZ 60 709 null]] >> >> >>
 endobj
 2 0 obj
 << /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
@@ -29,18 +29,26 @@ endobj
 8 0 obj
 << /Type /Annot /Subtype /Link /Rect [60 620 240 655] /Border [0 0 0] /Dest [4 0 R /Fit] >>
 endobj
+9 0 obj
+<< /Type /Outlines /First 10 0 R /Last 10 0 R /Count 1 >>
+endobj
+10 0 obj
+<< /Title (References) /Parent 9 0 R /Dest [4 0 R /Fit] >>
+endobj
 xref
-0 9
+0 11
 0000000000 65535 f 
 0000000009 00000 n 
-0000000058 00000 n 
-0000000121 00000 n 
-0000000299 00000 n 
-0000000425 00000 n 
-0000000495 00000 n 
-0000000603 00000 n 
-0000000707 00000 n 
-trailer << /Size 9 /Root 1 0 R >>
+0000000149 00000 n 
+0000000212 00000 n 
+0000000390 00000 n 
+0000000516 00000 n 
+0000000586 00000 n 
+0000000694 00000 n 
+0000000798 00000 n 
+0000000905 00000 n 
+0000000978 00000 n 
+trailer << /Size 11 /Root 1 0 R >>
 startxref
-814
+1053
 %%EOF

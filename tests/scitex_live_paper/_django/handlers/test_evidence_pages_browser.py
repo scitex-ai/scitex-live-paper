@@ -295,6 +295,13 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
                 return count;
             }""", base64.b64encode(file).decode())
             exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
+        bookmarks = page.locator(".lp-pdf-bookmarks")
+        bookmarks.locator("summary").click()
+        bookmarks.get_by_role("button", name="References").click()
+        reference = document.locator(".lp-bibliography-highlight", has_text="Second page destination")
+        reference.wait_for(state="attached")
+        reference.scroll_into_view_if_needed(timeout=5000)
+        bookmarks_work = bookmarks.evaluate("node => !node.open") and reference.is_visible()
         observed = (
             response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),
@@ -306,7 +313,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, exports,
+            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, bookmarks_work, exports,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -320,6 +327,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True,
+        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True, True,
         [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )
