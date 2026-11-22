@@ -19,15 +19,55 @@ except ImportError as exc:
         "install with: pip install 'scitex-live-paper[all]'"
     ) from exc
 
+from scitex_live_paper._renderer.dag import graph_to_mermaid
+from scitex_live_paper.evidence import find_claim
+
+from .._evidence_files import ResourceError
+from .._evidence_request import request_evidence
 from ..services import get_request_bundle_state
 
 __all__ = ["handle_dag"]
 
 
 def handle_dag(request) -> Mapping[str, Any]:
-    """Return ``{"mermaid": <dag.mmd>}`` or a JSON 404 when absent."""
+    """Serve the selected claim's evidence, or the legacy bundle graph."""
+    claim_id = request.GET.get("claim_id")
+    if claim_id:
+        try:
+            _, packet = request_evidence(request)
+        except ResourceError as error:
+            if error.status != 404:
+                return JsonResponse({"error": str(error)}, status=error.status)
+        else:
+            entry = find_claim(packet, claim_id)
+            graph = entry and entry.get("graph")
+            if graph is None:
+                return JsonResponse({"error": "No evidence graph for this claim."}, status=404)
+            mermaid, _ = graph_to_mermaid(graph, state=entry["state"])
+            references = [
+                {
+                    "id": f"n{index}",
+                    "node_id": node["id"],
+                    "label": node["label"],
+                    "kind": node["kind"],
+                    "script_file": (node["script"].get("file")
+                                    if isinstance(node.get("script"), Mapping) else None),
+                }
+                for index, node in enumerate(graph["nodes"])
+                if node["kind"] in {"input", "output", "process"}
+            ]
+            return {
+                "mermaid": mermaid,
+                "present": True,
+                "scope": "claim",
+                "provider": packet["provider"]["name"],
+                "state": entry["state"],
+                "reason": entry["reason"],
+                "references": references,
+            }
+
     state = get_request_bundle_state(request)
     mermaid = (state.bundle.dag or "").strip()
     if not mermaid:
         return JsonResponse({"error": "no dag.mmd in bundle"}, status=404)
-    return {"mermaid": mermaid, "present": True}
+    return {"mermaid": mermaid, "present": True, "scope": "bundle"}

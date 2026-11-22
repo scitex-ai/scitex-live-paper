@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import gzip
+import hashlib
+import json
 import os
+import shutil
+import struct
 import threading
 from pathlib import Path
 from wsgiref.simple_server import WSGIRequestHandler, make_server
 
 import pytest
+from django.contrib.staticfiles.handlers import StaticFilesHandler
 from django.core.handlers.wsgi import WSGIHandler
 
 from .test_evidence_pages import evidence_host  # noqa: F401 - shared real host fixture
@@ -98,3 +104,131 @@ def test_mounted_manuscript_graph_and_private_assets(evidence_host, mounted_brow
         "closed": True, "focus_restored": True, "graph_failures": 1,
         "node_details": True, "refused_status": 403, "errors": [], "failures": [], "violations": [],
     }
+
+
+@pytest.mark.parametrize("width,embed", [(1440, False), (390, True)])
+def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
+    evidence_host, mounted_browser, width, embed
+):
+    # Arrange
+    fixture = Path(__file__).resolve().parents[2] / "fixtures" / "rich-provider.pdf"
+    root = evidence_host.roots["alice"]
+    shutil.copyfile(fixture, root / "manuscript.pdf")
+    registry = root / "claims.json"
+    claims = json.loads(registry.read_text())
+    claims["claims"][0].update(claim_id="value", claim_type="value")
+    registry.write_text(json.dumps(claims))
+    claim_id = "value"
+    (root / "pdf-anchors.json").write_text(json.dumps({
+        "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
+    }))
+    script = b"print('computed value')\n"
+    (root / "analysis.py").write_bytes(script)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "p1", "kind": "process", "label": "recorded-run",
+        "script": {"file": "analysis.py", "hash": hashlib.sha256(script).hexdigest()},
+    })
+    grids = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + bytes(range(40)))
+    (root / "samples.gz").write_bytes(grids)
+    graph["nodes"].append({
+        "id": "data", "kind": "input", "label": "samples.gz",
+        "hash": hashlib.sha256(grids).hexdigest(),
+    })
+    graph["edges"].append({"source": "data", "target": "p1"})
+    graph["edges"].append({"source": "p1", "target": "output"})
+    server = make_server(
+        "127.0.0.1", 0, StaticFilesHandler(WSGIHandler()), handler_class=QuietHandler
+    )
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    context = mounted_browser.new_context(
+        viewport={"width": width, "height": 850},
+        extra_http_headers={"Authorization": "Bearer alice"},
+    )
+    try:
+        # Act
+        page = context.new_page()
+        base = f"http://127.0.0.1:{server.server_port}/mounted/paper/"
+        response = page.goto(base + f"?project=alice&embed={int(embed)}")
+        document = page.get_by_role("region", name="Manuscript", exact=True)
+        document.locator("canvas").first.wait_for()
+        inspector = page.get_by_role("complementary", name="Claim evidence")
+        row = inspector.locator(".scitex-rich-pdf-feed button").first
+        row.wait_for()
+        pdf = document.bounding_box()
+        evidence = inspector.bounding_box()
+        if embed:
+            arrangement_ok = evidence["y"] > pdf["y"]
+            page.get_by_role("link", name="Claim evidence", exact=True).click()
+            navigation_ok = page.evaluate("location.hash") == "#live-paper-claims"
+        else:
+            arrangement_ok = (
+                abs(evidence["y"] - pdf["y"]) < 2
+                and evidence["x"] >= pdf["x"] + pdf["width"]
+            )
+            navigation_ok = pdf["width"] > 600
+        overlay = document.locator('[data-overlay-id="value"]')
+        overlay.wait_for()
+        overlay.hover()
+        preview = page.locator(".lp-rich-preview")
+        preview.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
+        graph = preview.locator(".lp-claim-dag svg")
+        graph.wait_for()
+        reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
+        reference.hover()
+        preview.get_by_text("print('computed value')", exact=True).wait_for()
+        graph.locator("g.lp-source-highlight").wait_for()
+        source_link_is_claim_bound = "claim_id=value" in preview.get_by_role(
+            "link", name="Open full evidence graph"
+        ).get_attribute("href")
+        trace_summary = page.get_by_role("link", name="Calculation traces", exact=False)
+        trace_summary.wait_for()
+        marked = overlay.get_attribute("data-appearance") == "highlight"
+        source_selected = reference.get_attribute("aria-pressed")
+        overlay.click()
+        preview.get_by_role("button", name="Input samples.gz", exact=True).hover()
+        preview.get_by_text("Records 1–8 of 10", exact=False).wait_for()
+        first_grid_count = preview.locator(".lp-idx-grids canvas").count()
+        preview.get_by_role("button", name="Next records", exact=True).click()
+        preview.get_by_text("Records 9–10 of 10", exact=False).wait_for()
+        last_grid_count = preview.locator(".lp-idx-grids canvas").count()
+        page.keyboard.press("Escape")
+        preview.wait_for(state="hidden")
+        overlay.focus()
+        overlay.press("Enter")
+        preview.wait_for()
+        page.keyboard.press("Escape")
+        preview.wait_for(state="hidden")
+        focus_restored = overlay.evaluate("button => button === document.activeElement")
+        row.click()
+        overlay_selected = overlay.get_attribute("aria-current") == "true"
+        with page.expect_download() as pending:
+            page.get_by_role("link", name="Download PDF", exact=True).click()
+        download = pending.value
+        observed = (
+            response.status, arrangement_ok, navigation_ok,
+            row.get_attribute("aria-current"),
+            inspector.get_by_role("dialog", name="Claim detail").is_visible(),
+            page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+            overlay_selected,
+            download.suggested_filename,
+            download.path().read_bytes() == fixture.read_bytes(),
+            source_selected, source_link_is_claim_bound, marked, focus_restored,
+            first_grid_count, last_grid_count,
+        )
+        screenshots = os.environ.get("LP_SCREENSHOT_DIR")
+        if screenshots:
+            Path(screenshots).mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(Path(screenshots) / f"reader-workspace-{width}.png"))
+    finally:
+        context.close()
+        server.shutdown()
+        worker.join(timeout=5)
+        server.server_close()
+
+    # Assert
+    assert observed == (
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 8, 2
+    )

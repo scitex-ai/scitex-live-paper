@@ -1,0 +1,22 @@
+<section class="live-paper-status" aria-label="Manuscript information">
+  <p id="live-paper-loading" role="status">Loading manuscript…</p>
+  <div id="live-paper-bundle-header" hidden></div>
+  <div class="lp-reader-actions">
+    {% if not empty_reason %}<a class="lp-reader-evidence-link" href="#live-paper-claims">Claim evidence</a>{% endif %}
+    <a id="live-paper-download-pdf" hidden>Download PDF</a>
+    {% if project_tools_url %}<a href="{{ project_tools_url }}">Open project tools</a>{% endif %}
+    {% if manuscript_url %}<a href="{{ manuscript_url }}">Read manuscript with evidence</a>{% endif %}
+    <details id="live-paper-bundle-diagnostics" hidden>
+      <summary>Bundle diagnostics</summary>
+      <pre id="live-paper-bundle-info">{}</pre>
+    </details>
+  </div>
+</section>
+{% if not empty_reason %}
+<div class="lp-reader-workspace">
+  <section aria-label="Manuscript" class="lp-reader-document">
+    <div id="live-paper-pdf" class="live-paper-pdf"></div>
+  </section>
+  <aside aria-label="Claim evidence" id="live-paper-claims" class="live-paper-claims" hidden></aside>
+</div>
+{% endif %}

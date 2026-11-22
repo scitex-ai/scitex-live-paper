@@ -19,6 +19,7 @@
 
 import {
   normalizeBase,
+  withBundleContext,
   fetchJson,
   fetchOrNull,
   setStatus,
@@ -129,6 +130,7 @@ async function boot(rootEl) {
     }
 
     setStatus(bundleInfo);
+    void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     // Stash for the Archive action (archive.js reads it lazily at
     // click time, so the button renders even when boot RPCs fail).
@@ -156,11 +158,7 @@ async function boot(rootEl) {
     }
   }
 
-  // Anchor -> detail (beta-4): PDF overlay anchors dispatch
-  // `live-paper:claim`. Open the same detail pane the sidebar rows
-  // open (provenance + DAG) so the PDF and the sidebar never disagree
-  // about what a claim shows. The port-events popup still fires for
-  // figure anchors — quick evidence there, full trace here.
+  // The feed opens the persistent sidebar. PDF anchors open the on-page preview.
   rootEl.addEventListener("live-paper:claim", (event) => {
     const id = event && event.detail ? event.detail.id : null;
     const claims =
@@ -170,7 +168,11 @@ async function boot(rootEl) {
     const claim = claims.find((c) => c && c.claim_id === id);
     if (!claim) return;
     try {
-      renderClaimDetail(ensureClaimsSidebar(rootEl), claim, apiBase);
+      const sidebar = ensureClaimsSidebar(rootEl);
+      const pane = renderClaimDetail(sidebar, claim, apiBase);
+      if (!event.detail?.preview && getComputedStyle(sidebar).position !== "sticky") {
+        pane.scrollIntoView({ block: "nearest" });
+      }
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -179,6 +181,7 @@ async function boot(rootEl) {
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    inlineEvidence: true,
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,
@@ -197,7 +200,13 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  await viewer.load();
+  if (await viewer.load()) {
+    const download = rootEl.querySelector("#live-paper-download-pdf");
+    if (download) {
+      download.href = withBundleContext(apiBase + "pdf?download=1");
+      download.hidden = false;
+    }
+  }
 }
 
 /**
@@ -206,7 +215,26 @@ async function boot(rootEl) {
  * DOMContentLoaded — after this module runs — so move immediately
  * when the slot already exists, otherwise once via MutationObserver.
  */
-export function movePickerIntoHeaderSlot(rootEl) {
+export async function renderTraceSummary(rootEl, apiBase) {
+  const url = new URL("../review.json", new URL(apiBase, location.href));
+  const packet = await fetchOrNull(url.href);
+  if (!packet?.counts) return;
+  const header = rootEl.querySelector("#live-paper-bundle-header");
+  if (!header) return;
+  const summary = document.createElement("a");
+  summary.className = "lp-trace-summary";
+  summary.href = withBundleContext(url.href);
+  const total = packet.supported.length + packet.needs_inspection.length;
+  if (total === 0) return;
+  const provider = packet.provider?.name;
+  const label = typeof provider === "string" && provider
+    ? `${provider[0].toUpperCase()}${provider.slice(1)} calculation traces`
+    : "Calculation traces";
+  summary.textContent = `${label} · ${packet.counts.supported} verified · ${packet.needs_inspection.length} to inspect`;
+  header.append(summary);
+}
+
+function movePickerIntoHeaderSlot(rootEl) {
   // The Django template places the picker in the header immediately
   // before the viewer main, not inside that main. Keep placement scoped
   // to this leaf header so an embedded viewer cannot move a host picker.

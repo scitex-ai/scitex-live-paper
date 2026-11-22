@@ -18,7 +18,7 @@ import { downloadSidecar, persistSidecar } from "./event-log.js";
 
 export function renderArchiveButton(rootEl, apiBase) {
   const host =
-    rootEl.querySelector(".live-paper-header") || rootEl;
+    rootEl.querySelector(".lp-reader-actions, .live-paper-header") || rootEl;
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "lp-archive-button";

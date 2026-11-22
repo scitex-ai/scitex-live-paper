@@ -1,28 +1,84 @@
-/* Minimal CSS for the live-paper SPA shell. Replaced by scitex-ui shell when mounted on hub (M3). */
-:root {
-  --lp-bg: #1e1e2e;
-  --lp-fg: #e0e0e0;
-  --lp-muted: #a0a0b0;
-  --lp-accent: #7c5cbf;
-}
-
-* {
+/* The host owns the page shell. The reader owns its document and evidence panes. */
+#live-paper-root {
+  --lp-bg: var(--bg-primary, #faf9f6);
+  --lp-surface: var(--workspace-bg-secondary, var(--bg-surface, #ffffff));
+  --lp-raised: var(--workspace-bg-tertiary, var(--bg-muted, #f0eeea));
+  --lp-fg: var(--text-primary, #202733);
+  --lp-muted: var(--text-secondary, #526070);
+  --lp-border: var(--workspace-border-default, var(--border-default, #d6dce1));
+  --lp-accent: var(--text-link, #285876);
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--lp-bg);
+  container-type: inline-size;
+  width: 100%;
+  max-width: 1344px;
+  margin-inline: auto;
+  padding: clamp(12px, 2vw, 28px);
   color: var(--lp-fg);
   line-height: 1.5;
 }
 
-#live-paper-root {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 32px 24px;
+.live-paper-embed {
+  margin: 0;
+  background: var(--bg-primary, #faf9f6);
+  font-family: system-ui, sans-serif;
+}
+
+.lp-reader-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: clamp(16px, 2vw, 28px);
+  align-items: start;
+}
+
+.lp-reader-document,
+.lp-reader-workspace > .live-paper-claims {
+  min-width: 0;
+}
+
+.lp-reader-document {
+  background: var(--lp-raised);
+  border: 1px solid var(--lp-border);
+  border-radius: 8px;
+  padding: clamp(6px, 1vw, 16px);
+}
+
+.live-paper-status {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-block-end: 16px;
+}
+
+.lp-reader-actions {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.875rem;
+}
+
+.lp-reader-actions a {
+  color: var(--lp-accent);
+}
+
+.lp-reader-actions .lp-reader-evidence-link {
+  display: none;
+}
+
+#live-paper-root:has(.live-paper-claims[hidden]) .lp-reader-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (max-width: 750px) {
+  .lp-reader-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #live-paper-root:has(.live-paper-claims:not([hidden])) .lp-reader-evidence-link {
+    display: inline;
+  }
 }
 
 /* Header chrome comes from the canonical SDK AppHeader (stats
@@ -74,7 +130,7 @@ body {
 }
 
 .live-paper-status pre {
-  background: #313145;
+  background: var(--lp-raised);
   color: var(--lp-fg);
   padding: 12px 16px;
   border-radius: 6px;
@@ -84,10 +140,11 @@ body {
 /* Beta-1 bundle header: rendered status replacing the raw JSON dump.
  * Flat surfaces only (no gradients / gloss) per the curly-highlight rule. */
 .lp-bundle-header {
-  background: #2a2a3a;
+  background: var(--lp-surface);
   border-radius: 6px;
   padding: 12px 16px;
-  margin: 12px 0;
+  margin: 0;
+  border: 1px solid var(--lp-border);
   border-left: 4px solid var(--lp-accent);
   overflow-wrap: break-word;
 }
@@ -112,7 +169,7 @@ body {
 }
 
 #live-paper-bundle-diagnostics {
-  margin: 8px 0;
+  margin: 0;
   font-size: 0.85em;
   color: var(--lp-muted);
 }
@@ -131,7 +188,7 @@ body {
  * ────────────────────────────────────────────────────────────────── */
 
 .live-paper-pdf {
-  margin-top: 24px;
+  margin: 0;
 }
 
 .pdf-page {
@@ -266,17 +323,44 @@ body {
 }
 
 .live-paper-claims {
-  display: block;
-  margin: 24px 0;
   padding: 16px;
-  background: #2a2a3a;
-  border-radius: 6px;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
+  border-radius: 8px;
+}
+
+.live-paper-claims[hidden] {
+  display: none;
 }
 
 .lp-claims-header {
-  font-weight: 600;
+  color: var(--lp-fg);
+  font-size: 1.125rem;
+  margin: 0 0 4px;
+}
+
+.lp-claims-summary {
+  color: var(--lp-muted);
+  font-size: 0.875rem;
+  margin: 0 0 16px;
+}
+
+.lp-claims-list .scitex-rich-pdf-feed > li > button {
+  max-width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   color: var(--lp-accent);
-  margin-bottom: 12px;
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  overflow-wrap: anywhere;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.lp-claims-list .scitex-rich-pdf-feed > li > button:hover {
+  background: var(--lp-raised);
 }
 
 .lp-claims-list {
@@ -292,7 +376,7 @@ body {
   gap: 8px 12px;
   padding: 10px 12px;
   margin-bottom: 6px;
-  background: #313145;
+  background: var(--lp-raised);
   border-radius: 4px;
   border-left: 3px solid var(--lp-status-registered);
 }
@@ -449,7 +533,7 @@ body {
 .lp-re-review-badge {
   display: block;
   padding: 12px 16px;
-  background: #2a2a3a;
+  background: var(--lp-surface);
   border-radius: 6px;
   border-left: 4px solid var(--lp-status-stale);
 }
@@ -507,7 +591,7 @@ body {
 
 .lp-claim-detail {
   margin-top: 16px;
-  background: #313145;
+  background: var(--lp-raised);
   border-radius: 6px;
   padding: 12px 16px;
   color: var(--lp-fg);
@@ -521,6 +605,7 @@ body {
 }
 
 .lp-claim-detail-id {
+  overflow-wrap: anywhere;
   font-size: 12px;
   color: var(--lp-muted);
 }
@@ -646,7 +731,7 @@ body {
   max-width: min(380px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   overflow: auto;
-  background: #2a2a3a;
+  background: var(--lp-surface);
   color: var(--lp-fg);
   border: 1px solid var(--lp-accent);
   border-radius: 6px;
@@ -711,6 +796,15 @@ body {
   .lp-archive-button,
   .lp-archive-status {
     display: none !important;
+  }
+
+  .lp-reader-workspace {
+    display: block;
+  }
+
+  .lp-reader-document {
+    border: 0;
+    padding: 0;
   }
 
   .pdf-page {
@@ -834,4 +928,148 @@ body {
 .lp-comments-error {
   color: #cf222e;
   font-size: 12px;
+}
+
+@container (min-width: 751px) {
+  .lp-reader-workspace > .live-paper-claims {
+    position: sticky;
+    inset-block-start: 12px;
+    max-block-size: calc(100vh - 110px);
+    overflow: auto;
+  }
+}
+
+#live-paper-pdf .lp-rich-overlay:focus-visible {
+  outline: 2px solid var(--lp-accent);
+  outline-offset: 1px;
+}
+
+.lp-claim-graph-title {
+  color: #202733;
+  font-size: 0.9rem;
+  margin: 4px 0 8px;
+}
+
+.lp-claim-graph-link {
+  color: #285876;
+}
+
+.lp-claim-references {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lp-claim-references button {
+  border: 1px solid #bcc8d4;
+  border-radius: 4px;
+  margin-block-end: 4px;
+  padding: 4px 8px;
+  background: #f6f9fd;
+  color: #23445f;
+  overflow-wrap: anywhere;
+  text-align: start;
+  cursor: pointer;
+}
+
+.lp-claim-references button[aria-pressed="true"] {
+  outline: 2px solid #1769aa;
+}
+
+.lp-claim-dag-svg .node {
+  cursor: pointer;
+}
+
+.lp-claim-dag-svg .lp-source-highlight > :is(rect, polygon, path, circle) {
+  stroke: #1769aa !important;
+  stroke-width: 4px !important;
+}
+
+.lp-evidence-preview-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.lp-rich-preview .lp-claim-dag-svg {
+  max-block-size: 42vh;
+  overflow: auto;
+}
+
+.lp-rich-preview .lp-claim-dag-svg svg {
+  max-block-size: 420px;
+  min-inline-size: 220px;
+}
+
+.lp-source-kind {
+  font-weight: 600;
+  margin-inline-end: 6px;
+}
+
+.lp-claim-trace-status {
+  margin-block: 4px;
+  font-size: 0.85rem;
+}
+
+.lp-source-preview {
+  margin-block-start: 12px;
+  border-block-start: 1px solid var(--border-color, #a4afbd);
+  padding-block-start: 8px;
+}
+
+.lp-source-preview-status {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.lp-source-preview pre {
+  overflow: auto;
+  max-block-size: 13rem;
+  white-space: pre;
+}
+
+.lp-source-preview img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 14rem;
+  object-fit: contain;
+}
+
+.lp-trace-summary {
+  display: inline-block;
+  margin-inline-start: 10px;
+  font-size: 0.82rem;
+  color: var(--accent, #285876);
+}
+
+.lp-idx-grids {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 5px;
+}
+
+.lp-idx-grids canvas {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.lp-source-preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+
+.lp-archive-preview {
+  max-block-size: 12rem;
+  overflow: auto;
+}
+
+.lp-archive-preview button {
+  overflow-wrap: anywhere;
+}
+
+/* Keep the pointer target in place while a graph or file preview is loading. */
+.lp-rich-preview:has(.lp-evidence-preview-title) {
+  block-size: min(35rem, calc(100vh - 16px));
 }

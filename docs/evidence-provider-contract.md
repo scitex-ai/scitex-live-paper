@@ -206,3 +206,52 @@ from the reference provider against it.
 - scitex-clew ships an adapter that maps its claim verification and per-claim
   provenance slice to this contract. It is documented in the scitex-clew
   repository.
+
+## Reading evidence from another application
+
+The same mounted Live Paper instance serves the human viewer and external clients.
+Send `GET review.json` for the versioned review packet, with unresolved registered
+claims first. Send `GET claim.json?claim_id=<id>` for one packet entry with its
+source locator, graph, and failure reasons. The response includes the packet
+`schema`, `schema_version`, and a `claim` object. An omitted ID returns 400 and an
+unknown ID returns 404. Use the host's authorized project and revision selectors
+when requesting either URL.
+
+Local clients can generate the packet through `scitex-live-paper export-review`
+or `scitex_live_paper.evidence.build_review_packet`. The browser, CLI, and HTTP
+API use the same claim entries and provider states. A provider's supported state
+describes the recorded trace. Authors own the claim wording and source selection.
+
+### Files recorded in a claim graph
+
+A Clew process node may carry a provider extension, `script`, with `file`
+(project-relative path) and `hash` (recorded script digest). Input and output
+nodes use their existing path label and hash. For bytes that the authorized
+host can still read, send `GET preview.json?claim_id=<id>&node_id=<graph-node-id>`.
+The response gives the recorded file, stored size, and hash. Its `kind` can be
+`text`, `image`, `idx`, `archive`, or `metadata`. The IDX window uses an optional
+zero-based `start` and returns a record count plus the selected bytes. An archive
+can be listed or browsed with a returned integer `member` ID. Small UTF-8, PNG, and
+JPEG content uses the same file preview rules inside supported archives.
+Preview limits apply to the original bytes and to decompression. A current file that differs from the recorded digest
+returns 409. An unavailable file leaves the inspected graph usable.
+
+Python clients can generate the same bounded preview from bytes without a web
+server. Callers resolve storage permissions and check the recorded digest
+before passing the bytes to this library. Web clients can use the mounted
+endpoint to perform those checks through the host.
+
+```python
+from scitex_live_paper.evidence.preview import preview_byte_limit, preview_file
+
+name = "inputs/archive.zip"
+with open(name, "rb") as source:
+    content = source.read(preview_byte_limit(name) + 1)
+
+listing = preview_file(name, content)
+if listing["kind"] == "archive" and listing["members"]:
+    first = preview_file(name, content, member=listing["members"][0]["id"])
+```
+
+`PreviewError.code` lets clients handle a size limit, unavailable member, or
+invalid window without parsing the message.

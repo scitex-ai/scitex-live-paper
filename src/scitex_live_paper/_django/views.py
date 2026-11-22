@@ -143,6 +143,7 @@ def viewer_page(request) -> HttpResponse:
             # app identity. All other shell slots carry defaults.
             "app_label": "SciTeX Live Paper",
             "app_name": "live-paper",
+            "panes": {"ai": "unused", "files": "unused", "viewer": "unused"},
             # Canonical AppHeader identity (stats pattern): product
             # name + installed version, read off the package at call
             # time so the header never drifts from the release.
@@ -159,6 +160,7 @@ def viewer_page(request) -> HttpResponse:
             "view_scope": getattr(view_selection, "scope", None),
             "view_project": getattr(view_selection, "id", None) or "",
             "manuscript_url": manuscript_url(request),
+            "project_tools_url": getattr(request, "live_paper_project_tools_url", ""),
         },
         request=request,
     )

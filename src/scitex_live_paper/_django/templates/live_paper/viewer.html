@@ -22,15 +22,7 @@ carried in claims.json and never defines it.
     {% scitex_project_picker scope="project" view_scope=view_scope view_project=view_project %}
   </div>
   <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-empty-reason="{{ empty_reason }}">
-    <section class="live-paper-status">
-      {% if manuscript_url %}<p><a href="{{ manuscript_url }}">Read manuscript with evidence</a></p>{% endif %}
-      <p id="live-paper-loading">Loading bundle info…</p>
-      <div id="live-paper-bundle-header" hidden></div>
-      <details id="live-paper-bundle-diagnostics" hidden>
-        <summary>Bundle diagnostics</summary>
-        <pre id="live-paper-bundle-info">{}</pre>
-      </details>
-    </section>
+    {% include "live_paper/reader_workspace.html" %}
   </main>
 {% endblock %}
 {% block extra_js %}

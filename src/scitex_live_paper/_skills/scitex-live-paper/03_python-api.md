@@ -24,3 +24,13 @@ Static rendering is currently exposed by
 `scitex_live_paper._cli.render.render_site(bundle_path, out_dir, project_label=...)`;
 this module path is internal and may change. Prefer the CLI for a stable render
 entry point. Do not invent a top-level `render()` API.
+
+### Repository file previews
+
+Use `scitex_live_paper.evidence.preview.preview_file(name, content)` to
+preview recorded bytes in Python without Django. The same module provides
+`preview_byte_limit` and `PreviewError`. Pass bytes from the caller's authorized
+file access after checking the recorded hash. In a mounted app,
+`preview.json` resolves the claim and graph node and applies those checks
+before it calls the library. Archive listings and IDX windows reuse the
+source filename and require no preview registration.

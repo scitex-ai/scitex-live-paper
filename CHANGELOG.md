@@ -16,6 +16,12 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-11-22
+
+- Show revision-bound PDF highlights, claim graphs, and local previews of recorded files.
+- Expose per-claim HTTP evidence and deterministic Python previews for archives and IDX windows.
+- Provide a raw PDF download and a review summary linked to the versioned review packet.
+
 ## [0.5.3] - 2026-11-20
 
 - Use the released Rich PDF provider for the native synchronized claims feed. Preserve Writer’s existing frontend exports.
