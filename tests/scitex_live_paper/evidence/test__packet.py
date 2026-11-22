@@ -62,6 +62,19 @@ def test_packet_carries_the_providers_specific_reason(ref_report):
     assert entry["reason"] == "value in source differs: 2 in source vs 3 stated"
 
 
+def test_packet_preserves_the_author_interpretation_relation(ref_report):
+    # Arrange
+    report = copy.deepcopy(ref_report)
+    claim = next(entry for entry in report["claims"] if entry["claim_id"] == "auc")
+    claim["evidence_relation"] = "author_interpretation"
+
+    # Act
+    entry = find_claim(build_review_packet(report), "auc")
+
+    # Assert
+    assert entry["evidence_relation"] == "author_interpretation"
+
+
 def test_packet_is_versioned(ref_report):
     # Arrange
     packet = build_review_packet(ref_report)

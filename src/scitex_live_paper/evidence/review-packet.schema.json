@@ -128,6 +128,7 @@
           }
         },
         "claim_type": {"type": ["string", "null"]},
+        "evidence_relation": {"type": "string"},
         "stated_text": {"type": ["string", "null"]},
         "stated_value": {"description": "The value the claim states, any JSON type (null when the report gave none)."},
         "state": {"$ref": "#/$defs/state"},

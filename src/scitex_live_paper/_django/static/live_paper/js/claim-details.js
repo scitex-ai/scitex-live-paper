@@ -43,7 +43,8 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
 
   pane.appendChild(el("p", "lp-claim-detail-value",
     claim.claim_value || claim.file_path || "(no value)"));
-  if (claim.extras?.evidence_relation === "author_interpretation") {
+  const relation = claim.extras?.evidence_relation ?? claim.extras?.metadata?.evidence_relation;
+  if (relation === "author_interpretation") {
     pane.append(el("p", "lp-claim-detail-status", "Author interpretation"));
   }
 
