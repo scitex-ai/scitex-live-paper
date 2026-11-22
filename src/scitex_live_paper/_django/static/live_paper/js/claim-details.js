@@ -359,7 +359,14 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);
       const link = el("a", "lp-claim-graph-link", "Open full evidence graph");
-      link.href = withBundleContext(graphPage.href);
+      function updateGraphLink() {
+        const theme = document.documentElement.dataset.theme;
+        if (theme === "light" || theme === "dark") graphPage.searchParams.set("theme", theme);
+        else graphPage.searchParams.delete("theme");
+        link.href = withBundleContext(graphPage.href);
+      }
+      updateGraphLink();
+      link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
     }

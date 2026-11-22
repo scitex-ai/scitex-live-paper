@@ -76,6 +76,7 @@ async function boot(rootEl) {
     return;
   }
   bindReaderLayout(rootEl);
+  bindPdfTheme(rootEl);
   // CCT 3000 overlay wiring: port bus serves evidence popups for
   // overlay regions; the event log records the session for the
   // archive sidecar (PDF + event-log). Both bind once at boot.
@@ -270,6 +271,24 @@ export async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " · ", verified, " · ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+
+function bindPdfTheme(rootEl) {
+  const picker = rootEl.querySelector(".lp-pdf-theme");
+  const key = "live-paper.pdf-theme";
+  let saved;
+  try {
+    saved = localStorage.getItem(key);
+  } catch { /* Embedded readers can have storage disabled. */ }
+  if (saved === "light" || saved === "dark") picker.value = saved;
+  rootEl.dataset.pdfTheme = picker.value;
+  picker.hidden = false;
+  picker.addEventListener("change", () => {
+    rootEl.dataset.pdfTheme = picker.value;
+    try {
+      localStorage.setItem(key, picker.value);
+    } catch { /* The displayed preference still applies for this session. */ }
+  });
 }
 
 function bindReaderLayout(rootEl) {

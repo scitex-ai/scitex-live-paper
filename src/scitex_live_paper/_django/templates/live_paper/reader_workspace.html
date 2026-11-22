@@ -7,6 +7,11 @@
     {% if not empty_reason %}
     <button type="button" class="stx-button lp-pdf-navigation-toggle" aria-expanded="false"
             aria-controls="live-paper-navigation">Pages &amp; bookmarks</button>
+    <select class="stx-select stx-select--compact lp-pdf-theme" aria-label="PDF theme" hidden>
+      <option value="auto">PDF: Auto</option>
+      <option value="light">PDF: Light</option>
+      <option value="dark">PDF: Dark</option>
+    </select>
     {% endif %}
     <div class="lp-pdf-download" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
       <a class="stx-button" id="live-paper-download-pdf" title="Download original PDF">
@@ -55,7 +60,37 @@
     <div id="lp-selection-panel" role="tabpanel" aria-labelledby="lp-selection-tab" hidden>
       <p class="lp-selection-empty">Select a highlight or a claim to see its evidence.</p>
     </div>
-    <div id="lp-all-claims-panel" role="tabpanel" aria-labelledby="lp-all-claims-tab"></div>
+    <div id="lp-all-claims-panel" role="tabpanel" aria-labelledby="lp-all-claims-tab">
+      <div class="lp-claim-filters" hidden>
+        <input class="stx-input" type="search" aria-label="Search claims" placeholder="Search claims">
+        <div class="stx-content-tabs lp-claim-type-tabs" role="tablist" aria-label="Claim type">
+          <button id="lp-claim-type-all" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="all" aria-controls="lp-claim-type-results"
+                  aria-selected="true">All</button>
+          <button id="lp-claim-type-sentence" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="sentence" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1">Sentences</button>
+          <button id="lp-claim-type-value" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="value" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1">Values</button>
+          <button id="lp-claim-type-statistic" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="statistic" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1">Statistics</button>
+          <button id="lp-claim-type-table" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="table" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1">Tables</button>
+          <button id="lp-claim-type-figure" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="figure" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1">Figures</button>
+          <button id="lp-claim-type-other" type="button" class="stx-content-tabs__tab"
+                  role="tab" data-claim-type="other" aria-controls="lp-claim-type-results"
+                  aria-selected="false" tabindex="-1" hidden>Other</button>
+        </div>
+      </div>
+      <div id="lp-claim-type-results" role="tabpanel" aria-labelledby="lp-claim-type-all">
+        <p class="lp-claim-filter-status" role="status"></p>
+      </div>
+    </div>
   </aside>
 </div>
 {% endif %}

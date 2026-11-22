@@ -456,7 +456,17 @@ function createRichPdfViewer(options) {
     pages.clear();
     renderer.destroy();
   }
-  return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+  return {
+    renderer,
+    load,
+    refresh,
+    setOverlays,
+    setComments,
+    setFeedFilter: (filter) => feed?.setFilter(filter),
+    selectTarget,
+    createComment,
+    destroy
+  };
 }
 function createOverlayPreview(container, port) {
   let active = null;
@@ -579,11 +589,15 @@ function createFeed(container, choose, renderEntry) {
   container.append(list);
   let rows = [];
   let selected = null;
+  let filter = null;
+  function updateVisibility() {
+    for (const row of rows) row.element.hidden = filter ? !filter(row.entry) : false;
+  }
   function select(row, scroll = false) {
     selected?.button.removeAttribute("aria-current");
     selected = row ?? null;
     selected?.button.setAttribute("aria-current", "true");
-    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (scroll && selected && !selected.element.hidden) selected.element.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   function setEntries(entries) {
     const selectedId = selected?.entry.id;
@@ -603,11 +617,16 @@ function createFeed(container, choose, renderEntry) {
       if (content) element.append(content);
       return row;
     });
+    updateVisibility();
     list.replaceChildren(...rows.map((row) => row.element));
     select(rows.find((row) => row.entry.id === selectedId));
   }
   return {
     setEntries,
+    setFilter(nextFilter) {
+      filter = nextFilter;
+      updateVisibility();
+    },
     selectOverlay(overlayId) {
       if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
     },
@@ -1363,10 +1382,17 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     }
     dagBox.append(wrap);
     if (body.scope === "claim") {
+      let updateGraphLink = function() {
+        const theme = document.documentElement.dataset.theme;
+        if (theme === "light" || theme === "dark") graphPage.searchParams.set("theme", theme);
+        else graphPage.searchParams.delete("theme");
+        link.href = withBundleContext(graphPage.href);
+      };
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);
       const link = el2("a", "lp-claim-graph-link", "Open full evidence graph");
-      link.href = withBundleContext(graphPage.href);
+      updateGraphLink();
+      link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
     }
@@ -1555,6 +1581,7 @@ var PDFViewer = class {
         } }
       }
     });
+    options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
   }
@@ -1883,25 +1910,78 @@ function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   }
   const container = document.createElement("div");
   container.className = "lp-claims-list";
-  allClaims.append(container);
+  allClaims.querySelector("#lp-claim-type-results").append(container);
   return {
     feedContainer: container,
+    bindClaimFilters: (setFilter) => bindClaimFilters(allClaims, claimsPayload.claims, setFilter),
     renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit)
   };
 }
+var claimTypes = /* @__PURE__ */ new Set(["sentence", "value", "statistic", "table", "figure"]);
+function normalize(text) {
+  return String(text ?? "").normalize("NFKC").toLowerCase().trim();
+}
+function filterType(claim) {
+  const type = normalize(claim.claim_type);
+  if (type === "text") return "sentence";
+  return claimTypes.has(type) ? type : "other";
+}
+function bindClaimFilters(panel, claims, setFilter) {
+  if (!claims.length) return;
+  const controls = panel.querySelector(".lp-claim-filters");
+  const search = controls.querySelector("input");
+  const tabList = controls.querySelector(".lp-claim-type-tabs");
+  const results = panel.querySelector("#lp-claim-type-results");
+  const status = results.querySelector(".lp-claim-filter-status");
+  const index = claims.map((claim) => ({
+    id: claim.claim_id,
+    type: filterType(claim),
+    text: normalize([claim.claim_id, claim.claim_value, claim.source_file, claim.file_path].join(" "))
+  }));
+  tabList.querySelector('[data-claim-type="other"]').hidden = !index.some((entry) => entry.type === "other");
+  let type = "all";
+  bindTabs(tabList, (tab) => {
+    type = tab.dataset.claimType;
+    results.setAttribute("aria-labelledby", tab.id);
+    update();
+  });
+  function update() {
+    const terms = normalize(search.value).split(/\s+/).filter(Boolean);
+    if (type === "all" && !terms.length) {
+      setFilter(null);
+      status.textContent = "";
+      return;
+    }
+    const matched = new Set(index.filter(
+      (entry) => (type === "all" || type === entry.type) && terms.every((term) => entry.text.includes(term))
+    ).map((entry) => entry.id));
+    setFilter((entry) => matched.has(entry.id));
+    status.textContent = matched.size ? `${matched.size} of ${claims.length} claims` : "No claims match these filters.";
+  }
+  search.addEventListener("input", update);
+  controls.hidden = false;
+  update();
+}
 function bindClaimTabs(sidebar) {
-  const tabs = [...sidebar.querySelectorAll("[role='tab']")];
-  function select(tab, refresh = false) {
+  bindTabs(sidebar.querySelector(".lp-claims-tabs"), (selected, refresh) => {
+    for (const tab of sidebar.querySelectorAll(".lp-claims-tabs > [role='tab']")) {
+      sidebar.querySelector("#" + tab.getAttribute("aria-controls")).hidden = tab !== selected;
+    }
+    sidebar.scrollTop = 0;
+    if (refresh && selected.id === "lp-selection-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
+    }
+  });
+}
+function bindTabs(tabList, onSelect) {
+  const tabs = [...tabList.querySelectorAll(":scope > [role='tab']:not([hidden])")];
+  function select(tab, refresh) {
     for (const button of tabs) {
       const active = button === tab;
       button.setAttribute("aria-selected", String(active));
       button.tabIndex = active ? 0 : -1;
-      sidebar.querySelector("#" + button.getAttribute("aria-controls")).hidden = !active;
     }
-    sidebar.scrollTop = 0;
-    if (refresh && tab.id === "lp-selection-tab") {
-      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
-    }
+    onSelect(tab, refresh);
   }
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", (event) => select(tab, event.isTrusted));
@@ -2310,6 +2390,7 @@ async function boot(rootEl) {
     return;
   }
   bindReaderLayout(rootEl);
+  bindPdfTheme(rootEl);
   bindPortEvents(rootEl, apiBase);
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
@@ -2457,6 +2538,25 @@ async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " \xB7 ", verified, " \xB7 ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+function bindPdfTheme(rootEl) {
+  const picker = rootEl.querySelector(".lp-pdf-theme");
+  const key = "live-paper.pdf-theme";
+  let saved;
+  try {
+    saved = localStorage.getItem(key);
+  } catch {
+  }
+  if (saved === "light" || saved === "dark") picker.value = saved;
+  rootEl.dataset.pdfTheme = picker.value;
+  picker.hidden = false;
+  picker.addEventListener("change", () => {
+    rootEl.dataset.pdfTheme = picker.value;
+    try {
+      localStorage.setItem(key, picker.value);
+    } catch {
+    }
+  });
 }
 function bindReaderLayout(rootEl) {
   const header = rootEl.previousElementSibling;

@@ -244,7 +244,8 @@ export function createRichPdfViewer(options) {
     for (const layer of layers.values()) layer.remove();
     layers.clear(); pages.clear(); renderer.destroy();
   }
-  return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+  return { renderer, load, refresh, setOverlays, setComments,
+    setFeedFilter: (filter) => feed?.setFilter(filter), selectTarget, createComment, destroy };
 }
 
 function createOverlayPreview(container, port) {
@@ -379,12 +380,17 @@ function createFeed(container, choose, renderEntry) {
   container.append(list);
   let rows = [];
   let selected = null;
+  let filter = null;
+
+  function updateVisibility() {
+    for (const row of rows) row.element.hidden = filter ? !filter(row.entry) : false;
+  }
 
   function select(row, scroll = false) {
     selected?.button.removeAttribute("aria-current");
     selected = row ?? null;
     selected?.button.setAttribute("aria-current", "true");
-    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (scroll && selected && !selected.element.hidden) selected.element.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   function setEntries(entries) {
@@ -405,12 +411,17 @@ function createFeed(container, choose, renderEntry) {
       if (content) element.append(content);
       return row;
     });
+    updateVisibility();
     list.replaceChildren(...rows.map((row) => row.element));
     select(rows.find((row) => row.entry.id === selectedId));
   }
 
   return {
     setEntries,
+    setFilter(nextFilter) {
+      filter = nextFilter;
+      updateVisibility();
+    },
     selectOverlay(overlayId) {
       if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
     },

@@ -123,7 +123,15 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     (root / CITATION_REPORT).write_text(json.dumps(citation_verification(fixture, {"fixture": citation})))
     registry = root / "claims.json"
     claims = json.loads(registry.read_text())
-    claims["claims"][0].update(claim_id="value", claim_type="value")
+    claims["claims"] = [dict(claims["claims"][0], claim_id="value", claim_type="value")]
+    claims["claims"].extend([
+        {"claim_id": "classifier-sentence", "claim_type": "text",
+         "file_path": "manuscript.pdf", "claim_value": "The held-out classifier score improved.",
+         "source_file": "results/summary.json"},
+        {"claim_id": "test-statistic", "claim_type": "statistic", "file_path": "manuscript.pdf"},
+        {"claim_id": "test-table", "claim_type": "table", "file_path": "manuscript.pdf"},
+        {"claim_id": "test-figure", "claim_type": "figure", "file_path": "manuscript.pdf"},
+    ])
     registry.write_text(json.dumps(claims))
     claim_id = "value"
     (root / "pdf-anchors.json").write_text(json.dumps({
@@ -259,6 +267,12 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             file_action.get_attribute("target"),
         )
         code = preview.locator(".lp-source-preview pre")
+        pdf_theme = page.get_by_role("combobox", name="PDF theme")
+        assert pdf_theme.input_value() == "auto"
+        raster = document.locator(".stx-pdf-page > canvas:first-child").first
+        graph_card = preview.locator(".lp-claim-dag")
+        graph_shape = graph.locator("g.node.failing > rect").first
+        graph_themes = []
         code_colors = []
         for theme in ("light", "dark"):
             page.evaluate("""theme => {
@@ -266,6 +280,23 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
               document.querySelectorAll("[data-theme]").forEach(node => node.dataset.theme = theme);
             }""", theme)
             code_colors.append(code.evaluate("node => getComputedStyle(node).color"))
+            graph_themes.append((
+                graph_card.evaluate("node => getComputedStyle(node).backgroundColor"),
+                graph_shape.evaluate("node => getComputedStyle(node).fill"),
+                graph_shape.evaluate("node => getComputedStyle(node).stroke"),
+            ))
+            pdf_filter = raster.evaluate("node => getComputedStyle(node).filter")
+            assert (pdf_filter != "none") == (theme == "dark")
+        assert graph.get_attribute("id") == first_layout
+        assert graph_themes[0][:2] != graph_themes[1][:2]
+        assert graph_themes[0][2] == graph_themes[1][2] == "rgb(248, 81, 73)"
+        assert overlay.evaluate("node => getComputedStyle(node).filter") == "none"
+        pdf_theme.select_option("light")
+        assert raster.evaluate("node => getComputedStyle(node).filter") == "none"
+        pdf_theme.select_option("dark")
+        assert "invert" in raster.evaluate("node => getComputedStyle(node).filter")
+        assert page.evaluate("localStorage.getItem('live-paper.pdf-theme')") == "dark"
+        pdf_theme.select_option("auto")
         comment_height = preview.get_by_role("button", name="Comment", exact=True).evaluate(
             "node => node.getBoundingClientRect().height"
         )
@@ -310,6 +341,26 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         all_claims_tab = inspector.get_by_role("tab", name="All claims", exact=False)
         all_claims_tab.click()
         preview.wait_for(state="hidden")
+        type_tabs = inspector.get_by_role("tablist", name="Claim type")
+        feed = inspector.locator(".scitex-rich-pdf-feed")
+        search = inspector.get_by_role("searchbox", name="Search claims")
+        assert feed.get_by_role("button").count() == 5
+        type_tabs.get_by_role("tab", name="All", exact=True).press("ArrowRight")
+        sentences = type_tabs.get_by_role("tab", name="Sentences", exact=True)
+        assert sentences.get_attribute("aria-selected") == "true"
+        assert all_claims_tab.get_attribute("aria-selected") == "true"
+        assert feed.get_by_role("button").all_text_contents() == ["classifier-sentence"]
+        search.fill("SCORE summary.json")
+        assert feed.get_by_role("button").all_text_contents() == ["classifier-sentence"]
+        type_tabs.get_by_role("tab", name="Values", exact=True).click()
+        inspector.get_by_text("No claims match these filters.", exact=True).wait_for()
+        search.fill("")
+        assert feed.get_by_role("button").all_text_contents() == ["value"]
+        for label, claim in (("Statistics", "test-statistic"), ("Tables", "test-table"), ("Figures", "test-figure")):
+            type_tabs.get_by_role("tab", name=label, exact=True).click()
+            assert feed.get_by_role("button").all_text_contents() == [claim]
+        type_tabs.get_by_role("tab", name="All", exact=True).click()
+        assert row.get_attribute("aria-current") == "true"
         all_claims_tab.press("ArrowLeft")
         preview.wait_for()
         with page.expect_download() as pending:

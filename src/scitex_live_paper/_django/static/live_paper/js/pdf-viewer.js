@@ -97,6 +97,7 @@ export class PDFViewer {
         } },
       },
     });
+    options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
   }

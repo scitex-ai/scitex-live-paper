@@ -16,6 +16,11 @@
  *                     provenance map.
  */
 
+const graphTheme = new URLSearchParams(window.location.search).get("theme");
+if (graphTheme === "light" || graphTheme === "dark") {
+  document.documentElement.dataset.theme = graphTheme;
+}
+
 const PROVENANCE = (() => {
   const el = document.getElementById('lp-provenance-map');
   if (!el) return {};

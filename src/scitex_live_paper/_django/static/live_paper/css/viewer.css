@@ -1,12 +1,13 @@
 /* The host owns the page shell. The reader owns its document and evidence panes. */
 #live-paper-root {
   --lp-bg: var(--bg-primary, #faf9f6);
-  --lp-surface: var(--workspace-bg-secondary, var(--bg-surface, #ffffff));
-  --lp-raised: var(--workspace-bg-tertiary, var(--bg-muted, #f0eeea));
-  --lp-fg: var(--text-primary, #202733);
-  --lp-muted: var(--text-secondary, #526070);
-  --lp-border: var(--workspace-border-default, var(--border-default, #d6dce1));
-  --lp-accent: var(--text-link, #285876);
+  color-scheme: light dark;
+  --lp-surface: var(--workspace-bg-secondary, var(--bg-surface, light-dark(#ffffff, #161b22)));
+  --lp-raised: var(--workspace-bg-tertiary, var(--bg-muted, light-dark(#f0eeea, #21262d)));
+  --lp-fg: var(--text-primary, light-dark(#202733, #e6edf3));
+  --lp-muted: var(--text-secondary, light-dark(#526070, #aab5c2));
+  --lp-border: var(--workspace-border-default, var(--border-default, light-dark(#d6dce1, #30363d)));
+  --lp-accent: var(--text-link, light-dark(#285876, #79b6ef));
   box-sizing: border-box;
   container-type: inline-size;
   width: 100%;
@@ -15,6 +16,9 @@
   color: var(--lp-fg);
   line-height: 1.5;
 }
+
+[data-theme="light"] #live-paper-root { color-scheme: light; }
+[data-theme="dark"] #live-paper-root { color-scheme: dark; }
 
 #live-paper-root:has(.lp-reader-workspace) {
   display: flex;
@@ -25,7 +29,8 @@
 
 .live-paper-embed {
   margin: 0;
-  background: var(--bg-primary, #faf9f6);
+  color-scheme: light dark;
+  background: var(--bg-primary, light-dark(#faf9f6, #0d1117));
   font-family: system-ui, sans-serif;
 }
 
@@ -218,6 +223,42 @@
 
 /* The renderer gives each page an explicit size. Keep that space while
  * Chromium skips layout and paint for pages far from the viewport. */
+.lp-pdf-theme {
+  inline-size: auto;
+}
+
+.lp-pdf-theme[hidden] {
+  display: none;
+}
+
+/* Scope the PDF appearance to raster canvases. Text, links, and Clew marks
+   live on independent layers and retain their original interaction and colors. */
+#live-paper-root {
+  --lp-pdf-raster-filter: none;
+  --lp-pdf-dark-filter: invert(0.89) hue-rotate(180deg);
+}
+
+[data-theme="dark"] #live-paper-root[data-pdf-theme="auto"],
+#live-paper-root[data-pdf-theme="dark"] {
+  --lp-pdf-raster-filter: var(--lp-pdf-dark-filter);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) #live-paper-root[data-pdf-theme="auto"] {
+    --lp-pdf-raster-filter: var(--lp-pdf-dark-filter);
+  }
+}
+
+.live-paper-pdf .stx-pdf-page > canvas:first-child,
+#live-paper-navigation .rpdf-nav-pages canvas {
+  filter: var(--lp-pdf-raster-filter);
+}
+
+@media print {
+  .lp-pdf-theme { display: none !important; }
+  .live-paper-pdf .stx-pdf-page > canvas:first-child { filter: none; }
+}
+
 .live-paper-pdf .stx-pdf-page {
   content-visibility: auto;
 }
@@ -393,6 +434,36 @@
   color: var(--lp-muted);
   font-size: 0.875rem;
   margin: 0 0 16px;
+}
+
+.lp-claim-filters:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-block: 8px;
+}
+
+.lp-claim-filters input {
+  min-inline-size: 0;
+}
+
+.lp-claim-type-tabs > .stx-content-tabs__tab {
+  font-size: 0.8rem;
+  padding-inline: 8px;
+}
+
+.lp-claim-type-tabs > [hidden] {
+  display: none;
+}
+
+.lp-claim-filter-status {
+  margin-block: 0 8px;
+  color: var(--lp-muted);
+  font-size: 0.85rem;
+}
+
+.lp-claim-filter-status:empty {
+  margin-block: 0;
 }
 
 .lp-claims-list .scitex-rich-pdf-feed > li > button {
@@ -710,7 +781,8 @@
 
 .lp-claim-dag {
   margin-top: 8px;
-  background: #fff;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
   border-radius: 4px;
   padding: 8px;
   overflow-x: auto;
@@ -718,13 +790,13 @@
 
 .lp-claim-dag-loading,
 .lp-claim-dag-empty {
-  color: #666;
+  color: var(--lp-muted);
   font-size: 12px;
   margin: 4px;
 }
 
 .lp-claim-dag-source {
-  color: #222;
+  color: var(--lp-fg);
   font-size: 11px;
   white-space: pre-wrap;
   margin: 4px;
@@ -1068,7 +1140,38 @@
   outline: 2px solid #1769aa;
 }
 
-.lp-claim-dag-svg .node[role="button"] {
+#live-paper-root .lp-claim-dag-svg .node {
+  --lp-dag-node-stroke: var(--lp-muted);
+}
+
+#live-paper-root .lp-claim-dag-svg .node.run { --lp-dag-node-stroke: var(--lp-accent); }
+#live-paper-root .lp-claim-dag-svg .node.supported { --lp-dag-node-stroke: var(--lp-status-verified); }
+#live-paper-root .lp-claim-dag-svg .node.not_checkable { --lp-dag-node-stroke: var(--lp-status-suspect); }
+#live-paper-root .lp-claim-dag-svg .node:is(.not_supported, .failing) { --lp-dag-node-stroke: var(--lp-status-mismatch); }
+
+#live-paper-root .lp-claim-dag-svg .node > :is(rect, polygon, path, circle) {
+  fill: color-mix(in srgb, var(--lp-dag-node-stroke) 12%, var(--lp-surface)) !important;
+  stroke: var(--lp-dag-node-stroke) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg svg text {
+  fill: var(--lp-fg) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .edgeLabel .labelBkg {
+  fill: var(--lp-surface) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .flowchart-link {
+  stroke: var(--lp-muted) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg svg marker path {
+  stroke: var(--lp-muted) !important;
+  fill: var(--lp-muted) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .node[role="button"] {
   cursor: pointer;
 }
 
@@ -1084,7 +1187,7 @@
   --lp-graph-accent: var(--lp-status-suspect);
 }
 
-.lp-claim-dag-svg :is(.lp-source-highlight, .node[role="button"]:focus-visible) > :is(rect, polygon, path, circle) {
+#live-paper-root .lp-claim-dag-svg :is(.lp-source-highlight, .node[role="button"]:focus-visible) > :is(rect, polygon, path, circle) {
   stroke: var(--lp-graph-accent, var(--lp-accent)) !important;
   stroke-width: 4px !important;
 }

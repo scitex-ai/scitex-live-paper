@@ -32,26 +32,88 @@ export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
 
   const container = document.createElement("div");
   container.className = "lp-claims-list";
-  allClaims.append(container);
+  allClaims.querySelector("#lp-claim-type-results").append(container);
   return {
     feedContainer: container,
+    bindClaimFilters: (setFilter) => bindClaimFilters(allClaims, claimsPayload.claims, setFilter),
     renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit),
   };
 }
 
+const claimTypes = new Set(["sentence", "value", "statistic", "table", "figure"]);
+
+function normalize(text) {
+  return String(text ?? "").normalize("NFKC").toLowerCase().trim();
+}
+
+function filterType(claim) {
+  const type = normalize(claim.claim_type);
+  if (type === "text") return "sentence";
+  return claimTypes.has(type) ? type : "other";
+}
+
+function bindClaimFilters(panel, claims, setFilter) {
+  if (!claims.length) return;
+  const controls = panel.querySelector(".lp-claim-filters");
+  const search = controls.querySelector("input");
+  const tabList = controls.querySelector(".lp-claim-type-tabs");
+  const results = panel.querySelector("#lp-claim-type-results");
+  const status = results.querySelector(".lp-claim-filter-status");
+  const index = claims.map((claim) => ({
+    id: claim.claim_id,
+    type: filterType(claim),
+    text: normalize([claim.claim_id, claim.claim_value, claim.source_file, claim.file_path].join(" ")),
+  }));
+  tabList.querySelector('[data-claim-type="other"]').hidden = !index.some((entry) => entry.type === "other");
+  let type = "all";
+  bindTabs(tabList, (tab) => {
+    type = tab.dataset.claimType;
+    results.setAttribute("aria-labelledby", tab.id);
+    update();
+  });
+
+  function update() {
+    const terms = normalize(search.value).split(/\s+/).filter(Boolean);
+    if (type === "all" && !terms.length) {
+      setFilter(null);
+      status.textContent = "";
+      return;
+    }
+    const matched = new Set(index.filter((entry) =>
+      (type === "all" || type === entry.type) && terms.every((term) => entry.text.includes(term))
+    ).map((entry) => entry.id));
+    setFilter((entry) => matched.has(entry.id));
+    status.textContent = matched.size
+      ? `${matched.size} of ${claims.length} claims`
+      : "No claims match these filters.";
+  }
+
+  search.addEventListener("input", update);
+  controls.hidden = false;
+  update();
+}
+
 function bindClaimTabs(sidebar) {
-  const tabs = [...sidebar.querySelectorAll("[role='tab']")];
-  function select(tab, refresh = false) {
+  bindTabs(sidebar.querySelector(".lp-claims-tabs"), (selected, refresh) => {
+    for (const tab of sidebar.querySelectorAll(".lp-claims-tabs > [role='tab']")) {
+      sidebar.querySelector("#" + tab.getAttribute("aria-controls")).hidden = tab !== selected;
+    }
+    sidebar.scrollTop = 0;
+    if (refresh && selected.id === "lp-selection-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
+    }
+  });
+}
+
+function bindTabs(tabList, onSelect) {
+  const tabs = [...tabList.querySelectorAll(":scope > [role='tab']:not([hidden])")];
+  function select(tab, refresh) {
     for (const button of tabs) {
       const active = button === tab;
       button.setAttribute("aria-selected", String(active));
       button.tabIndex = active ? 0 : -1;
-      sidebar.querySelector("#" + button.getAttribute("aria-controls")).hidden = !active;
     }
-    sidebar.scrollTop = 0;
-    if (refresh && tab.id === "lp-selection-tab") {
-      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
-    }
+    onSelect(tab, refresh);
   }
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", (event) => select(tab, event.isTrusted));
