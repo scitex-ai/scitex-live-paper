@@ -25,7 +25,7 @@ def original_archive(request):
                 item = tarfile.TarInfo(filename)
                 item.size = len(content)
                 archive.addfile(item, io.BytesIO(content))
-    return name, data.getvalue()
+    yield name, data.getvalue()
 
 
 def test_archive_lists_and_reads_safe_members(original_archive):
