@@ -1077,7 +1077,8 @@
 }
 
 @container (max-width: 750px) {
-  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(.lp-claim-detail)) {
+  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(.lp-claim-detail)),
+  .lp-reader-workspace > .live-paper-claims[data-pdf-focused] {
     display: none;
   }
 
@@ -1202,12 +1203,31 @@
 :is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg {
   max-block-size: 42vh;
   overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.lp-graph-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 6px;
+}
+
+.lp-claim-dag-svg[data-can-pan] {
+  cursor: grab;
+}
+
+.lp-claim-dag-svg[data-panning] {
+  cursor: grabbing;
+  user-select: none;
 }
 
 :is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg svg {
-  max-block-size: 420px;
-  min-inline-size: min(34rem, var(--lp-graph-width, 34rem));
-  max-inline-size: none;
+  display: block;
+  width: calc(100% * var(--lp-graph-zoom, 1));
+  max-width: none !important; /* Mermaid writes an inline max-width. */
+  height: auto;
 }
 
 .lp-claim-trace-status {

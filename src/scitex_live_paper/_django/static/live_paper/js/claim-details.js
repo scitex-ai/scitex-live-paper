@@ -11,6 +11,7 @@ import { withBundleContext } from "./_utils.js";
 // never an empty pane.
 
 import { renderCommentSection } from "./comments.js";
+import { graphControls } from "../../../../_renderer/assets/graph-controls.js";
 
 let graphSequence = 0;
 const detailRequests = new WeakMap();
@@ -22,7 +23,7 @@ function el(tag, className, text) {
   return node;
 }
 
-export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) {
+export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, goToPdf } = {}) {
   const selection = sidebarEl.querySelector("#lp-selection-panel");
   sidebarEl.querySelector("#lp-selection-tab").click();
   const active = selection.querySelector(".lp-claim-detail");
@@ -52,6 +53,13 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
     "status: " + (claim.status || "registered"));
   status.dataset.status = claim.status || "registered";
   pane.appendChild(status);
+
+  if (goToPdf) {
+    const jump = el("button", "stx-button", "Go to in PDF");
+    jump.type = "button";
+    jump.addEventListener("click", goToPdf);
+    pane.append(jump);
+  }
 
   const prov = el("ul", "lp-claim-detail-provenance");
   const rows = [
@@ -355,7 +363,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
       status.dataset.state = body.state;
       dagBox.append(status);
     }
-    dagBox.append(wrap);
+    dagBox.append(graphControls(wrap, signal), wrap);
     if (body.scope === "claim") {
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);

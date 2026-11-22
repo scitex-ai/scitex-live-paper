@@ -10,7 +10,8 @@ import { renderEvidencePreview } from "./claim-details.js";
 
 export function toOverlay(claim) {
   const anchor = pickAnchor(claim);
-  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  if (!Number.isInteger(anchor?.page) || anchor.page < 1 ||
+      !Array.isArray(anchor.bbox) || anchor.bbox.length !== 4 || !anchor.bbox.every(Number.isFinite)) return null;
   const figure = claim.claim_type === "figure" || claim.figure_id || claim.extras?.figure_id;
   return { id: claim.claim_id, page: anchor.page, bbox: anchor.bbox,
     appearance: figure ? "region" : "highlight",
@@ -61,6 +62,7 @@ export class PDFViewer {
             data: claim,
           })),
           renderEntry: (entry) => options.renderFeedEntry(entry.data),
+          navigate: (overlay) => this.navigation.goTo(overlay),
         },
         comments: {
           list: () => this.comments.map(toComment),
@@ -100,6 +102,10 @@ export class PDFViewer {
     options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
+  }
+  goToClaim(overlay) {
+    this.provider.selectOverlay(overlay.id);
+    this.navigation.goTo(overlay);
   }
   setClaims(claims) { this.claims = claims || []; this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean)); }
   setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }

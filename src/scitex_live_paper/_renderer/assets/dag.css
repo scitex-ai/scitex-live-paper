@@ -72,6 +72,41 @@ body.live-paper {
   overflow: auto;
 }
 
+#lp-dag-source[data-graph-interactive] {
+  display: block;
+  max-block-size: 68vh;
+  overscroll-behavior: contain;
+}
+
+#lp-dag-source[data-graph-interactive] > svg {
+  display: block;
+  width: calc(100% * var(--lp-graph-zoom, 1));
+  max-width: none !important;
+  height: auto;
+}
+
+#lp-dag-source[data-can-pan] { cursor: grab; }
+#lp-dag-source[data-panning] { cursor: grabbing; user-select: none; }
+
+.lp-graph-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 6px;
+}
+
+.lp-graph-controls button {
+  padding: 4px 8px;
+  border: 1px solid var(--lp-border);
+  border-radius: 4px;
+  background: var(--lp-overlay-card);
+  color: var(--lp-fg);
+  font: inherit;
+}
+
+.lp-graph-controls button:disabled { opacity: 0.55; }
+
 .lp-dag-shell a {
   color: var(--lp-dag-link);
 }

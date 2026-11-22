@@ -189,6 +189,17 @@ async function bootstrap() {
 
   decorateNodes(shell);
 
+  const graph = shell.querySelector("#lp-dag-source");
+  if (graph?.querySelector("svg") && shell.dataset.graphControlsUrl) {
+    try {
+      const { graphControls } = await import(new URL(shell.dataset.graphControlsUrl, document.baseURI));
+      graph.before(graphControls(graph));
+      graph.setAttribute("data-graph-interactive", "");
+    } catch (error) {
+      console.warn("Evidence graph controls unavailable:", error);
+    }
+  }
+
   const closeBtn = document.querySelector('.lp-dag-overlay-close');
   if (closeBtn) closeBtn.addEventListener('click', closeOverlay);
 }

@@ -139,6 +139,7 @@ def render_dag(
         has_dag=bool(bundle.dag and bundle.dag.strip()),
         css_url="assets/dag.css",
         js_url="assets/dag.js",
+        graph_controls_url="assets/graph-controls.js",
         mermaid_url=f"assets/mermaid/{_MERMAID_MAIN}",
         mermaid_version=MERMAID_VERSION,
         viewer_url=viewer_url,
@@ -163,6 +164,7 @@ def _copy_dag_assets(out_dir: Path) -> tuple[Path, Path, Path]:
     (out_dir / "assets" / "mermaid").mkdir(parents=True, exist_ok=True)
     css_dest = _copy_into(out_dir, "assets/dag.css", _DAG_CSS)
     js_dest = _copy_into(out_dir, "assets/dag.js", _DAG_JS)
+    _copy_into(out_dir, "assets/graph-controls.js", _ASSETS_DIR / "graph-controls.js")
     # Canonical SDK AppHeader (header-parity): its CSS/JS travel with the
     # site so the component mounts over http(s). file:// keeps the static
     # fallback title line (module scripts don't run there — documented in
@@ -316,6 +318,7 @@ def render_claim_graph(
         has_dag=bool(source),
         css_url=asset("assets/dag.css"),
         js_url=asset("assets/dag.js"),
+        graph_controls_url=asset("assets/graph-controls.js"),
         mermaid_url=asset(f"assets/mermaid/{_MERMAID_MAIN}"),
         mermaid_version=MERMAID_VERSION,
         viewer_url=viewer_url,

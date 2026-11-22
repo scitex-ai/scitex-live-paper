@@ -136,9 +136,13 @@ export function createRichPdfViewer(options) {
     preview?.close();
     const overlay = overlays.find((item) => item.id === entry.overlayId);
     selectOverlay(overlay?.id);
-    const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
-      .find((element) => element.dataset.overlayId === entry.overlayId);
-    anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (overlay && ports.feed?.navigate) {
+      ports.feed.navigate(overlay);
+    } else {
+      const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
+        .find((element) => element.dataset.overlayId === entry.overlayId);
+      anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     emit({ type: "feed-select", entry, overlay: overlay ?? null });
   }
 
@@ -245,7 +249,7 @@ export function createRichPdfViewer(options) {
     layers.clear(); pages.clear(); renderer.destroy();
   }
   return { renderer, load, refresh, setOverlays, setComments,
-    setFeedFilter: (filter) => feed?.setFilter(filter), selectTarget, createComment, destroy };
+    setFeedFilter: (filter) => feed?.setFilter(filter), selectOverlay, selectTarget, createComment, destroy };
 }
 
 function createOverlayPreview(container, port) {
@@ -494,13 +498,24 @@ export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = 
     if (!destination) return;
     const surface = surfaces.get(destination.page);
     if (!surface?.element.isConnected) return;
-    const scroller = closestScrollContainer(surface.element);
-    if (scroller) {
+    const scrollRoot = surface.element.ownerDocument.scrollingElement;
+    const scroller = closestScrollContainer(surface.element) || scrollRoot;
+    if (destination.bbox && scroller) {
+      const [, y0, , y1] = surface.pdfToViewportRect(destination.bbox);
+      const y = Math.min(y0, y1);
+      // Center a line or small region. Give tall figures a visible top edge.
+      const inset = Math.max(12, (scroller.clientHeight - Math.abs(y1 - y0)) / 2);
+      const scrollerTop = scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top;
+      scroller.scrollTo({
+        top: scroller.scrollTop + surface.element.getBoundingClientRect().top - scrollerTop + y - inset,
+        behavior: "instant",
+      });
+    } else if (scroller) {
       const [, offset] = Number.isFinite(destination.top)
         ? surface.pdfToViewportPoint(destination.left ?? 0, destination.top)
         : [0, 0];
       const top = scroller.scrollTop + surface.element.getBoundingClientRect().top
-        - scroller.getBoundingClientRect().top;
+        - (scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top);
       scroller.scrollTo({ top: top + offset - 12 });
     } else {
       surface.element.scrollIntoView({ block: "start" });
@@ -572,6 +587,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = 
 
   return {
     runtime,
+    goTo: choose,
     pageRendered(page, surface) {
       surfaces.set(page, surface);
       if (destination?.page === page) jump();

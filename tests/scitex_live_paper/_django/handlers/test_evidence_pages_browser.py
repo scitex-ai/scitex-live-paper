@@ -92,6 +92,9 @@ def test_mounted_manuscript_graph_and_private_assets(evidence_host, mounted_brow
         observed["graph_failures"] = page.locator("g.node[data-lp-failure]").count()
         page.locator("g.node[data-lp-failure]").click()
         observed["node_details"] = page.locator("#lp-dag-overlay").is_visible()
+        zoom = page.get_by_role("group", name="Evidence graph controls")
+        zoom.get_by_role("button", name="Zoom in on evidence graph").click()
+        assert zoom.get_by_text("125%", exact=True).is_visible()
         violations.extend(page.evaluate("window.cspViolations || []"))
         refused = page.goto(base + "assets?project=bob&name=assets/paper.js")
         observed.update(refused_status=refused.status, errors=errors, failures=failures, violations=violations)
@@ -136,7 +139,10 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     claim_id = "value"
     (root / "pdf-anchors.json").write_text(json.dumps({
         "pdf_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
-        "anchors": {claim_id: {"page": 1, "bbox": [50, 200, 100, 220]}},
+        "anchors": {
+            claim_id: {"page": 1, "bbox": [50, 200, 100, 220]},
+            "classifier-sentence": {"page": 2, "bbox": [50, 160, 240, 176]},
+        },
     }))
     evidence_host.navigation["alice"] = lambda path: {
         "file": "/alice/demo/blob/" + path.as_posix(),
@@ -260,6 +266,33 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert marked_source.locator(":scope > rect").evaluate(
             "node => getComputedStyle(node).stroke"
         ) == "rgb(37, 135, 115)"
+        viewport = preview.get_by_role("region", name="Evidence graph viewport")
+        zoom_controls = preview.get_by_role("group", name="Evidence graph controls")
+        before_zoom = graph.bounding_box()["width"]
+        pdf_before_zoom = document.evaluate(
+            "pane => [pane.scrollTop, pane.querySelector('canvas').getBoundingClientRect().width]"
+        )
+        zoom_in = zoom_controls.get_by_role("button", name="Zoom in on evidence graph")
+        for _ in range(3):
+            zoom_in.click()
+        assert zoom_controls.get_by_text("175%", exact=True).is_visible()
+        assert graph.bounding_box()["width"] > before_zoom
+        assert viewport.get_attribute("data-can-pan") is not None
+        viewport.scroll_into_view_if_needed()
+        viewport.evaluate("node => node.scrollLeft = 0")
+        box = viewport.bounding_box()
+        x, y = box["x"] + box["width"] * 0.8, box["y"] + 3
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x - 40, y, steps=4)
+        page.mouse.up()
+        assert viewport.evaluate("node => node.scrollLeft") > 0
+        assert document.evaluate(
+            "pane => [pane.scrollTop, pane.querySelector('canvas').getBoundingClientRect().width]"
+        ) == pdf_before_zoom
+        zoom_controls.get_by_role("button", name="Reset evidence graph zoom").click()
+        assert zoom_controls.get_by_text("100%", exact=True).is_visible()
+
         reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
         reference.hover()
         preview.get_by_text("print('computed value')", exact=True).wait_for()
@@ -388,6 +421,35 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
                 return count;
             }""", base64.b64encode(file).decode())
             exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
+        assert inspector.get_by_role("tab", name="Selected claim").is_visible()
+        sentence_overlay = document.locator('[data-overlay-id="classifier-sentence"]')
+
+        def expect_pdf_jump():
+            page.wait_for_function("""() => {
+              const pane = document.querySelector('.lp-reader-document');
+              const anchor = pane.querySelector('[data-overlay-id="classifier-sentence"]');
+              if (!anchor) return false;
+              const rect = anchor.getBoundingClientRect();
+              const view = pane.getBoundingClientRect();
+              return pane.scrollTop > 300 && rect.top >= view.top && rect.bottom <= view.bottom;
+            }""")
+            assert page.evaluate("window.scrollY") == scroller["host"]
+            assert sentence_overlay.get_attribute("aria-current") == "true"
+
+        all_claims_tab.click()
+        feed.get_by_role("button", name="test-statistic", exact=True).click()
+        assert preview.get_by_role("button", name="Go to in PDF").count() == 0
+        all_claims_tab.click()
+        document.evaluate("node => node.scrollTop = 0")
+        feed.get_by_role("button", name="classifier-sentence", exact=True).press("Enter")
+        expect_pdf_jump()
+        document.evaluate("node => node.scrollTop = 0")
+        preview.get_by_role("button", name="Go to in PDF", exact=True).click()
+        expect_pdf_jump()
+        if embed:
+            assert not inspector.is_visible()
+            toggle.click()
+
         if embed:
             navigation_toggle.click()
         navigation.get_by_role("button", name="Page 1", exact=True).wait_for()

@@ -29,7 +29,7 @@ import {
 } from "./_utils.js";
 import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
-import { PDFViewer } from "./pdf-viewer.js";
+import { PDFViewer, toOverlay } from "./pdf-viewer.js";
 import { closeClaimDetail, invalidateEvidenceGraphs, renderCitationDetail, renderClaimDetail } from "./claim-details.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
@@ -167,11 +167,28 @@ async function boot(rootEl) {
     closeClaimDetail(ensureClaimsSidebar(rootEl));
   });
 
+  function showClaim(sidebar, claim, refresh) {
+    const overlay = toOverlay(claim);
+    renderClaimDetail(sidebar, claim, apiBase, {
+      refresh,
+      goToPdf: overlay && (() => {
+        const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+        if (getComputedStyle(toggle).display !== "none") {
+          sidebar.removeAttribute("data-drawer-open");
+          sidebar.setAttribute("data-pdf-focused", "");
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.focus({ preventScroll: true });
+        }
+        viewer.goToClaim(overlay);
+      }),
+    });
+  }
+
   rootEl.addEventListener("live-paper:selection-tab", (event) => {
     const sidebar = event.target;
     const id = sidebar.querySelector(".lp-claim-detail")?.dataset.claimId;
     const claim = claimsPayload?.claims?.find((entry) => entry.claim_id === id);
-    if (claim) renderClaimDetail(sidebar, claim, apiBase, { refresh: true });
+    if (claim) showClaim(sidebar, claim, true);
   });
 
   // The PDF and the claim list both open the evidence sidebar.
@@ -186,8 +203,11 @@ async function boot(rootEl) {
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
       if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
-      if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
-      renderClaimDetail(sidebar, claim, apiBase, { refresh: !event.detail?.preview });
+      if (!event.detail?.preview) {
+        sidebar.removeAttribute("data-pdf-focused");
+        sidebar.dataset.pinnedClaim = id;
+      }
+      showClaim(sidebar, claim, !event.detail?.preview);
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -309,6 +329,7 @@ function bindReaderLayout(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
   const sidebar = rootEl.querySelector("#live-paper-claims");
   toggle.addEventListener("click", () => {
+    sidebar.removeAttribute("data-pdf-focused");
     const open = sidebar.toggleAttribute("data-drawer-open");
     toggle.setAttribute("aria-expanded", String(open));
   });

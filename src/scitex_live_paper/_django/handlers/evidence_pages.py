@@ -152,7 +152,7 @@ def handle_evidence_asset(request):
     renderer = Path(__file__).parents[2] / "_renderer" / "assets"
     assets = {"assets/" + name: renderer / name for name in (
         "claims.css", "support.css", "paper.css", "paper-panel.js", "paper.js",
-        "dag.css", "dag.js", "mermaid/mermaid.min.js", "sdk-header-slot.js",
+        "dag.css", "dag.js", "graph-controls.js", "mermaid/mermaid.min.js", "sdk-header-slot.js",
     )}
     assets.update({
         "assets/sdk-app-header.css": get_static_dir() / "css/app/app-header.css",
