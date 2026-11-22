@@ -261,9 +261,13 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         graph = preview.locator(".lp-claim-dag svg")
         graph.wait_for()
         first_layout = graph.get_attribute("id")
+        processor = graph.locator("g.node.run").first
+        assert "analysis.py" in processor.text_content()
+        assert hashlib.sha256(script).hexdigest()[:6] in processor.text_content()
+        assert hashlib.sha256(script).hexdigest() not in processor.text_content()
         marked_source = graph.locator("g.node.author_source")
         assert "✒ Author-registered source" in marked_source.text_content()
-        assert marked_source.locator(":scope > rect").evaluate(
+        assert marked_source.locator(":scope > polygon").evaluate(
             "node => getComputedStyle(node).stroke"
         ) == "rgb(37, 135, 115)"
         viewport = preview.get_by_role("region", name="Evidence graph viewport")
@@ -292,6 +296,14 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         ) == pdf_before_zoom
         zoom_controls.get_by_role("button", name="Reset evidence graph zoom").click()
         assert zoom_controls.get_by_text("100%", exact=True).is_visible()
+        download_graph = zoom_controls.get_by_text("Download graph", exact=True)
+        for format, signature in (("SVG", b"<svg"), ("PNG", bytes.fromhex("89504e470d0a1a0a"))):
+            download_graph.click()
+            with page.expect_download() as pending_graph:
+                zoom_controls.get_by_role("button", name=format, exact=True).click()
+            image = pending_graph.value
+            assert image.suggested_filename == "evidence-graph." + format.lower()
+            assert image.path().read_bytes().startswith(signature)
 
         reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
         reference.hover()
@@ -309,7 +321,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert pdf_theme.input_value() == "auto"
         raster = document.locator(".stx-pdf-page > canvas:first-child").first
         graph_card = preview.locator(".lp-claim-dag")
-        graph_shape = graph.locator("g.node.failing > rect").first
+        graph_shape = graph.locator("g.node.failing > :is(rect, polygon, path)").first
         graph_themes = []
         code_colors = []
         for theme in ("light", "dark"):

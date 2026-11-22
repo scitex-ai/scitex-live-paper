@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { graphCanvas } from "../../../../_renderer/assets/graph-controls.js";
 
 export async function exportReaderPdf(original, marks, graph) {
   const pdf = await PDFDocument.load(original, { updateMetadata: false });
@@ -21,27 +22,7 @@ export async function exportReaderPdf(original, marks, graph) {
 
 async function appendGraph(pdf, graph) {
   const { svg, claim } = graph;
-  const view = svg.viewBox.baseVal;
-  if (!view.width || !view.height) throw new Error("Evidence graph is not ready.");
-  const scale = Math.min(2, 3800 / Math.max(view.width, view.height));
-  const width = Math.max(1, Math.ceil(view.width * scale));
-  const height = Math.max(1, Math.ceil(view.height * scale));
-  const copy = svg.cloneNode(true);
-  copy.removeAttribute("style");
-  copy.setAttribute("width", width);
-  copy.setAttribute("height", height);
-  const xml = new XMLSerializer().serializeToString(copy);
-  const image = new Image();
-  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
-  await image.decode();
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Unable to render the evidence graph.");
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0);
+  const canvas = await graphCanvas(svg);
   const raster = await pdf.embedPng(canvas.toDataURL("image/png"));
   const pageWidth = 842;
   const pageHeight = 595;

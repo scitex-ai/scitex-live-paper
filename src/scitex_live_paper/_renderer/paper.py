@@ -162,7 +162,7 @@ def claims_data(review: Mapping[str, Any]) -> list[dict[str, Any]]:
         item = {k: e.get(k) for k in _CLIENT_KEYS}
         graph = e.get("graph")
         item["mermaid"] = (
-            graph_to_mermaid(graph, state=e["state"])[0] if graph else None
+            graph_to_mermaid(graph, state=e["state"], claim_type=e.get("claim_type"))[0] if graph else None
         )
         out.append(item)
     return out

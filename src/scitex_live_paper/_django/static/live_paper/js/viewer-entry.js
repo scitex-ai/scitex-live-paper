@@ -1100,7 +1100,7 @@ function graphControls(viewport, signal) {
   const inside = button("Zoom in on evidence graph", "+", () => resize(zoom + step));
   const reset = button("Reset evidence graph zoom", "Reset zoom", () => resize(1, true));
   const percent = document.createElement("output");
-  controls.append(out, inside, reset, percent);
+  controls.append(out, inside, reset, percent, downloadMenu(viewport));
   function updatePan() {
     viewport.toggleAttribute(
       "data-can-pan",
@@ -1157,6 +1157,79 @@ function graphControls(viewport, signal) {
     viewport.removeAttribute("data-panning");
   });
   return controls;
+}
+function downloadMenu(viewport) {
+  const menu = document.createElement("details");
+  const title = document.createElement("summary");
+  title.textContent = "Download graph";
+  const status = document.createElement("span");
+  status.setAttribute("role", "status");
+  menu.append(title);
+  for (const format of ["svg", "png"]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "stx-button";
+    button.textContent = format.toUpperCase();
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      status.textContent = "";
+      try {
+        const svg = viewport.querySelector("svg");
+        let blob;
+        if (format === "svg") {
+          blob = new Blob([graphSvg(svg)], { type: "image/svg+xml;charset=utf-8" });
+        } else {
+          const canvas = await graphCanvas(svg);
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        }
+        if (!blob) throw new Error("Empty graph image");
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "evidence-graph." + format;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3e4);
+        menu.open = false;
+        title.focus({ preventScroll: true });
+      } catch {
+        status.textContent = "Graph download failed. Try again.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+    menu.append(button);
+  }
+  menu.append(status);
+  return menu;
+}
+function graphSize(svg) {
+  const view = svg?.viewBox.baseVal;
+  if (!view?.width || !view.height) throw new Error("Evidence graph is not ready.");
+  return view;
+}
+function graphSvg(svg, scale = 1) {
+  const view = graphSize(svg);
+  const copy = svg.cloneNode(true);
+  copy.removeAttribute("style");
+  copy.setAttribute("width", Math.max(1, Math.ceil(view.width * scale)));
+  copy.setAttribute("height", Math.max(1, Math.ceil(view.height * scale)));
+  return new XMLSerializer().serializeToString(copy);
+}
+async function graphCanvas(svg) {
+  const view = graphSize(svg);
+  const scale = Math.min(2, 3800 / Math.max(view.width, view.height));
+  const image = new Image();
+  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(graphSvg(svg, scale));
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to render the evidence graph.");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0);
+  return canvas;
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-details.js

@@ -45,7 +45,7 @@ def handle_dag(request) -> JsonResponse:
             graph = entry and entry.get("graph")
             if graph is None:
                 return JsonResponse({"error": "No evidence graph for this claim."}, status=404)
-            mermaid, _ = graph_to_mermaid(graph, state=entry["state"])
+            mermaid, _ = graph_to_mermaid(graph, state=entry["state"], claim_type=entry.get("claim_type"))
             references = [
                 {
                     "id": f"n{index}",

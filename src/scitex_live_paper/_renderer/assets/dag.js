@@ -179,7 +179,7 @@ async function bootstrap() {
   if (!shell) return;
 
   if (typeof mermaid !== 'undefined' && mermaid?.initialize) {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false });
     try {
       await mermaid.run({ querySelector: 'pre.mermaid' });
     } catch (err) {

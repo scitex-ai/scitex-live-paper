@@ -1214,6 +1214,8 @@
   margin-block: 6px;
 }
 
+.lp-graph-controls summary { cursor: pointer; }
+
 .lp-claim-dag-svg[data-can-pan] {
   cursor: grab;
 }

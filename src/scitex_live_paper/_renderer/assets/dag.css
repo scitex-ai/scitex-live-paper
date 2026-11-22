@@ -96,6 +96,8 @@ body.live-paper {
   margin-block: 6px;
 }
 
+.lp-graph-controls summary { cursor: pointer; }
+
 .lp-graph-controls button {
   padding: 4px 8px;
   border: 1px solid var(--lp-border);

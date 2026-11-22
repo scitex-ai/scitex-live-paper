@@ -42,6 +42,6 @@ def test_author_interpretation_is_an_explicit_incoming_edge():
     source, _ = graph_to_mermaid(graph, state="supported")
     assert "n1 --> n2" in source
     assert "n1 -->|Author interpretation| n3" in source
-    assert 'n0["Input · ✒ Author-registered source<br/>data.csv"]:::author_source' in source
-    assert 'n2["Claim<br/>The recorded value is above 0.5"]:::supported' in source
-    assert 'n3["Claim · ✒ Author interpretation<br/>The method is reliable"]:::supported' in source
+    assert 'n0[/"Input · ✒ Author-registered source<br/>data.csv"/]:::author_source' in source
+    assert 'n2{{"Claim<br/>The recorded value is above 0.5"}}:::supported' in source
+    assert 'n3{{"Claim · ✒ Author interpretation<br/>The method is reliable"}}:::supported' in source

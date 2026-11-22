@@ -215,8 +215,37 @@ _KIND_LABEL = {
 }
 
 
+_NODE_SHAPES = {
+    "process": ("[[", "]]"),
+    "input": ("[/", "/]"),
+    "output": ("[\\", "\\]"),
+    "claim": ("{{", "}}"),
+    "database": ("[(", ")]"),
+    "figure": ("([", "])"),
+}
+_CLAIM_LABELS = {
+    "text": "Sentence",
+    "sentence": "Sentence",
+    "figure": "Figure",
+    "table": "Table",
+    "statistic": "Statistic",
+    "value": "Value",
+}
+
+
+def _file_presentation(node: Mapping[str, Any], figure: bool) -> tuple[str, str]:
+    suffix = Path(str(node["label"])).suffix.lower()
+    if suffix in {".db", ".sqlite", ".sqlite3", ".duckdb"}:
+        return "database", "Database"
+    if figure:
+        return "figure", "▧ Figure"
+    if suffix in {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".tiff"}:
+        return "figure", "▧ Image"
+    return node["kind"], ""
+
+
 def graph_to_mermaid(
-    graph: Mapping[str, Any], *, state: str | None = None
+    graph: Mapping[str, Any], *, state: str | None = None, claim_type: str | None = None
 ) -> tuple[str, dict[str, str]]:
     """Mermaid source + ``{node label: hash}`` map for a claim's minimal graph.
 
@@ -231,15 +260,37 @@ def graph_to_mermaid(
         edge["target"] for edge in graph["edges"]
         if edge.get("relation") == "author_interpretation"
     }
+    claim_nodes = {node["id"] for node in graph["nodes"] if node["kind"] == "claim"}
+    figure_sources = {
+        edge["source"] for edge in graph["edges"]
+        if claim_type == "figure" and edge["target"] in claim_nodes
+    }
     for n in graph["nodes"]:
-        kind, cls = _KIND_LABEL.get(n["kind"], (n["kind"].title(), "file"))
+        role = n["kind"]
+        shape = role
+        kind, cls = _KIND_LABEL.get(role, (role.title(), "file"))
+        text = n["label"]
+        digest = n.get("hash")
         if n["kind"] == "claim":
             cls = state or "registered"
+            claim_label = _CLAIM_LABELS.get(claim_type)
+            if claim_label:
+                kind += " · " + claim_label
             if n["id"] in interpretations:
                 kind += " · ✒ Author interpretation"
-        elif n["kind"] in {"input", "output"} and n.get("author_registered") is True:
-            kind += " · ✒ Author-registered source"
-            cls = "author_source"
+        elif role in {"input", "output"}:
+            shape, artifact = _file_presentation(n, n["id"] in figure_sources)
+            if artifact:
+                kind += " · " + artifact
+            if n.get("author_registered") is True:
+                kind += " · ✒ Author-registered source"
+                cls = "author_source"
+        elif role == "process":
+            script = n.get("script")
+            if isinstance(script, Mapping) and script.get("file") and script.get("hash"):
+                kind += " · ‹/› Script"
+                text = str(script["file"])
+                digest = script["hash"]
         failure = n.get("failure")
         marker = None
         if failure:
@@ -247,12 +298,13 @@ def graph_to_mermaid(
             # hatched-look fill) AND a text label, never colour alone.
             cls = "failing"
             marker = failure_label(failure["kind"]).upper()
-        lines.append(
-            f"  {ids[n['id']]}[{_mermaid_label(kind, n['label'], marker)}]:::{cls}"
-        )
-        if n.get("hash"):
-            provenance[str(n["label"])] = str(n["hash"])
-    claim_nodes = {node["id"] for node in graph["nodes"] if node["kind"] == "claim"}
+        if isinstance(digest, str) and re.fullmatch(r"[0-9a-fA-F]{6,64}", digest):
+            kind += " · " + digest[:6]
+        opening, closing = _NODE_SHAPES.get(shape, ("[", "]"))
+        label = _mermaid_label(kind, text, marker)
+        lines.append(f"  {ids[n['id']]}{opening}{label}{closing}:::{cls}")
+        if digest:
+            provenance[str(text)] = str(digest)
     for edge in graph["edges"]:
         source, target = edge["source"], edge["target"]
         interpretation = edge.get("relation") == "author_interpretation" and target in claim_nodes
@@ -298,7 +350,9 @@ def render_claim_graph(
     claim_id = entry["claim_id"]
     graph = entry.get("graph")
     if graph is not None:
-        source, provenance = graph_to_mermaid(graph, state=entry["state"])
+        source, provenance = graph_to_mermaid(
+            graph, state=entry["state"], claim_type=entry.get("claim_type"),
+        )
         summary = graph.get("summary")
     else:
         source, provenance, summary = "", {}, None
