@@ -1753,7 +1753,8 @@ async function renderTraceSummary(rootEl, apiBase) {
   summary.href = withBundleContext(url.href);
   const total = packet.supported.length + packet.needs_inspection.length;
   if (total === 0) return;
-  const label = packet.provider?.name === "clew" ? "Clew calculation traces" : "Calculation traces";
+  const provider = packet.provider?.name;
+  const label = typeof provider === "string" && provider ? `${provider[0].toUpperCase()}${provider.slice(1)} calculation traces` : "Calculation traces";
   summary.textContent = `${label} \xB7 ${packet.counts.supported} verified \xB7 ${packet.needs_inspection.length} to inspect`;
   header.append(summary);
 }
