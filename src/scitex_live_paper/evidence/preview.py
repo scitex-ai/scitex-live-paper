@@ -28,6 +28,11 @@ _TEXT = frozenset({
     ".csv", ".ini", ".ipynb", ".json", ".jsonl", ".md", ".py", ".r", ".sh",
     ".tex", ".toml", ".tsv", ".txt", ".yaml", ".yml",
 })
+_CODE_LANGUAGE = {
+    ".ini": "ini", ".ipynb": "json", ".json": "json", ".jsonl": "json",
+    ".md": "markdown", ".py": "python", ".r": "r", ".sh": "bash",
+    ".tex": "latex", ".toml": "ini", ".yaml": "yaml", ".yml": "yaml",
+}
 _IMAGES = {".png": "image/png", ".jpeg": "image/jpeg", ".jpg": "image/jpeg"}
 _CONTAINERS = {".tar", ".tgz", ".gz", ".zip"}
 
@@ -55,7 +60,10 @@ def _regular(name, content):
             text = content.decode("utf-8")
         except UnicodeDecodeError:
             raise PreviewError("This evidence file is not UTF-8 text.", "cannot_decode") from None
-        return {"kind": "text", "text": text[:_MAX_TEXT], "truncated": len(text) > _MAX_TEXT}
+        result = {"kind": "text", "text": text[:_MAX_TEXT], "truncated": len(text) > _MAX_TEXT}
+        if language := _CODE_LANGUAGE.get(suffix):
+            result["language"] = language
+        return result
     return {"kind": "metadata", "description": "Inline preview is unavailable for this format."}
 
 

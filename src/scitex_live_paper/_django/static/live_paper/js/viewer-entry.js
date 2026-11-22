@@ -824,7 +824,11 @@ function renderSourceContent(panel, result, load) {
     image.alt = result.file;
     panel.append(image);
   } else if (result.kind === "text") {
-    panel.append(el2("pre", null, result.text));
+    const code = el2("code", result.language ? "language-" + result.language : null, result.text);
+    const block = el2("pre");
+    block.append(code);
+    panel.append(block);
+    if (result.language) window.hljs?.highlightElement(code);
   } else if (result.kind === "archive") {
     const list = el2("ul", "lp-archive-preview");
     for (const item of result.members) {
@@ -881,6 +885,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     const heading = el2("h3", "lp-claim-graph-title", title);
     if (body.provider) heading.append(" (" + body.provider + ")");
     const wrap = el2("div", "lp-claim-dag-svg");
+    wrap.dataset.evidenceState = body.state || "";
     wrap.innerHTML = svg;
     dagBox.replaceChildren(heading);
     if (selectReference && body.reason) {
@@ -909,58 +914,68 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
 }
 function bindReferences(dagBox, graph, references, selectReference) {
   if (!Array.isArray(references) || !references.length) return;
-  const list = el2("ul", "lp-claim-references");
-  dagBox.append(el2("h4", "lp-claim-graph-title", "Source references"), list);
-  const entries = /* @__PURE__ */ new Map();
+  const nodes = [...graph.querySelectorAll("g.node")];
+  const entries = references.map((reference) => ({
+    reference,
+    node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-"))
+  }));
+  let activeReference;
   let hoverTimer;
-  function highlight(id) {
-    for (const [key, { button, node }] of entries) {
-      button.setAttribute("aria-pressed", String(key === id));
-      node.classList.toggle("lp-source-highlight", key === id);
+  const fallback = entries.length > 6 || entries.some(({ node }) => !node);
+  const list = fallback ? el2("ul", "lp-claim-references") : null;
+  function activate(entry) {
+    const { reference, node } = entry;
+    if (activeReference === reference.id) return;
+    activeReference = reference.id;
+    for (const other of entries) {
+      const selected = other === entry;
+      other.node?.setAttribute("aria-pressed", String(selected));
+      other.node?.classList.toggle("lp-source-highlight", selected);
+      other.button?.setAttribute("aria-pressed", String(selected));
     }
+    if (selectReference) selectReference(reference);
+    else node?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
-  for (const reference of references) {
-    let select = function() {
-      if (selectReference && button.getAttribute("aria-pressed") === "true") return;
-      highlight(reference.id);
-      selectReference?.(reference);
-    };
-    const node = [...graph.querySelectorAll("g.node")].find(
-      (element) => element.id.startsWith("flowchart-" + reference.id + "-")
-    );
-    if (!node) continue;
-    const item = el2("li", null);
-    const label = reference.script_file || reference.label;
-    const button = el2("button", null, label);
-    if (selectReference) {
-      const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
-      button.prepend(el2("span", "lp-source-kind", role + " "));
-    }
-    button.type = "button";
-    button.setAttribute("aria-pressed", "false");
-    button.addEventListener("click", () => {
-      select();
-      if (!selectReference) node.scrollIntoView({ block: "nearest", inline: "nearest" });
-    });
-    node.addEventListener("click", select);
-    if (selectReference) {
-      for (const target of [node, button]) {
-        target.addEventListener("pointerenter", () => {
-          clearTimeout(hoverTimer);
-          hoverTimer = setTimeout(() => {
-            if (target.isConnected) select();
-          }, 80);
-        });
-        target.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
-      }
-      button.addEventListener("focus", () => {
-        clearTimeout(hoverTimer);
+  for (const entry of entries) {
+    const { reference, node } = entry;
+    const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
+    const label = (role ? role + " " : "") + (reference.script_file || reference.label);
+    const select = () => activate(entry);
+    if (node) {
+      node.setAttribute("role", "button");
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("aria-label", label);
+      node.setAttribute("aria-pressed", "false");
+      node.addEventListener("click", select);
+      node.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
         select();
       });
     }
-    entries.set(reference.id, { button, node });
-    item.append(button);
-    list.append(item);
+    if (list) {
+      const item = el2("li");
+      entry.button = previewButton(label, select);
+      entry.button.setAttribute("aria-pressed", "false");
+      item.append(entry.button);
+      list.append(item);
+    }
+    if (!selectReference) continue;
+    for (const control of [node, entry.button].filter(Boolean)) {
+      control.addEventListener("pointerenter", () => {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+          if (control.isConnected) select();
+        }, 80);
+      });
+      control.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
+      control.addEventListener("focus", select);
+    }
+  }
+  if (list) {
+    const details = el2("details");
+    details.append(el2("summary", null, "Browse sources"), list);
+    dagBox.append(details);
   }
 }
 

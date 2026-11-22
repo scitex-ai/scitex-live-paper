@@ -186,6 +186,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         reference.hover()
         preview.get_by_text("print('computed value')", exact=True).wait_for()
         graph.locator("g.lp-source-highlight").wait_for()
+        language = preview.locator("pre code").get_attribute("class")
+        source_lists = preview.get_by_text("Browse sources", exact=True).count()
         source_link_is_claim_bound = "claim_id=value" in preview.get_by_role(
             "link", name="Open full evidence graph"
         ).get_attribute("href")
@@ -219,7 +221,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
             source_selected, source_link_is_claim_bound, marked, focus_restored,
-            guessed_images, mark_status, status_color,
+            guessed_images, mark_status, status_color, language, source_lists,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -233,5 +235,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0
     )
