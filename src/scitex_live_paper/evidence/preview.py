@@ -1,7 +1,6 @@
 """Deterministic, bounded views of recorded bytes. No extraction or execution."""
 
 import base64
-import gzip
 import io
 import stat
 import struct
@@ -42,39 +41,10 @@ def preview_byte_limit(name: str) -> int:
     return MAX_CONTAINER_BYTES if _has(name, _CONTAINERS) else MAX_INLINE_BYTES
 
 
-def _read(stream, size, *, offset=0):
-    if offset + size > _MAX_DECODED:
-        raise PreviewError("This preview exceeds the decoded size limit.", "too_large")
-    stream.seek(offset)
-    return stream.read(size)
-
-
-def _idx(stream, start):
-    magic, count = struct.unpack(">II", _read(stream, 8))
-    if magic == 2051:
-        rows, columns = struct.unpack(">II", _read(stream, 8, offset=8))
-        if not 1 <= rows <= 128 or not 1 <= columns <= 128:
-            raise PreviewError("The recorded image dimensions exceed inline preview limits.", "cannot_decode")
-        width, header, page_size = rows * columns, 16, 8
-    else:
-        rows, columns, width, header, page_size = None, None, 1, 8, 32
-    if not count:
-        return {"kind": "metadata", "description": "The IDX file has no records."}
-    if start >= count:
-        raise PreviewError("The starting record is outside the dataset.", "outside_window")
-    end = min(start + page_size, count)
-    records = _read(stream, (end - start) * width, offset=header + start * width)
-    if len(records) != (end - start) * width:
-        raise PreviewError("The IDX window is incomplete.", "cannot_decode")
-    return {
-        "kind": "idx", "start": start, "end": end, "total": count,
-        "page_size": page_size, "rows": rows, "columns": columns,
-        "records": base64.b64encode(records).decode("ascii"),
-    }
-
-
 def _regular(name, content):
     suffix = Path(name).suffix.lower()
+    if suffix in {".gz", ".tgz"} or content.startswith(b"\x1f\x8b"):
+        return {"kind": "metadata", "description": "Gzip-compressed file."}
     if suffix in _IMAGES:
         return {
             "kind": "image", "media_type": _IMAGES[suffix],
@@ -112,7 +82,7 @@ def _safe_member(name):
     return bool(path.parts) and not path.is_absolute() and ".." not in path.parts and "\\" not in name
 
 
-def _zip(stream, selected, start):
+def _zip(stream, selected):
     # Read the end record before zipfile allocates its central directory.
     size = stream.seek(0, io.SEEK_END)
     stream.seek(max(0, size - 65_557))
@@ -143,14 +113,14 @@ def _zip(stream, selected, start):
                     raise PreviewError("This archive member exceeds the inline size limit.", "too_large")
                 return {
                     "member": item.filename,
-                    **_decode(item.filename, io.BytesIO(data), start, None, nested=True),
+                    **_regular(item.filename, data),
                 }
     if selected is not None:
         raise PreviewError("This archive member is outside the preview listing.", "member_not_found")
     return {"kind": "archive", "members": members}
 
 
-def _tar(stream, selected, start):
+def _tar(stream, selected):
     members = []
     with tarfile.open(fileobj=_BoundedArchive(stream), mode="r:") as archive:
         for index, member in enumerate(archive):
@@ -167,52 +137,36 @@ def _tar(stream, selected, start):
                 with archive.extractfile(member) as resource:
                     return {
                         "member": member.name,
-                        **_decode(member.name, io.BytesIO(resource.read()), start, None, nested=True),
+                        **_regular(member.name, resource.read()),
                     }
     if selected is not None:
         raise PreviewError("This archive member is outside the preview listing.", "member_not_found")
     return {"kind": "archive", "members": members}
 
 
-def _decode(name, stream, start, member, *, nested=False):
-    header = _read(stream, 4)
-    if header in (b"\x00\x00\x08\x01", b"\x00\x00\x08\x03"):
-        return _idx(stream, start)
-    lower = name.lower()
-    if not nested and lower.endswith(".zip"):
-        return _zip(stream, member, start)
-    if not nested and lower.endswith((".tar", ".tar.gz", ".tgz")):
-        stream.seek(0)
-        return _tar(stream, member, start)
-    if _has(name, _TEXT | _IMAGES.keys()):
-        data = _read(stream, MAX_INLINE_BYTES + 1)
-        if len(data) > MAX_INLINE_BYTES:
-            raise PreviewError("The decoded file exceeds the inline size limit.", "too_large")
-        return _regular(name, data)
-    return _regular(name, b"")
-
-
 def preview_file(
     name: str, content: bytes, *, start: int = 0, member: int | None = None,
 ) -> dict:
-    """Decode a bounded window from supplied bytes and return JSON-safe data.
+    """Preview a known file format or report its metadata as JSON-safe data.
 
-    ``start`` is a zero-based record offset and ``member`` selects an ID from
-    an archive listing. Callers supply the original filename and are responsible
-    for access and provenance checks before providing its contents.
+    ``member`` selects an ID from a ZIP or uncompressed TAR listing. Gzip files
+    are shown as files. Callers provide the original filename and verify access
+    and provenance before supplying bytes.
     """
     if type(start) is not int or start < 0 or (
         member is not None and (type(member) is not int or member < 0)
     ):
         raise PreviewError("Invalid preview window or member.", "invalid_selector")
+    if start:
+        raise PreviewError("Record windows are unavailable for file previews.", "outside_window")
     if len(content) > preview_byte_limit(name):
         raise PreviewError("The stored file exceeds its preview limit.", "too_large")
     try:
-        with io.BytesIO(content) as stream:
-            if content.startswith(b"\x1f\x8b"):
-                with gzip.GzipFile(fileobj=stream) as decoded:
-                    decoded_name = name if name.lower().endswith((".tar.gz", ".tgz")) else name[:-3]
-                    return _decode(decoded_name, decoded, start, member)
-            return _decode(name, stream, start, member)
+        if content.startswith(b"\x1f\x8b") or _has(name, {".gz", ".tgz"}):
+            return _regular(name, content)
+        if _has(name, {".zip", ".tar"}):
+            with io.BytesIO(content) as stream:
+                return _zip(stream, member) if _has(name, {".zip"}) else _tar(stream, member)
+        return _regular(name, content)
     except (OSError, EOFError, RuntimeError, struct.error, tarfile.TarError, zipfile.BadZipFile, zlib.error):
         raise PreviewError("The recorded file could not be decoded for preview.", "cannot_decode") from None

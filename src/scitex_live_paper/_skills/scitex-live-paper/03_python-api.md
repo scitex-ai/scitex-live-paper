@@ -32,5 +32,5 @@ preview recorded bytes in Python without Django. The same module provides
 `preview_byte_limit` and `PreviewError`. Pass bytes from the caller's authorized
 file access after checking the recorded hash. In a mounted app,
 `preview.json` resolves the claim and graph node and applies those checks
-before it calls the library. Archive listings and IDX windows reuse the
-source filename and require no preview registration.
+before it calls the library. Archive listings reuse the recorded filename and require no preview registration.
+Gzip files show their recorded file metadata.

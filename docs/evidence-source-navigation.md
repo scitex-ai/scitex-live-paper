@@ -33,11 +33,10 @@ the recorded bytes and file type and generates previews at request time. The
 viewer uses the filename from the graph. It accepts no per-article thumbnail
 or display-name manifest. An unknown format still has a file identity.
 
-An unsigned-byte IDX header supplies the rank and dimensions. A vector can be
-shown as values, and a stack of two-dimensional grids can be shown in grayscale.
-The header carries no split, units, label meaning, or link to another file.
-Archive views list stored member names and can preview one bounded member on
-demand. Members remain in the archive.
+Gzip files show their original name, size, and recorded hash. The viewer
+displays native image files and known text formats directly. ZIP and
+uncompressed TAR views list stored member names and let readers open one
+bounded member. Members remain in the archive.
 
 The PDF and browser views point back to the same repository. The mounted host
 owns file navigation and execution authorization. A new run has its own identity

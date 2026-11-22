@@ -189,11 +189,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         source_selected = reference.get_attribute("aria-pressed")
         overlay.click()
         preview.get_by_role("button", name="Input samples.gz", exact=True).hover()
-        preview.get_by_text("Records 1–8 of 10", exact=False).wait_for()
-        first_grid_count = preview.locator(".lp-idx-grids canvas").count()
-        preview.get_by_role("button", name="Next records", exact=True).click()
-        preview.get_by_text("Records 9–10 of 10", exact=False).wait_for()
-        last_grid_count = preview.locator(".lp-idx-grids canvas").count()
+        preview.get_by_text("Gzip-compressed file.", exact=False).wait_for()
+        guessed_images = preview.locator(".lp-source-preview canvas, .lp-source-preview img").count()
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         overlay.focus()
@@ -216,7 +213,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
             source_selected, source_link_is_claim_bound, marked, focus_restored,
-            first_grid_count, last_grid_count,
+            guessed_images,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -230,5 +227,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 8, 2
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0
     )

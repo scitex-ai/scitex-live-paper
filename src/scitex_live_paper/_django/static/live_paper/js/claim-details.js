@@ -109,7 +109,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
     selectReference: (reference) => load(reference),
   });
 
-  function load(reference, { start = 0, member } = {}) {
+  function load(reference, { member } = {}) {
     request?.abort();
     request = new AbortController();
     const current = request;
@@ -118,7 +118,6 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
-    if (start) url.searchParams.set("start", start);
     if (member !== undefined) url.searchParams.set("member", member);
     fetch(withBundleContext(url.href), {
       signal: AbortSignal.any([signal, current.signal]),
@@ -136,7 +135,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
         const back = previewButton("Archive contents", () => load(reference));
         preview.append(el("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options), member);
+      renderSourceContent(preview, result, (options) => load(reference, options));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
         preview.replaceChildren(
@@ -155,7 +154,7 @@ function previewButton(label, action) {
   return button;
 }
 
-function renderSourceContent(panel, result, load, member) {
+function renderSourceContent(panel, result, load) {
   if (result.kind === "image") {
     const image = el("img");
     image.src = `data:${result.media_type};base64,${result.data}`;
@@ -171,47 +170,12 @@ function renderSourceContent(panel, result, load, member) {
       list.append(row);
     }
     panel.append(el("p", null, "First archive entries"), list);
-  } else if (result.kind === "idx") {
-    renderIdxWindow(panel, result, load, member);
-  } else {
-    panel.append(el("p", null, result.description));
+  } else if (result.kind === "metadata") {
+    const size = result.size.toLocaleString();
+    const identity = el("details");
+    identity.append(el("summary", null, "Recorded hash"), el("code", null, result.hash));
+    panel.append(el("p", null, `${result.description} · ${size} bytes`), identity);
   }
-}
-
-function renderIdxWindow(panel, result, load, member) {
-  const { start, end, total, rows, columns, page_size: size } = result;
-  const recordType = rows ? ` · ${rows} × ${columns} unsigned-byte grids` : " · unsigned-byte values";
-  panel.append(el("p", null, `Records ${start + 1}–${end} of ${total}${recordType}`));
-  const records = atob(result.records);
-  if (rows) {
-    const grid = el("div", "lp-idx-grids");
-    const stride = rows * columns;
-    for (let index = 0; index < end - start; index++) {
-      const canvas = el("canvas");
-      canvas.width = columns;
-      canvas.height = rows;
-      canvas.setAttribute("role", "img");
-      canvas.setAttribute("aria-label", `Grayscale grid for record ${start + index + 1}`);
-      const context = canvas.getContext("2d");
-      const image = context.createImageData(columns, rows);
-      for (let pixel = 0; pixel < stride; pixel++) {
-        const intensity = records.charCodeAt(index * stride + pixel);
-        image.data.set([intensity, intensity, intensity, 255], pixel * 4);
-      }
-      context.putImageData(image, 0, 0);
-      grid.append(canvas);
-    }
-    panel.append(grid);
-  } else {
-    panel.append(el("pre", null, Array.from(records, (value) => value.charCodeAt(0)).join("  ")));
-  }
-  const navigation = el("div", "lp-source-preview-navigation");
-  const previous = previewButton("Previous records", () => load({ start: Math.max(0, start - size), member }));
-  const next = previewButton("Next records", () => load({ start: end, member }));
-  previous.disabled = start === 0;
-  next.disabled = end >= total;
-  navigation.append(previous, next);
-  panel.append(navigation);
 }
 
 export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
