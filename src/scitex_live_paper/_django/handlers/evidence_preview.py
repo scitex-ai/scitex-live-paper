@@ -9,12 +9,19 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from scitex_live_paper.evidence import find_claim
+from scitex_live_paper.evidence.preview import PreviewError, preview_byte_limit, preview_file
 
 from .._evidence_files import ResourceError, ResourceReader
 from .._evidence_request import request_evidence
-from .._preview_formats import format_preview, read_limit
 from .evidence_pages import _response
 
+_PREVIEW_STATUS = {
+    "invalid_selector": 400,
+    "member_not_found": 404,
+    "too_large": 413,
+    "cannot_decode": 415,
+    "outside_window": 416,
+}
 _DIGEST = re.compile(r"(?:sha256:)?([0-9a-f]{32}|[0-9a-f]{64})", re.IGNORECASE)
 
 
@@ -40,13 +47,13 @@ def _preview(root: Path, entry: Mapping, node_id: str, *, start: int, member: in
     if match is None:
         raise ResourceError("A comparable file hash was not recorded.", 409)
     with ResourceReader(root) as reader:
-        content = reader.read(name, limit=read_limit(name))
+        content = reader.read(name, limit=preview_byte_limit(name))
     expected = match.group(1).lower()
     if hashlib.sha256(content).hexdigest()[:len(expected)] != expected:
         raise ResourceError("The current file differs from the recorded evidence.", 409)
     return {
         "file": name, "hash": digest, "size": len(content),
-        **format_preview(name, content, start, member),
+        **preview_file(name, content, start=start, member=member),
     }
 
 
@@ -76,5 +83,7 @@ def handle_evidence_preview(request):
             root, entry, node_id, start=int(start),
             member=int(member) if member is not None else None,
         ))
+    except PreviewError as error:
+        return respond({"error": str(error), "code": error.code}, _PREVIEW_STATUS[error.code])
     except ResourceError as error:
         return respond({"error": str(error)}, error.status)

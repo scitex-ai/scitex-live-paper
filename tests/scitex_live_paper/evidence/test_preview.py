@@ -4,8 +4,7 @@ import zipfile
 
 import pytest
 
-from scitex_live_paper._django._evidence_files import ResourceError
-from scitex_live_paper._django._preview_formats import format_preview
+from scitex_live_paper.evidence.preview import PreviewError, preview_byte_limit, preview_file
 
 
 @pytest.mark.parametrize("name", ["original.zip", "original.tar.gz"])
@@ -23,14 +22,14 @@ def test_archive_lists_and_reads_only_safe_members(name):
                 archive.addfile(item, io.BytesIO(content))
     payload = data.getvalue()
 
-    listing = format_preview(name, payload)
-    member = format_preview(name, payload, member=1)
-    with pytest.raises(ResourceError) as error:
-        format_preview(name, payload, member=0)
+    listing = preview_file(name, payload)
+    member = preview_file(name, payload, member=1)
+    with pytest.raises(PreviewError) as error:
+        preview_file(name, payload, member=0)
 
     assert (
-        listing["members"], member["text"], error.value.status,
-    ) == ([{"id": 1, "name": "folder/report.txt", "size": 6}], "inside", 404)
+        listing["members"], member["text"], error.value.code,
+    ) == ([{"id": 1, "name": "folder/report.txt", "size": 6}], "inside", "member_not_found")
 
 
 def test_idx_vector_exposes_numbers_without_inferred_labels():
@@ -39,8 +38,18 @@ def test_idx_vector_exposes_numbers_without_inferred_labels():
     import struct
 
     data = gzip.compress(struct.pack(">II", 2049, 3) + b"\x05\x00\x04")
-    view = format_preview("bytes.gz", data)
+    view = preview_file("bytes.gz", data)
 
     assert (
         view["kind"], view["rows"], view["columns"], base64.b64decode(view["records"]),
     ) == ("idx", None, None, b"\x05\x00\x04")
+
+
+
+def test_library_enforces_limits_without_an_http_caller():
+    with pytest.raises(PreviewError) as oversized:
+        preview_file("source.bin", bytes(preview_byte_limit("source.bin") + 1))
+    with pytest.raises(PreviewError) as invalid:
+        preview_file("source.bin", b"", start=-1)
+
+    assert (oversized.value.code, invalid.value.code) == ("too_large", "invalid_selector")

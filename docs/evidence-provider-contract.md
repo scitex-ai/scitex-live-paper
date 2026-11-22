@@ -235,3 +235,23 @@ can be listed or browsed with a returned integer `member` ID. Small UTF-8, PNG, 
 JPEG content uses the same file preview rules inside supported archives.
 Preview limits apply to the original bytes and to decompression. A current file that differs from the recorded digest
 returns 409. An unavailable file leaves the inspected graph usable.
+
+Python clients can generate the same bounded preview from bytes without a web
+server. Callers resolve storage permissions and check the recorded digest
+before passing the bytes to this library. Web clients can use the mounted
+endpoint to perform those checks through the host.
+
+```python
+from scitex_live_paper.evidence.preview import preview_byte_limit, preview_file
+
+name = "inputs/archive.zip"
+with open(name, "rb") as source:
+    content = source.read(preview_byte_limit(name) + 1)
+
+listing = preview_file(name, content)
+if listing["kind"] == "archive" and listing["members"]:
+    first = preview_file(name, content, member=listing["members"][0]["id"])
+```
+
+`PreviewError.code` lets clients handle a size limit, unavailable member, or
+invalid window without parsing the message.

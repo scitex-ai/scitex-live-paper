@@ -10,7 +10,15 @@ import zipfile
 import zlib
 from pathlib import Path, PurePosixPath
 
-from ._evidence_files import ResourceError
+__all__ = ["PreviewError", "preview_byte_limit", "preview_file"]
+
+
+class PreviewError(ValueError):
+    """The requested preview is unavailable. `code` is machine-readable."""
+
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.code = code
 
 MAX_INLINE_BYTES = 512 * 1024
 MAX_CONTAINER_BYTES = 16 * 1024 * 1024
@@ -29,13 +37,14 @@ def _has(path, suffixes):
     return Path(path).suffix.lower() in suffixes
 
 
-def read_limit(name):
+def preview_byte_limit(name: str) -> int:
+    """Maximum stored bytes the preview API accepts for this filename."""
     return MAX_CONTAINER_BYTES if _has(name, _CONTAINERS) else MAX_INLINE_BYTES
 
 
 def _read(stream, size, *, offset=0):
     if offset + size > _MAX_DECODED:
-        raise ResourceError("This preview exceeds the decoded size limit.", 413)
+        raise PreviewError("This preview exceeds the decoded size limit.", "too_large")
     stream.seek(offset)
     return stream.read(size)
 
@@ -45,18 +54,18 @@ def _idx(stream, start):
     if magic == 2051:
         rows, columns = struct.unpack(">II", _read(stream, 8, offset=8))
         if not 1 <= rows <= 128 or not 1 <= columns <= 128:
-            raise ResourceError("The recorded image dimensions exceed inline preview limits.", 415)
+            raise PreviewError("The recorded image dimensions exceed inline preview limits.", "cannot_decode")
         width, header, page_size = rows * columns, 16, 8
     else:
         rows, columns, width, header, page_size = None, None, 1, 8, 32
     if not count:
         return {"kind": "metadata", "description": "The IDX file has no records."}
     if start >= count:
-        raise ResourceError("The starting record is outside the dataset.", 416)
+        raise PreviewError("The starting record is outside the dataset.", "outside_window")
     end = min(start + page_size, count)
     records = _read(stream, (end - start) * width, offset=header + start * width)
     if len(records) != (end - start) * width:
-        raise ResourceError("The IDX window is incomplete.", 415)
+        raise PreviewError("The IDX window is incomplete.", "cannot_decode")
     return {
         "kind": "idx", "start": start, "end": end, "total": count,
         "page_size": page_size, "rows": rows, "columns": columns,
@@ -75,7 +84,7 @@ def _regular(name, content):
         try:
             text = content.decode("utf-8")
         except UnicodeDecodeError:
-            raise ResourceError("This evidence file is not UTF-8 text.", 415) from None
+            raise PreviewError("This evidence file is not UTF-8 text.", "cannot_decode") from None
         return {"kind": "text", "text": text[:_MAX_TEXT], "truncated": len(text) > _MAX_TEXT}
     return {"kind": "metadata", "description": "Inline preview is unavailable for this format."}
 
@@ -89,12 +98,12 @@ class _BoundedArchive:
 
     def seek(self, offset):
         if not 0 <= offset <= _MAX_DECODED:
-            raise ResourceError("The archive preview exceeds its scan limit.", 413)
+            raise PreviewError("The archive preview exceeds its scan limit.", "too_large")
         return self.stream.seek(offset)
 
     def read(self, size):
         if not 0 <= size <= _MAX_DECODED - self.tell():
-            raise ResourceError("The archive preview exceeds its scan limit.", 413)
+            raise PreviewError("The archive preview exceeds its scan limit.", "too_large")
         return self.stream.read(size)
 
 
@@ -110,7 +119,7 @@ def _zip(stream, selected, start):
     tail = stream.read()
     offset = tail.rfind(b"PK\x05\x06")
     if offset < 0:
-        raise ResourceError("Archive directory is unavailable.", 415)
+        raise PreviewError("Archive directory is unavailable.", "cannot_decode")
     end = struct.unpack_from("<4s4H2LH", tail, offset)
     if (
         end[1] or end[2] or end[3] != end[4] or end[4] > 4096
@@ -118,7 +127,7 @@ def _zip(stream, selected, start):
         or tail[max(0, offset - 20):offset - 16] == b"PK\x06\x07"
         or offset + 22 + end[-1] != len(tail)
     ):
-        raise ResourceError("The archive directory exceeds its preview limits.", 413)
+        raise PreviewError("The archive directory exceeds its preview limits.", "too_large")
     members = []
     with zipfile.ZipFile(stream) as archive:
         for index, item in enumerate(archive.infolist()[:_MAX_MEMBERS]):
@@ -127,17 +136,17 @@ def _zip(stream, selected, start):
             members.append({"id": index, "name": item.filename, "size": item.file_size})
             if selected == index:
                 if item.file_size > MAX_INLINE_BYTES:
-                    raise ResourceError("This archive member exceeds the inline size limit.", 413)
+                    raise PreviewError("This archive member exceeds the inline size limit.", "too_large")
                 with archive.open(item) as resource:
                     data = resource.read(MAX_INLINE_BYTES + 1)
                 if len(data) > MAX_INLINE_BYTES:
-                    raise ResourceError("This archive member exceeds the inline size limit.", 413)
+                    raise PreviewError("This archive member exceeds the inline size limit.", "too_large")
                 return {
                     "member": item.filename,
                     **_decode(item.filename, io.BytesIO(data), start, None, nested=True),
                 }
     if selected is not None:
-        raise ResourceError("This archive member is outside the preview listing.", 404)
+        raise PreviewError("This archive member is outside the preview listing.", "member_not_found")
     return {"kind": "archive", "members": members}
 
 
@@ -154,14 +163,14 @@ def _tar(stream, selected, start):
             members.append({"id": index, "name": member.name, "size": member.size})
             if selected == index:
                 if member.size > MAX_INLINE_BYTES:
-                    raise ResourceError("This archive member exceeds the inline size limit.", 413)
+                    raise PreviewError("This archive member exceeds the inline size limit.", "too_large")
                 with archive.extractfile(member) as resource:
                     return {
                         "member": member.name,
                         **_decode(member.name, io.BytesIO(resource.read()), start, None, nested=True),
                     }
     if selected is not None:
-        raise ResourceError("This archive member is outside the preview listing.", 404)
+        raise PreviewError("This archive member is outside the preview listing.", "member_not_found")
     return {"kind": "archive", "members": members}
 
 
@@ -178,13 +187,26 @@ def _decode(name, stream, start, member, *, nested=False):
     if _has(name, _TEXT | _IMAGES.keys()):
         data = _read(stream, MAX_INLINE_BYTES + 1)
         if len(data) > MAX_INLINE_BYTES:
-            raise ResourceError("The decoded file exceeds the inline size limit.", 413)
+            raise PreviewError("The decoded file exceeds the inline size limit.", "too_large")
         return _regular(name, data)
     return _regular(name, b"")
 
 
-def format_preview(name, content, start=0, member=None):
-    """Read only a bounded window from a recognized file or archive member."""
+def preview_file(
+    name: str, content: bytes, *, start: int = 0, member: int | None = None,
+) -> dict:
+    """Decode a bounded window from supplied bytes and return JSON-safe data.
+
+    ``start`` is a zero-based record offset and ``member`` selects an ID from
+    an archive listing. Callers supply the original filename and are responsible
+    for access and provenance checks before providing its contents.
+    """
+    if type(start) is not int or start < 0 or (
+        member is not None and (type(member) is not int or member < 0)
+    ):
+        raise PreviewError("Invalid preview window or member.", "invalid_selector")
+    if len(content) > preview_byte_limit(name):
+        raise PreviewError("The stored file exceeds its preview limit.", "too_large")
     try:
         with io.BytesIO(content) as stream:
             if content.startswith(b"\x1f\x8b"):
@@ -193,4 +215,4 @@ def format_preview(name, content, start=0, member=None):
                     return _decode(decoded_name, decoded, start, member)
             return _decode(name, stream, start, member)
     except (OSError, EOFError, RuntimeError, struct.error, tarfile.TarError, zipfile.BadZipFile, zlib.error):
-        raise ResourceError("The recorded file could not be decoded for preview.", 415) from None
+        raise PreviewError("The recorded file could not be decoded for preview.", "cannot_decode") from None
