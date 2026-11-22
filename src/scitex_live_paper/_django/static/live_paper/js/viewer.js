@@ -183,7 +183,10 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
-    outline: rootEl.querySelector(".lp-pdf-bookmarks"),
+    navigation: {
+      container: rootEl.querySelector("#live-paper-navigation"),
+      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
+    },
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,
@@ -202,14 +205,13 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  if (await viewer.load()) {
-    const download = rootEl.querySelector("#live-paper-download-pdf");
-    if (download) {
-      download.href = withBundleContext(apiBase + "pdf?download=1");
-      download.hidden = false;
-      bindPdfDownloads(rootEl, viewer.claims, download.href);
-    }
+  const download = rootEl.querySelector("#live-paper-download-pdf");
+  if (bundleInfo && download) {
+    download.href = withBundleContext(apiBase + "pdf?download=1");
+    download.hidden = false;
+    bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
+  await viewer.load();
 }
 
 /**

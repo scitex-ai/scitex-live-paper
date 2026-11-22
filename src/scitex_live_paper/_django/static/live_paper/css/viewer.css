@@ -79,7 +79,7 @@
   display: none;
 }
 
-#live-paper-root:has(.live-paper-claims[hidden]) .lp-reader-workspace {
+.lp-reader-workspace:has(> .live-paper-claims[hidden]) {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -1224,51 +1224,43 @@
   opacity: .55;
 }
 
-.lp-pdf-bookmarks {
-  position: relative;
-  color: var(--lp-accent);
-  z-index: 5;
+#live-paper-navigation {
+  --rpdf-nav-surface: var(--lp-surface);
+  --rpdf-nav-text: var(--lp-fg);
+  --rpdf-nav-border: var(--lp-border);
+  --rpdf-nav-hover: var(--lp-raised);
 }
 
-.lp-pdf-bookmarks > summary {
-  cursor: pointer;
+@container (min-width: 1001px) {
+  .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])) {
+    grid-template-columns: minmax(175px, 16%) minmax(0, 1fr) minmax(270px, 30%);
+  }
+
+  .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])):has(> .live-paper-claims[hidden]) {
+    grid-template-columns: minmax(175px, 16%) minmax(0, 1fr);
+  }
 }
 
-.lp-pdf-bookmarks nav {
-  position: absolute;
-  inset-block-start: calc(100% + 4px);
-  inset-inline-start: 0;
-  inline-size: min(22rem, 70vw);
-  max-block-size: min(24rem, 48dvh);
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 8px 12px;
-  color: var(--lp-fg);
-  background: var(--lp-surface);
-  border: 1px solid var(--lp-border);
-  border-radius: 6px;
+@container (max-width: 1000px) {
+  .lp-reader-workspace {
+    position: relative;
+  }
+
+  #live-paper-navigation:not([hidden]) {
+    position: absolute;
+    z-index: 5;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: min(240px, 72%);
+    box-shadow: 0 4px 16px #0003;
+  }
 }
 
-.lp-pdf-bookmarks ul {
-  list-style: none;
-  padding-inline-start: 12px;
-  margin: 0;
-}
-
-.lp-pdf-bookmarks nav > ul {
-  padding-inline-start: 0;
-}
-
-.lp-pdf-bookmarks button {
-  border: 0;
-  color: var(--lp-accent);
-  background: transparent;
-  padding: 4px 0;
-  text-align: start;
-}
-
-.lp-pdf-bookmarks button:is(:hover, :focus-visible) {
-  text-decoration: underline;
+@media print {
+  #live-paper-navigation,
+  .lp-pdf-navigation-toggle {
+    display: none !important;
+  }
 }
 
 .live-paper-pdf .lp-bibliography-highlight {

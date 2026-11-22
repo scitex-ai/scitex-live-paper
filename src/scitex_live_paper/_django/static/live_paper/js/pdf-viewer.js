@@ -1,10 +1,10 @@
 /** Native bundle adapter for LivePaper's public rich PDF provider.
  * This is the only place the PDF component knows the native bundle/API DTOs.
  */
-import { createRichPdfViewer } from "./pdf-provider.js";
+import { createPdfNavigation, createRichPdfViewer } from "./pdf-provider.js";
 import { withBundleContext } from "./_utils.js";
 import { pickAnchor } from "./claim-overlays.js";
-import { bindPdfNavigation } from "./pdf-navigation.js";
+import { createBibliographyHighlights } from "./bibliography-highlights.js";
 import { postComment } from "./comments.js";
 import { renderEvidencePreview } from "./claim-details.js";
 
@@ -30,14 +30,24 @@ export class PDFViewer {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    this.navigation = bindPdfNavigation(options.pdfjs, options.outline);
+    const bibliography = createBibliographyHighlights();
+    this.navigation = createPdfNavigation({
+      ...options.navigation,
+      pdfjs: options.pdfjs,
+      onDocument: bibliography.documentLoaded,
+    });
     this.container.classList.add("pdf-viewer-host");
     this.provider = createRichPdfViewer({
       container: this.container,
       feedContainer: options.feedContainer,
       createPdfViewer: options.createPdfViewer,
       rendererOptions: { pdfjs: this.navigation.runtime, workerSrc: options.workerSrc,
-        hooks: { onPageRender: this.navigation.pageRendered },
+        hooks: {
+          onPageRender: (page, _viewport, surface) => {
+            this.navigation.pageRendered(page, surface);
+            bibliography.pageRendered(page, surface);
+          },
+        },
         textLayer: true, linkLayer: true },
       ports: {
         documents: { resolve: (docType) => ({ id: String(docType || "manuscript"),
@@ -96,7 +106,7 @@ export class PDFViewer {
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
-      void this.navigation.load().catch((error) => console.warn("[pdf-viewer] navigation unavailable", error));
+      this.navigation.finishRender();
       this.watchFitWidth();
       return true;
     } catch (error) {
@@ -149,6 +159,7 @@ export class PDFViewer {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
     this.stopEvidencePane?.();
+    this.navigation.destroy();
     this.provider.destroy();
   }
 }
