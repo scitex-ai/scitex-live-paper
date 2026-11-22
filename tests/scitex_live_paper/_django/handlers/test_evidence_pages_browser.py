@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import gzip
 import hashlib
 import io
@@ -249,6 +250,23 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         with page.expect_download() as pending:
             page.get_by_role("link", name="Download PDF", exact=True).click()
         download = pending.value
+        page.get_by_text("PDF variants", exact=True).click()
+        exports = []
+        page_count = document.locator(".stx-pdf-page").count()
+        for title in ("With highlights", "With highlights and selected graph"):
+            with page.expect_download() as generated:
+                page.get_by_role("button", name=title, exact=True).click()
+            file = generated.value.path().read_bytes()
+            count = page.evaluate("""async encoded => {
+                const pdfjs = await import('/static/live_paper/pdfjs/pdf.min.mjs');
+                pdfjs.GlobalWorkerOptions.workerSrc = '/static/live_paper/pdfjs/pdf.worker.min.mjs';
+                const data = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+                const pdf = await pdfjs.getDocument({data}).promise;
+                const count = pdf.numPages;
+                await pdf.destroy();
+                return count;
+            }""", base64.b64encode(file).decode())
+            exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
         observed = (
             response.status, arrangement_ok, navigation_ok,
             row.get_attribute("aria-current"),
@@ -260,7 +278,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(),
+            page.locator(".lp-rich-preview").count(), exports,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -274,5 +292,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0,
+        [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )

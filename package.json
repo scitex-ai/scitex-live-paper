@@ -6,6 +6,7 @@
     "build:frontend": "node scripts/build-frontend.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.21.5"
+    "esbuild": "^0.21.5",
+    "pdf-lib": "1.17.1"
   }
 }
