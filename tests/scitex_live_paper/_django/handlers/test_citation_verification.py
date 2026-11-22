@@ -29,6 +29,7 @@ def test_citation_verdicts_are_bound_to_the_pdf(tmp_path):
 def test_author_interpretation_is_an_explicit_incoming_edge():
     graph = {
         "nodes": [
+            {"id": "raw", "label": "data.csv", "kind": "input", "author_registered": True},
             {"id": "result", "label": "result.json", "kind": "output"},
             {"id": "verified", "label": "The recorded value is above 0.5", "kind": "claim"},
             {"id": "interpreted", "label": "The method is reliable", "kind": "claim"},
@@ -38,6 +39,9 @@ def test_author_interpretation_is_an_explicit_incoming_edge():
             {"source": "result", "target": "interpreted", "relation": "author_interpretation"},
         ],
     }
-    source, _ = graph_to_mermaid(graph)
-    assert "n0 --> n1" in source
-    assert "n0 -->|Author interpretation| n2" in source
+    source, _ = graph_to_mermaid(graph, state="supported")
+    assert "n1 --> n2" in source
+    assert "n1 -->|Author interpretation| n3" in source
+    assert 'n0["Input · ✒ Author-registered source<br/>data.csv"]:::author_source' in source
+    assert 'n2["Claim<br/>The recorded value is above 0.5"]:::supported' in source
+    assert 'n3["Claim · ✒ Author interpretation<br/>The method is reliable"]:::supported' in source

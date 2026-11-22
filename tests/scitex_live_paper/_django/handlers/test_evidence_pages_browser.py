@@ -153,7 +153,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     (root / "samples.gz").write_bytes(grids)
     graph["nodes"].append({
         "id": "data", "kind": "input", "label": "samples.gz",
-        "hash": hashlib.sha256(grids).hexdigest(),
+        "hash": hashlib.sha256(grids).hexdigest(), "author_registered": True,
     })
     archive_bytes = io.BytesIO()
     with zipfile.ZipFile(archive_bytes, "w") as archive:
@@ -255,6 +255,11 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         graph = preview.locator(".lp-claim-dag svg")
         graph.wait_for()
         first_layout = graph.get_attribute("id")
+        marked_source = graph.locator("g.node.author_source")
+        assert "✒ Author-registered source" in marked_source.text_content()
+        assert marked_source.locator(":scope > rect").evaluate(
+            "node => getComputedStyle(node).stroke"
+        ) == "rgb(37, 135, 115)"
         reference = preview.get_by_role("button", name="Run analysis.py", exact=True)
         reference.hover()
         preview.get_by_text("print('computed value')", exact=True).wait_for()

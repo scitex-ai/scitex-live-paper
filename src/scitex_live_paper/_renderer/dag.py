@@ -225,10 +225,19 @@ def graph_to_mermaid(
     ids = {n["id"]: f"n{i}" for i, n in enumerate(graph["nodes"])}
     lines = ["graph LR"]
     provenance: dict[str, str] = {}
+    interpretations = {
+        edge["target"] for edge in graph["edges"]
+        if edge.get("relation") == "author_interpretation"
+    }
     for n in graph["nodes"]:
         kind, cls = _KIND_LABEL.get(n["kind"], (n["kind"].title(), "file"))
         if n["kind"] == "claim":
             cls = state or "registered"
+            if n["id"] in interpretations:
+                kind += " · ✒ Author interpretation"
+        elif n["kind"] in {"input", "output"} and n.get("author_registered") is True:
+            kind += " · ✒ Author-registered source"
+            cls = "author_source"
         failure = n.get("failure")
         marker = None
         if failure:
@@ -250,7 +259,8 @@ def graph_to_mermaid(
     lines += [
         "  classDef run fill:#e3f1fa,stroke:#005a8c",
         "  classDef file fill:#f6f8fa,stroke:#57606a",
-        "  classDef supported fill:#e3f1fa,stroke:#005a8c,stroke-width:3px",
+        "  classDef author_source fill:#e0f2ee,stroke:#258773",
+        "  classDef supported fill:#e6f4ea,stroke:#2ea043,stroke-width:3px",
         "  classDef not_supported fill:#fde6d8,stroke:#b34700,stroke-width:3px,stroke-dasharray:6 3",
         "  classDef not_checkable fill:#fdf0c8,stroke:#7a5400,stroke-width:3px,stroke-dasharray:2 2",
         "  classDef no_evidence_graph fill:#ececec,stroke:#4d4d4d,stroke-width:2px",

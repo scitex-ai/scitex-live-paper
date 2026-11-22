@@ -226,8 +226,11 @@ describes the recorded trace. Authors own the claim wording and source selection
 
 A Clew process node may carry a provider extension, `script`, with `file`
 (project-relative path) and `hash` (recorded script digest). Input and output
-nodes use their existing path label and hash. For bytes that the authorized
-host can still read, send `GET preview.json?claim_id=<id>&node_id=<graph-node-id>`.
+nodes use their existing path label and hash. Clew sets `author_registered: true`
+only when the recorded file hash matches a verified pin in the project's source
+manifest. Live Paper marks it as **Author-registered source**. To preview a
+file the authorized host can still read, send
+`GET preview.json?claim_id=<id>&node_id=<graph-node-id>`.
 The response gives the recorded file, stored size, and hash. Its `kind` can be
 `text`, `image`, `archive`, or `metadata`. Gzip files return metadata.
 ZIP and uncompressed TAR files can be listed or browsed with a returned
@@ -275,4 +278,5 @@ A sentence uses Clew's existing `text` claim type. An incoming edge to the
 claim node can carry `"relation": "author_interpretation"` when the author
 uses the result as the basis for an interpretation. Claims that can be
 compared directly to recorded results can use the same type without that
-edge label.
+edge label. Live Paper marks the interpreted claim with a pen and the label
+**Author interpretation**. The verification state describes the linked trace.

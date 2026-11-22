@@ -44,7 +44,7 @@ const FAILURE_MARK = '⚠';
 
 function kindFromLabel(label) {
   if (!label) return null;
-  const head = label.split(/<br\/?>|\n/, 1)[0].trim().toLowerCase();
+  const head = label.split(/<br\/?>|\n| · /, 1)[0].trim().toLowerCase();
   for (const [kind, prefix] of KIND_PREFIXES) {
     if (head === prefix.toLowerCase()) return kind;
   }

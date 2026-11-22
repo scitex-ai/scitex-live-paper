@@ -399,7 +399,7 @@
   --lp-status-unsourced: var(--lp-status-suspect);
   /* Evidence states (provider-neutral contract), colour-blind-safe hues.
    * "unassessed" = no evidence provider was available. */
-  --lp-status-supported: #005a8c;
+  --lp-status-supported: var(--lp-status-verified);
   --lp-status-not_supported: #b34700;
   --lp-status-not_checkable: #7a5400;
   --lp-status-no_evidence_graph: #4d4d4d;
@@ -1145,6 +1145,7 @@
 }
 
 #live-paper-root .lp-claim-dag-svg .node.run { --lp-dag-node-stroke: var(--lp-accent); }
+#live-paper-root .lp-claim-dag-svg .node.author_source { --lp-dag-node-stroke: #258773; }
 #live-paper-root .lp-claim-dag-svg .node.supported { --lp-dag-node-stroke: var(--lp-status-verified); }
 #live-paper-root .lp-claim-dag-svg .node.not_checkable { --lp-dag-node-stroke: var(--lp-status-suspect); }
 #live-paper-root .lp-claim-dag-svg .node:is(.not_supported, .failing) { --lp-dag-node-stroke: var(--lp-status-mismatch); }

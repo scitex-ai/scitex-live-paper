@@ -81,6 +81,7 @@ body.live-paper {
 }
 
 #lp-dag-source .node.run { --lp-dag-stroke: var(--lp-dag-link); }
+#lp-dag-source .node.author_source { --lp-dag-stroke: #258773; }
 #lp-dag-source .node.supported { --lp-dag-stroke: #2ea043; }
 #lp-dag-source .node.not_checkable { --lp-dag-stroke: #d29922; }
 #lp-dag-source .node:is(.not_supported, .failing) { --lp-dag-stroke: #f85149; }

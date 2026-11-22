@@ -11,11 +11,9 @@
  */
 
 :root {
-  /* Okabe-Ito colour-blind-safe hues; every state ALSO differs in its
-   * underline style and its leading symbol, so colour is never the only
-   * cue (WCAG 1.4.1). */
-  --lp-support-supported: #005a8c;          /* blue,  solid underline  ✓ */
-  --lp-support-supported-bg: #e3f1fa;
+  /* Each state also has its own underline style and symbol. */
+  --lp-support-supported: #176833;          /* green, solid underline  ✓ */
+  --lp-support-supported-bg: #e6f4ea;
   --lp-support-not_supported: #b34700;      /* vermillion, wavy        ✗ */
   --lp-support-not_supported-bg: #fde6d8;
   --lp-support-not_checkable: #7a5400;      /* orange, dashed          ? */
