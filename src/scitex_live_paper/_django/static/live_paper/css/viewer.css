@@ -191,6 +191,18 @@
   margin: 0;
 }
 
+/* The renderer gives each page an explicit size. Keep that space while
+ * Chromium skips layout and paint for pages far from the viewport. */
+.live-paper-pdf .stx-pdf-page {
+  content-visibility: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(#main-content, .workspace-pane):has(.lp-reader-document) {
+    scroll-behavior: smooth;
+  }
+}
+
 .pdf-page {
   margin: 0 auto 16px;
   background: #fff;
@@ -957,6 +969,32 @@
   }
 }
 
+@container (max-width: 750px) {
+  .lp-reader-workspace > .live-paper-claims:has(> .lp-claim-detail) {
+    position: fixed;
+    z-index: 30;
+    inset-inline: 0;
+    inset-block-end: 0;
+    max-block-size: min(56dvh, 460px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    background: var(--lp-raised);
+    border: 1px solid var(--lp-border);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .live-paper-claims:has(> .lp-claim-detail) > .lp-claims-list {
+    display: none;
+  }
+}
+
+/* Keep the mark aligned with the PDF glyphs while making it easier to hit. */
+#live-paper-pdf .lp-rich-overlay[data-appearance="highlight"]::after {
+  content: "";
+  position: absolute;
+  inset: -4px -6px;
+}
+
 #live-paper-pdf .lp-rich-overlay:focus-visible {
   outline: 2px solid var(--lp-accent);
   outline-offset: 1px;
@@ -1021,12 +1059,12 @@
   overflow-wrap: anywhere;
 }
 
-.lp-rich-preview .lp-claim-dag-svg {
+:is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg {
   max-block-size: 42vh;
   overflow: auto;
 }
 
-.lp-rich-preview .lp-claim-dag-svg svg {
+:is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg svg {
   max-block-size: 420px;
   min-inline-size: 220px;
 }

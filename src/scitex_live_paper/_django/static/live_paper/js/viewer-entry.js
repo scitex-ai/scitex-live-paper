@@ -689,6 +689,7 @@ async function renderCommentSection(containerEl, claimId, apiBase) {
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-details.js
 var graphSequence = 0;
+var detailRequests = /* @__PURE__ */ new WeakMap();
 function el2(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -698,10 +699,10 @@ function el2(tag, className, text) {
 function renderClaimDetail(sidebarEl, claim, apiBase) {
   const active = sidebarEl.querySelector(":scope > .lp-claim-detail");
   if (active?.dataset.claimId === claim.claim_id) return active;
-  closeClaimDetail(sidebarEl);
+  removeClaimDetail(sidebarEl);
   const pane = el2("div", "lp-claim-detail");
   pane.dataset.claimId = claim.claim_id;
-  pane.setAttribute("role", "dialog");
+  pane.setAttribute("role", "region");
   pane.setAttribute("aria-label", "Claim detail");
   const header = el2("div", "lp-claim-detail-header");
   header.appendChild(el2("code", "lp-claim-detail-id", claim.claim_id || "(no id)"));
@@ -743,10 +744,12 @@ function renderClaimDetail(sidebarEl, claim, apiBase) {
     prov.appendChild(item);
   }
   pane.appendChild(prov);
-  const dagBox = el2("div", "lp-claim-dag");
-  dagBox.appendChild(el2("p", "lp-claim-dag-loading", "Loading evidence graph\u2026"));
-  pane.appendChild(dagBox);
-  renderDagPane(dagBox, claim.claim_id, apiBase);
+  const controller = new AbortController();
+  detailRequests.set(pane, controller);
+  pane.ownerDocument.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+  }, { signal: controller.signal });
+  renderEvidenceDetails(pane, claim, apiBase, controller.signal);
   try {
     const commentsBox = el2("div", "lp-claim-comments-slot");
     pane.appendChild(commentsBox);
@@ -754,15 +757,26 @@ function renderClaimDetail(sidebarEl, claim, apiBase) {
   } catch (err) {
     console.warn("[live-paper] comments section failed:", err);
   }
-  sidebarEl.appendChild(pane);
+  sidebarEl.insertBefore(pane, sidebarEl.querySelector(".lp-claims-list"));
+  sidebarEl.scrollTop = 0;
   return pane;
 }
-function closeClaimDetail(sidebarEl) {
+function removeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector(":scope > .lp-claim-detail");
-  if (open) open.remove();
+  if (open) {
+    detailRequests.get(open)?.abort();
+    open.remove();
+  }
+}
+function closeClaimDetail(sidebarEl) {
+  delete sidebarEl.dataset.pinnedClaim;
+  removeClaimDetail(sidebarEl);
 }
 function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
+  renderEvidenceDetails(panel, claim, apiBase, signal);
+}
+function renderEvidenceDetails(panel, claim, apiBase, signal) {
   const graph = el2("div", "lp-claim-dag");
   graph.append(el2("p", "lp-claim-dag-loading", "Loading evidence graph\u2026"));
   panel.append(graph);
@@ -920,10 +934,13 @@ function bindReferences(dagBox, graph, references, selectReference) {
     node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-"))
   }));
   let activeReference;
+  let pinnedReference = false;
   let hoverTimer;
   const fallback = entries.length > 6 || entries.some(({ node }) => !node);
   const list = fallback ? el2("ul", "lp-claim-references") : null;
-  function activate(entry) {
+  function activate(entry, pin = false) {
+    if (pinnedReference && !pin) return;
+    if (pin) pinnedReference = true;
     const { reference, node } = entry;
     if (activeReference === reference.id) return;
     activeReference = reference.id;
@@ -940,7 +957,8 @@ function bindReferences(dagBox, graph, references, selectReference) {
     const { reference, node } = entry;
     const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
     const label = (role ? role + " " : "") + (reference.script_file || reference.label);
-    const select = () => activate(entry);
+    const select = () => activate(entry, true);
+    const preview = () => activate(entry);
     if (node) {
       node.setAttribute("role", "button");
       node.setAttribute("tabindex", "0");
@@ -965,11 +983,11 @@ function bindReferences(dagBox, graph, references, selectReference) {
       control.addEventListener("pointerenter", () => {
         clearTimeout(hoverTimer);
         hoverTimer = setTimeout(() => {
-          if (control.isConnected) select();
+          if (control.isConnected) preview();
         }, 80);
       });
       control.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
-      control.addEventListener("focus", select);
+      control.addEventListener("focus", preview);
     }
   }
   if (list) {
@@ -1072,6 +1090,7 @@ var PDFViewer = class {
       }
     });
     this.provider.renderer.setInteractive(false);
+    if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
   }
   setClaims(claims) {
     this.claims = claims || [];
@@ -1115,9 +1134,60 @@ var PDFViewer = class {
     return Math.round(this.provider.renderer.getScale() * 100);
   }
   destroy() {
+    this.stopEvidencePane?.();
     this.provider.destroy();
   }
 };
+function bindEvidencePane(container) {
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let lastScroll = -Infinity;
+  let hover;
+  function select(anchor, preview) {
+    if (!preview) {
+      for (const current of container.querySelectorAll('.lp-rich-overlay[aria-current="true"]')) {
+        current.removeAttribute("aria-current");
+      }
+      anchor.setAttribute("aria-current", "true");
+    }
+    container.dispatchEvent(new CustomEvent("live-paper:claim", {
+      bubbles: true,
+      detail: { id: anchor.dataset.overlayId, preview }
+    }));
+  }
+  container.ownerDocument.addEventListener("scroll", (event) => {
+    if (!event.target.contains?.(container)) return;
+    lastScroll = performance.now();
+    clearTimeout(hover);
+  }, { capture: true, passive: true, signal });
+  container.addEventListener("pointerenter", (event) => {
+    const anchor = event.target;
+    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    event.stopImmediatePropagation();
+    if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
+    clearTimeout(hover);
+    hover = setTimeout(() => {
+      if (anchor.isConnected) select(anchor, true);
+    }, 160);
+  }, { capture: true, signal });
+  container.addEventListener("pointerleave", (event) => {
+    if (event.target.matches?.(".lp-rich-overlay")) clearTimeout(hover);
+  }, { capture: true, signal });
+  container.addEventListener("focus", (event) => {
+    if (event.target.matches?.(".lp-rich-overlay")) event.stopImmediatePropagation();
+  }, { capture: true, signal });
+  container.addEventListener("click", (event) => {
+    const anchor = event.target.closest?.(".lp-rich-overlay");
+    if (!anchor) return;
+    event.stopImmediatePropagation();
+    clearTimeout(hover);
+    select(anchor, false);
+  }, { capture: true, signal });
+  return () => {
+    clearTimeout(hover);
+    listeners.abort();
+  };
+}
 
 // src/scitex_live_paper/_django/static/live_paper/js/reverify-all.js
 function renderReverifyAllButton(apiBase, pinnedCommit) {
@@ -1252,8 +1322,10 @@ function renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit) {
   li.classList.add("lp-claim-selectable");
   li.addEventListener("click", function(event) {
     if (event.target.closest("button")) return;
-    const sidebar = li.closest(".live-paper-claims");
-    if (sidebar) renderClaimDetail(sidebar, claim, apiBase);
+    li.dispatchEvent(new CustomEvent("live-paper:claim", {
+      bubbles: true,
+      detail: { id: claim.claim_id, preview: false }
+    }));
   });
   const valueSpan = document.createElement("span");
   valueSpan.className = "lp-claim-value";
@@ -1700,10 +1772,9 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      const pane = renderClaimDetail(sidebar, claim, apiBase);
-      if (!event.detail?.preview && getComputedStyle(sidebar).position !== "sticky") {
-        pane.scrollIntoView({ block: "nearest" });
-      }
+      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
+      if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
+      renderClaimDetail(sidebar, claim, apiBase);
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
@@ -1711,7 +1782,7 @@ async function boot(rootEl) {
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
     ...sidebarOptions,
-    inlineEvidence: true,
+    evidencePane: true,
     container: pdfContainer,
     pdfjs,
     createPdfViewer,

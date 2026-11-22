@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import os
 import shutil
 import struct
 import threading
+import zipfile
 from pathlib import Path
 from wsgiref.simple_server import WSGIRequestHandler, make_server
 
@@ -136,6 +138,16 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         "id": "data", "kind": "input", "label": "samples.gz",
         "hash": hashlib.sha256(grids).hexdigest(),
     })
+    archive_bytes = io.BytesIO()
+    with zipfile.ZipFile(archive_bytes, "w") as archive:
+        archive.writestr("notes.txt", "Archived source notes")
+    stored_archive = archive_bytes.getvalue()
+    (root / "sources.zip").write_bytes(stored_archive)
+    graph["nodes"].append({
+        "id": "archive", "kind": "input", "label": "sources.zip",
+        "hash": hashlib.sha256(stored_archive).hexdigest(),
+    })
+    graph["edges"].append({"source": "archive", "target": "p1"})
     graph["edges"].append({"source": "data", "target": "p1"})
     graph["edges"].append({"source": "p1", "target": "output"})
     server = make_server(
@@ -154,6 +166,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         response = page.goto(base + f"?project=alice&embed={int(embed)}")
         document = page.get_by_role("region", name="Manuscript", exact=True)
         document.locator("canvas").first.wait_for()
+        page.get_by_role("link", name="Download PDF", exact=True).wait_for()
         inspector = page.get_by_role("complementary", name="Claim evidence")
         row = inspector.locator(".scitex-rich-pdf-feed button").first
         row.wait_for()
@@ -179,8 +192,19 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             const verified = style.getPropertyValue("--lp-status-verified").trim();
             return Boolean(verified) && style.getPropertyValue("--lp-rich-mark").trim() === verified;
         }""").json_value()
+        overlay.scroll_into_view_if_needed()
+        snapped = overlay.evaluate("""button => {
+            const rect = button.getBoundingClientRect();
+            return document.elementFromPoint(rect.left - 3, rect.top + rect.height / 2) === button;
+        }""")
+        overlay.evaluate("""button => {
+            document.dispatchEvent(new Event('scroll'));
+            button.dispatchEvent(new PointerEvent('pointerenter', {pointerType: 'mouse'}));
+        }""")
+        page.wait_for_timeout(190)
+        preview = inspector.get_by_role("region", name="Claim detail")
+        hover_during_scroll = preview.count() > 0
         overlay.hover()
-        preview = page.locator(".lp-rich-preview")
         preview.get_by_role("heading", name="Evidence graph (recorded-test-evidence)").wait_for()
         graph = preview.locator(".lp-claim-dag svg")
         graph.wait_for()
@@ -197,10 +221,21 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         trace_summary.wait_for()
         marked = overlay.get_attribute("data-appearance") == "highlight"
         source_selected = reference.get_attribute("aria-pressed")
-        overlay.click()
-        preview.get_by_role("button", name="Input samples.gz", exact=True).hover()
+        reference.click()
+        gzip_node = preview.get_by_role("button", name="Input samples.gz", exact=True)
+        gzip_node.hover()
+        page.wait_for_timeout(110)
+        pinned_source = preview.get_by_text("print('computed value')", exact=True).is_visible()
+        gzip_node.click()
         preview.get_by_text("Gzip-compressed file.", exact=False).wait_for()
         guessed_images = preview.locator(".lp-source-preview canvas, .lp-source-preview img").count()
+        preview.get_by_role("button", name="Input sources.zip", exact=True).click()
+        archive_member = preview.get_by_role("button", name="notes.txt", exact=True)
+        archive_member.click()
+        preview.get_by_text("Archived source notes", exact=True).wait_for()
+        preview.get_by_role("button", name="Archive contents", exact=True).click()
+        archive_member.wait_for()
+        archive_round_trip = archive_member.is_visible()
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         overlay.focus()
@@ -217,13 +252,15 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         observed = (
             response.status, arrangement_ok, navigation_ok,
             row.get_attribute("aria-current"),
-            inspector.get_by_role("dialog", name="Claim detail").is_visible(),
+            preview.is_visible(),
             page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
             overlay_selected,
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
+            snapped, hover_during_scroll, pinned_source, archive_round_trip,
+            page.locator(".lp-rich-preview").count(),
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -237,5 +274,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0
     )

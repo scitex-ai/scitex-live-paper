@@ -13,6 +13,7 @@ import { withBundleContext } from "./_utils.js";
 import { renderCommentSection } from "./comments.js";
 
 let graphSequence = 0;
+const detailRequests = new WeakMap();
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -24,10 +25,10 @@ function el(tag, className, text) {
 export function renderClaimDetail(sidebarEl, claim, apiBase) {
   const active = sidebarEl.querySelector(":scope > .lp-claim-detail");
   if (active?.dataset.claimId === claim.claim_id) return active;
-  closeClaimDetail(sidebarEl);
+  removeClaimDetail(sidebarEl);
   const pane = el("div", "lp-claim-detail");
   pane.dataset.claimId = claim.claim_id;
-  pane.setAttribute("role", "dialog");
+  pane.setAttribute("role", "region");
   pane.setAttribute("aria-label", "Claim detail");
 
   const header = el("div", "lp-claim-detail-header");
@@ -69,10 +70,12 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
   }
   pane.appendChild(prov);
 
-  const dagBox = el("div", "lp-claim-dag");
-  dagBox.appendChild(el("p", "lp-claim-dag-loading", "Loading evidence graph…"));
-  pane.appendChild(dagBox);
-  renderDagPane(dagBox, claim.claim_id, apiBase);
+  const controller = new AbortController();
+  detailRequests.set(pane, controller);
+  pane.ownerDocument.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+  }, { signal: controller.signal });
+  renderEvidenceDetails(pane, claim, apiBase, controller.signal);
 
   // Anchored comments (provider item 4): list + add form for this
   // claim. Best-effort — a comments outage must not break the pane.
@@ -84,17 +87,30 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
     console.warn("[live-paper] comments section failed:", err);
   }
 
-  sidebarEl.appendChild(pane);
+  sidebarEl.insertBefore(pane, sidebarEl.querySelector(".lp-claims-list"));
+  sidebarEl.scrollTop = 0;
   return pane;
 }
 
-export function closeClaimDetail(sidebarEl) {
+function removeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector(":scope > .lp-claim-detail");
-  if (open) open.remove();
+  if (open) {
+    detailRequests.get(open)?.abort();
+    open.remove();
+  }
+}
+
+export function closeClaimDetail(sidebarEl) {
+  delete sidebarEl.dataset.pinnedClaim;
+  removeClaimDetail(sidebarEl);
 }
 
 export function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
+  renderEvidenceDetails(panel, claim, apiBase, signal);
+}
+
+function renderEvidenceDetails(panel, claim, apiBase, signal) {
   const graph = el("div", "lp-claim-dag");
   graph.append(el("p", "lp-claim-dag-loading", "Loading evidence graph…"));
   panel.append(graph);
@@ -255,11 +271,14 @@ function bindReferences(dagBox, graph, references, selectReference) {
     node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-")),
   }));
   let activeReference;
+  let pinnedReference = false;
   let hoverTimer;
   const fallback = entries.length > 6 || entries.some(({ node }) => !node);
   const list = fallback ? el("ul", "lp-claim-references") : null;
 
-  function activate(entry) {
+  function activate(entry, pin = false) {
+    if (pinnedReference && !pin) return;
+    if (pin) pinnedReference = true;
     const { reference, node } = entry;
     if (activeReference === reference.id) return;
     activeReference = reference.id;
@@ -277,7 +296,8 @@ function bindReferences(dagBox, graph, references, selectReference) {
     const { reference, node } = entry;
     const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
     const label = (role ? role + " " : "") + (reference.script_file || reference.label);
-    const select = () => activate(entry);
+    const select = () => activate(entry, true);
+    const preview = () => activate(entry);
     if (node) {
       node.setAttribute("role", "button");
       node.setAttribute("tabindex", "0");
@@ -301,10 +321,10 @@ function bindReferences(dagBox, graph, references, selectReference) {
     for (const control of [node, entry.button].filter(Boolean)) {
       control.addEventListener("pointerenter", () => {
         clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => { if (control.isConnected) select(); }, 80);
+        hoverTimer = setTimeout(() => { if (control.isConnected) preview(); }, 80);
       });
       control.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
-      control.addEventListener("focus", select);
+      control.addEventListener("focus", preview);
     }
   }
 
