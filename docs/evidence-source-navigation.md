@@ -4,6 +4,8 @@
 
 The first release answers one question: **Which script produced this figure or value?** Hover over a claim rectangle to see the script name and recorded run ID. Hover over the script row for a short inline preview. Click the rectangle to pin the popup, or tap to open it on a touch screen. **Open current file** opens the project file when available. **Open full evidence graph** lets the reader inspect the chain. The feed still works for browsing the paper.
 
+Use one panel as the reader drills down. The claim summary leads to the script preview, and the preview can expose the recorded run ID and graph link. Keep the claim label visible so the reader can trace a detail back to its place in the paper. Semantic Reader's citation cards show the entry point from a paper. VS Code's Peek Definition shows how to inspect the next layer in place. [Semantic Reader research](https://arxiv.org/abs/2303.14334) · [VS Code Peek](https://code.visualstudio.com/docs/editing/editingevolved#_peek)
+
 ## Three package responsibilities
 
 - **Clew** identifies the producing run and supplies one optional script record on its process node. That record carries the run ID, script name, recorded hash, and Clew's icon and color roles. The same cues can appear on the corresponding node in the full graph. [Clew graph projection](https://github.com/scitex-ai/scitex-clew/blob/57ad743/src/scitex_clew/_evidence_provider/_graph.py)
