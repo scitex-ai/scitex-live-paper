@@ -381,6 +381,24 @@
   border-left: 3px solid var(--lp-status-registered);
 }
 
+/* Apply the claim feed palette to Rich PDF's shared highlight and region styles. */
+.pdf-viewer-host .lp-rich-overlay[data-appearance] {
+  --lp-rich-mark: var(--lp-status-registered);
+}
+.pdf-viewer-host .lp-rich-overlay[data-appearance][data-status="verified"] {
+  --lp-rich-mark: var(--lp-status-verified);
+}
+.pdf-viewer-host .lp-rich-overlay[data-appearance][data-status="suspect"],
+.pdf-viewer-host .lp-rich-overlay[data-appearance][data-status="unsourced"] {
+  --lp-rich-mark: var(--lp-status-suspect);
+}
+.pdf-viewer-host .lp-rich-overlay[data-appearance][data-status="mismatch"] {
+  --lp-rich-mark: var(--lp-status-mismatch);
+}
+.pdf-viewer-host .lp-rich-overlay[data-appearance][data-status="missing"] {
+  --lp-rich-mark: var(--lp-status-missing);
+}
+
 .lp-claim[data-status="verified"] {
   border-left-color: var(--lp-status-verified);
 }

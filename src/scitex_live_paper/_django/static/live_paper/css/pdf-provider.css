@@ -46,20 +46,11 @@
 @media print { .scitex-rich-pdf-feed { display: none !important; } }
 
 .lp-rich-overlay[data-appearance] {
-  --lp-rich-mark: var(--lp-status-registered, #6e7681);
+  --lp-rich-mark: #d8ab36;
 }
-.lp-rich-overlay[data-appearance][data-status="verified"] {
-  --lp-rich-mark: var(--lp-status-verified, #2ea043);
-}
-.lp-rich-overlay[data-appearance][data-status="suspect"],
-.lp-rich-overlay[data-appearance][data-status="unsourced"] {
-  --lp-rich-mark: var(--lp-status-suspect, #d29922);
-}
-.lp-rich-overlay[data-appearance][data-status="mismatch"] {
-  --lp-rich-mark: var(--lp-status-mismatch, #f85149);
-}
+.lp-rich-overlay[data-appearance][data-status="mismatch"],
 .lp-rich-overlay[data-appearance][data-status="missing"] {
-  --lp-rich-mark: var(--lp-status-missing, #a40e26);
+  --lp-rich-mark: #d7584b;
 }
 .lp-rich-overlay[data-appearance="highlight"] {
   appearance: none;
