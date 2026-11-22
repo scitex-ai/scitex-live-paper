@@ -170,19 +170,38 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         page.get_by_role("link", name="Download PDF", exact=True).wait_for()
         inspector = page.get_by_role("complementary", name="Claim evidence")
         row = inspector.locator(".scitex-rich-pdf-feed button").first
-        row.wait_for()
         pdf = document.bounding_box()
-        evidence = inspector.bounding_box()
         if embed:
-            arrangement_ok = evidence["y"] > pdf["y"]
-            page.get_by_role("link", name="Claim evidence", exact=True).click()
-            navigation_ok = page.evaluate("location.hash") == "#live-paper-claims"
+            arrangement_ok = not inspector.is_visible()
+            toggle = page.get_by_role("button", name="Claim evidence", exact=True)
+            toggle.click()
+            row.wait_for()
+            navigation_ok = inspector.evaluate(
+                "node => getComputedStyle(node).position === 'absolute'"
+            )
+            toggle.click()
         else:
+            row.wait_for()
+            evidence = inspector.bounding_box()
             arrangement_ok = (
                 abs(evidence["y"] - pdf["y"]) < 2
                 and evidence["x"] >= pdf["x"] + pdf["width"]
             )
             navigation_ok = pdf["width"] > 600
+        scroller = document.evaluate("""node => ({
+            document: node.scrollTop,
+            host: window.scrollY,
+            evidence: document.querySelector('#live-paper-claims').scrollTop,
+        })""")
+        page.mouse.move(pdf["x"] + pdf["width"] / 2, pdf["y"] + pdf["height"] / 2)
+        page.mouse.wheel(0, 450)
+        page.wait_for_function(
+            "document.querySelector('.lp-reader-document').scrollTop > 0"
+        )
+        isolated_scroll = document.evaluate("""(node, before) =>
+            window.scrollY === before.host &&
+            document.querySelector('#live-paper-claims').scrollTop === before.evidence
+        """, scroller)
         overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
         mark_status = overlay.get_attribute("data-status")
@@ -194,6 +213,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             return Boolean(verified) && style.getPropertyValue("--lp-rich-mark").trim() === verified;
         }""").json_value()
         overlay.scroll_into_view_if_needed()
+        page.wait_for_timeout(190)
         snapped = overlay.evaluate("""button => {
             const rect = button.getBoundingClientRect();
             return document.elementFromPoint(rect.left - 3, rect.top + rect.height / 2) === button;
@@ -214,6 +234,12 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         preview.get_by_text("print('computed value')", exact=True).wait_for()
         graph.locator("g.lp-source-highlight").wait_for()
         language = preview.locator("pre code").get_attribute("class")
+        preview_has_background = preview.locator(".lp-source-preview pre").evaluate(
+            "node => getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)'"
+        )
+        comment_height = preview.get_by_role("button", name="Comment", exact=True).evaluate(
+            "node => node.getBoundingClientRect().height"
+        )
         source_lists = preview.get_by_text("Browse sources", exact=True).count()
         source_link_is_claim_bound = "claim_id=value" in preview.get_by_role(
             "link", name="Open full evidence graph"
@@ -245,6 +271,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         focus_restored = overlay.evaluate("button => button === document.activeElement")
+        if embed:
+            toggle.click()
         row.click()
         overlay_selected = overlay.get_attribute("aria-current") == "true"
         with page.expect_download() as pending:
@@ -268,7 +296,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             }""", base64.b64encode(file).decode())
             exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
         observed = (
-            response.status, arrangement_ok, navigation_ok,
+            response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),
             preview.is_visible(),
             page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
@@ -278,7 +306,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(), exports,
+            page.locator(".lp-rich-preview").count(), preview_has_background, comment_height >= 30, exports,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -292,6 +320,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0,
+        200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0, True, True,
         [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )

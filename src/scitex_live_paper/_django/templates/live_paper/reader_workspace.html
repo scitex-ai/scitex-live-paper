@@ -3,7 +3,7 @@
   <p id="live-paper-loading" role="status">Loading manuscript…</p>
   <div id="live-paper-bundle-header" hidden></div>
   <div class="lp-reader-actions">
-    {% if not empty_reason %}<a class="lp-reader-evidence-link" href="#live-paper-claims">Claim evidence</a>{% endif %}
+    {% if not empty_reason %}<button type="button" class="stx-button lp-reader-evidence-toggle" aria-controls="live-paper-claims" aria-expanded="false">Claim evidence</button>{% endif %}
     <a id="live-paper-download-pdf" hidden>Download PDF</a>
     <details class="lp-pdf-variants" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
       <summary>PDF variants</summary>
@@ -22,7 +22,7 @@
 {% if not empty_reason %}
 <div class="lp-verification-banner" id="live-paper-trace-status" hidden></div>
 <div class="lp-reader-workspace">
-  <section aria-label="Manuscript" class="lp-reader-document">
+  <section aria-label="Manuscript" tabindex="0" class="lp-reader-document">
     <div id="live-paper-pdf" class="live-paper-pdf"></div>
   </section>
   <aside aria-label="Claim evidence" id="live-paper-claims" class="live-paper-claims" hidden></aside>

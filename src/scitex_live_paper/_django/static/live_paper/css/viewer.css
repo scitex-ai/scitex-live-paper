@@ -16,6 +16,13 @@
   line-height: 1.5;
 }
 
+#live-paper-root:has(.lp-reader-workspace) {
+  display: flex;
+  flex-direction: column;
+  block-size: var(--lp-reader-height, 100dvh);
+  overflow: clip;
+}
+
 .live-paper-embed {
   margin: 0;
   background: var(--bg-primary, #faf9f6);
@@ -26,7 +33,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(270px, 30%);
   gap: clamp(16px, 2vw, 28px);
-  align-items: start;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  min-block-size: 0;
 }
 
 .lp-reader-document,
@@ -35,6 +44,10 @@
 }
 
 .lp-reader-document {
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: var(--lp-raised);
   border: 1px solid var(--lp-border);
   border-radius: 8px;
@@ -62,7 +75,7 @@
   color: var(--lp-accent);
 }
 
-.lp-reader-actions .lp-reader-evidence-link {
+.lp-reader-actions .lp-reader-evidence-toggle {
   display: none;
 }
 
@@ -72,11 +85,12 @@
 
 @container (max-width: 750px) {
   .lp-reader-workspace {
+    position: relative;
     grid-template-columns: minmax(0, 1fr);
   }
 
-  #live-paper-root:has(.live-paper-claims:not([hidden])) .lp-reader-evidence-link {
-    display: inline;
+  #live-paper-root:has(.live-paper-claims:not([hidden])) .lp-reader-evidence-toggle {
+    display: inline-flex;
   }
 }
 
@@ -197,15 +211,15 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  :where(#main-content, .workspace-pane):has(.lp-reader-document) {
+  .lp-reader-document {
     scroll-behavior: smooth;
   }
 }
 
 /* Native PDF citation and reference links remain separate from evidence marks. */
 .live-paper-pdf [data-stx-pdf-layer="links"] > a {
-  background: #3282d12b;
-  box-shadow: inset 0 -1px #2364a3;
+  background: #3282d14d;
+  box-shadow: inset 0 -2px #2364a3;
   border-radius: 2px;
 }
 
@@ -845,6 +859,7 @@
   }
 
   .lp-reader-document {
+    overflow: visible;
     border: 0;
     padding: 0;
   }
@@ -854,7 +869,14 @@
     margin: 0;
   }
 
-  #live-paper-root {
+  .live-paper-pdf .stx-pdf-page {
+    content-visibility: visible;
+  }
+
+  #live-paper-root:has(.lp-reader-workspace) {
+    display: block;
+    block-size: auto;
+    overflow: visible;
     max-width: none;
     padding: 0;
   }
@@ -945,8 +967,6 @@
 
 .lp-comments-input {
   width: 100%;
-  font: inherit;
-  font-size: 13px;
 }
 
 .lp-comments-form-row {
@@ -957,14 +977,6 @@
 
 .lp-comments-author {
   flex: 1;
-  font: inherit;
-  font-size: 12px;
-}
-
-.lp-comments-submit {
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
 }
 
 .lp-comments-error {
@@ -974,20 +986,23 @@
 
 @container (min-width: 751px) {
   .lp-reader-workspace > .live-paper-claims {
-    position: sticky;
-    inset-block-start: var(--lp-evidence-top, 12px);
-    max-block-size: calc(100vh - 100px - var(--lp-evidence-top, 12px));
+    min-block-size: 0;
     overflow: auto;
+    overscroll-behavior: contain;
   }
 }
 
 @container (max-width: 750px) {
-  .lp-reader-workspace > .live-paper-claims:has(> .lp-claim-detail) {
-    position: fixed;
-    z-index: 30;
+  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(> .lp-claim-detail)) {
+    display: none;
+  }
+
+  .lp-reader-workspace > .live-paper-claims:is([data-drawer-open], :has(> .lp-claim-detail)) {
+    position: absolute;
+    z-index: 3;
     inset-inline: 0;
     inset-block-end: 0;
-    max-block-size: min(56dvh, 460px);
+    max-block-size: min(100%, 56dvh, 460px);
     overflow: auto;
     overscroll-behavior: contain;
     background: var(--lp-raised);
@@ -1110,10 +1125,21 @@
   font-size: 0.78rem;
 }
 
+/* The shared syntax tokens are light and require a dark code surface. */
 .lp-source-preview pre {
+  background: #20262e;
+  color: #e6edf3;
+  border: 1px solid var(--lp-border);
+  border-radius: 4px;
+  padding: 8px 10px;
   overflow: auto;
   max-block-size: 13rem;
   white-space: pre;
+}
+
+.lp-source-preview pre > code {
+  color: inherit;
+  background: transparent;
 }
 
 .lp-source-preview img {
@@ -1123,14 +1149,7 @@
   object-fit: contain;
 }
 
-#live-paper-root:has(.lp-verification-banner:not([hidden])) {
-  --lp-evidence-top: 50px;
-}
-
 .lp-verification-banner {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 4;
   background: var(--lp-surface);
   padding: 6px 12px;
   border: 1px solid var(--lp-border);
