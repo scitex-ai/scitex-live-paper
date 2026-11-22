@@ -1065,15 +1065,26 @@ var PDFViewer = class {
             return toComment(comment);
           }
         },
-        preview: { render: (panel, overlay, signal) => {
+        preview: options.inlineEvidence && { render: (panel, overlay, signal) => {
           const claim = this.claims.find((claim2) => claim2.claim_id === overlay.id);
           if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal);
         } },
         events: { emit: (event) => {
-          if (event.type === "feed-select") {
+          const fromFeed = event.type === "feed-select";
+          const fromOverlay = !options.inlineEvidence && event.overlay && (event.type === "overlay-select" || event.type === "overlay-preview");
+          if (fromFeed || fromOverlay) {
             this.container.dispatchEvent(new CustomEvent("live-paper:claim", {
               bubbles: true,
-              detail: { id: event.entry.id }
+              detail: {
+                id: fromFeed ? event.entry.id : event.overlay.id,
+                preview: event.type === "overlay-preview"
+              }
+            }));
+          }
+          if (fromOverlay && event.type === "overlay-select" && event.overlay.target?.figureId) {
+            this.container.dispatchEvent(new CustomEvent("live-paper:evidence-request", {
+              bubbles: true,
+              detail: { port: "figure", target: event.overlay.target.figureId }
             }));
           }
           this.container.dispatchEvent(new CustomEvent("live-paper:pdf", { bubbles: true, detail: event }));
@@ -1720,6 +1731,7 @@ async function boot(rootEl) {
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    inlineEvidence: true,
     container: pdfContainer,
     pdfjs,
     createPdfViewer,

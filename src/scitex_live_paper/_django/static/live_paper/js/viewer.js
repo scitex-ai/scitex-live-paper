@@ -181,6 +181,7 @@ async function boot(rootEl) {
   const pdfContainer = ensurePdfContainer(rootEl);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    inlineEvidence: true,
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,
