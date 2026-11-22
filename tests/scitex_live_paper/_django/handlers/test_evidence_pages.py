@@ -284,6 +284,37 @@ def test_viewer_links_to_the_bound_manuscript_when_report_exists(evidence_host):
     assert observed == [(200, True, True, True)] * 2
 
 
+def test_pdf_backed_paper_redirects_to_the_bound_viewer(evidence_host):
+    # Arrange
+    report = evidence_host.reports["alice"]
+    report["claims"][0]["location"] = {"file": "manuscript.pdf", "line": None}
+    # Act
+    response = evidence_host.client.get(
+        "/mounted/paper/paper.html",
+        {"project": "alice", "embed": "1", "working_dir": "chosen"},
+        follow=True,
+    )
+    # Assert
+    assert (
+        response.redirect_chain,
+        response.status_code,
+        b"viewer-entry.js" in response.content,
+        b"Read manuscript with evidence" in response.content,
+    ) == ([("/mounted/paper/?project=alice&embed=1&working_dir=chosen", 302)], 200, True, False)
+
+
+def test_paper_keeps_text_sources_in_a_mixed_report(evidence_host):
+    # Arrange
+    report = evidence_host.reports["alice"]
+    pdf_claim = copy.deepcopy(report["claims"][0])
+    pdf_claim.update(claim_id="pdf-value", location={"file": "manuscript.pdf", "line": None})
+    report["claims"].append(pdf_claim)
+    # Act
+    response = get(evidence_host)
+    # Assert
+    assert (response.status_code, b"alice private manuscript" in response.content) == (200, True)
+
+
 @pytest.mark.parametrize("field,value", [("claim_id", {}), ("source", ["invalid"]), ("stated_text", 21)])
 def test_malformed_report_fields_return_a_sanitized_contract_error(evidence_host, field, value):
     # Arrange

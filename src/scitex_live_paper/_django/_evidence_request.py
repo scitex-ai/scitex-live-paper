@@ -11,6 +11,7 @@ try:
 except ImportError as exc:
     raise ImportError("Mounted evidence requires scitex-live-paper[server]") from exc
 
+from scitex_live_paper._renderer.paper import manuscript_text_entries
 from scitex_live_paper.evidence import ContractError, build_review_packet, validate_report
 
 from . import services
@@ -78,21 +79,19 @@ def request_evidence(request):
 
 
 def manuscript_url(request):
-    """Offer the manuscript route when this authorized bundle has evidence."""
+    """Offer the HTML reader when the authorized report names manuscript text."""
     from scitex_live_paper.bundle import BundleMissingError
 
     context = getattr(request, "live_paper_context", None)
     if getattr(request, "live_paper_empty_reason", None):
         return None
-    if getattr(context, "evidence_report", None) is not None:
-        return resource_url(request, "paper.html")
     if context is None:
         try:
             services.resolve_bundle_path()
         except RuntimeError:  # An unconfigured shell has no bundle to advertise.
             return None
     try:
-        request_evidence(request)
+        _, review = request_evidence(request)
     except BundleMissingError:
         return None
     except ResourceError as error:
@@ -100,4 +99,5 @@ def manuscript_url(request):
             return None
         # A present, invalid or inaccessible report still has an actionable
         # route; opening it surfaces the precise refusal instead of hiding it.
-    return resource_url(request, "paper.html")
+        return resource_url(request, "paper.html")
+    return resource_url(request, "paper.html") if manuscript_text_entries(review) else None

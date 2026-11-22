@@ -8,15 +8,16 @@ from tempfile import TemporaryDirectory
 
 try:
     from django.conf import settings
-    from django.http import HttpResponse
+    from django.http import HttpResponse, HttpResponseRedirect
 except ImportError as exc:
     raise ImportError("Evidence pages require scitex-live-paper[server]") from exc
 
 from scitex_live_paper._renderer.dag import render_claim_graph
-from scitex_live_paper._renderer.paper import render_paper
+from scitex_live_paper._renderer.paper import manuscript_text_entries, render_paper
 from scitex_live_paper.bundle import BundleMissingError
 from scitex_live_paper.evidence import find_claim, review_text
 
+from .. import services
 from .._evidence_files import DEFAULT_MAX_TEXT_BYTES, ResourceError, ResourceReader
 from .._evidence_request import request_evidence, resource_url
 
@@ -28,7 +29,10 @@ _CSP = (
 
 
 def _response(body, *, status=200, content_type="text/html; charset=utf-8"):
-    response = HttpResponse(body, status=status, content_type=content_type)
+    return _private_response(HttpResponse(body, status=status, content_type=content_type))
+
+
+def _private_response(response):
     response["Cache-Control"] = "private, no-store"
     response["Vary"] = "Cookie, Authorization"
     response["X-Content-Type-Options"] = "nosniff"
@@ -71,6 +75,12 @@ def _page(request, kind):
             )
         if kind == "review.txt":
             return _response(review_text(packet), content_type="text/plain; charset=utf-8")
+        if kind == "paper.html" and not manuscript_text_entries(packet):
+            bundle = services.get_request_bundle_state(request).bundle
+            if bundle.manuscript_path.suffix.lower() == ".pdf":
+                return _private_response(HttpResponseRedirect(resource_url(request, "")))
+            raise ResourceError("No registered manuscript text is available", 404)
+
         def asset(name):
             return resource_url(request, "assets", name=name)
         paper_url = resource_url(request, "paper.html")

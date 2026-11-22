@@ -168,6 +168,16 @@ def claims_data(review: Mapping[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def manuscript_text_entries(review: Mapping[str, Any]) -> dict[str, list[Mapping[str, Any]]]:
+    """Group claims by text source, excluding PDF regions."""
+    by_file: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in iter_entries(review):
+        source = entry["location"].get("file")
+        if source and Path(source).suffix.lower() != ".pdf":
+            by_file.setdefault(source, []).append(entry)
+    return by_file
+
+
 def render_paper(
     review: Mapping[str, Any],
     out_dir: str | Path,
@@ -190,11 +200,7 @@ def render_paper(
     if base is None and read_text is None:
         return None
     root = Path(base) if base is not None else None
-    by_file: dict[str, list[Mapping[str, Any]]] = {}
-    for e in iter_entries(review):
-        f = e["location"].get("file")
-        if f:
-            by_file.setdefault(f, []).append(e)
+    by_file = manuscript_text_entries(review)
 
     sections = []
     for rel in sorted(by_file):
