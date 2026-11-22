@@ -74,6 +74,7 @@ async function boot(rootEl) {
     renderEmptyState(rootEl, emptyReason);
     return;
   }
+  bindReaderLayout(rootEl);
   // CCT 3000 overlay wiring: port bus serves evidence popups for
   // overlay regions; the event log records the session for the
   // archive sidecar (PDF + event-log). Both bind once at boot.
@@ -241,6 +242,29 @@ export async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " · ", verified, " · ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+
+function bindReaderLayout(rootEl) {
+  const header = rootEl.previousElementSibling;
+  const shell = rootEl.closest("#main-content");
+  const fitReader = () => {
+    const top = rootEl.getBoundingClientRect().top;
+    const bottom = shell?.getBoundingClientRect().bottom;
+    const height = Math.floor(Math.min(bottom ?? window.innerHeight, window.innerHeight) - top);
+    if (height > 0) rootEl.style.setProperty("--lp-reader-height", height + "px");
+  };
+  const observer = new ResizeObserver(fitReader);
+  if (shell) observer.observe(shell);
+  if (header) observer.observe(header);
+  window.addEventListener("resize", fitReader);
+  fitReader();
+
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  toggle.addEventListener("click", () => {
+    const open = sidebar.toggleAttribute("data-drawer-open");
+    toggle.setAttribute("aria-expanded", String(open));
+  });
 }
 
 function movePickerIntoHeaderSlot(rootEl) {

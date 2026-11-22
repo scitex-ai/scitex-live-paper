@@ -181,15 +181,15 @@ export async function renderCommentSection(containerEl, claimId, apiBase) {
     section.appendChild(list);
   }
   const form = el("form", "lp-comments-form");
-  const input = el("textarea", "lp-comments-input");
+  const input = el("textarea", "stx-textarea lp-comments-input");
   input.rows = 2;
   input.placeholder = "Add a comment on this claim…";
   input.setAttribute("aria-label", "New comment");
   const row = el("div", "lp-comments-form-row");
-  const author = el("input", "lp-comments-author");
+  const author = el("input", "stx-input lp-comments-author");
   author.placeholder = "name (optional)";
   author.setAttribute("aria-label", "Author name");
-  const submit = el("button", "lp-comments-submit", "Comment");
+  const submit = el("button", "stx-button stx-button--primary", "Comment");
   submit.type = "submit";
   row.appendChild(author);
   row.appendChild(submit);

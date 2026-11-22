@@ -646,15 +646,15 @@ async function renderCommentSection(containerEl, claimId, apiBase) {
     section.appendChild(list);
   }
   const form = el("form", "lp-comments-form");
-  const input = el("textarea", "lp-comments-input");
+  const input = el("textarea", "stx-textarea lp-comments-input");
   input.rows = 2;
   input.placeholder = "Add a comment on this claim\u2026";
   input.setAttribute("aria-label", "New comment");
   const row = el("div", "lp-comments-form-row");
-  const author = el("input", "lp-comments-author");
+  const author = el("input", "stx-input lp-comments-author");
   author.placeholder = "name (optional)";
   author.setAttribute("aria-label", "Author name");
-  const submit = el("button", "lp-comments-submit", "Comment");
+  const submit = el("button", "stx-button stx-button--primary", "Comment");
   submit.type = "submit";
   row.appendChild(author);
   row.appendChild(submit);
@@ -1820,6 +1820,7 @@ async function boot(rootEl) {
     renderEmptyState(rootEl, emptyReason);
     return;
   }
+  bindReaderLayout(rootEl);
   bindPortEvents(rootEl, apiBase);
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
@@ -1942,6 +1943,27 @@ async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " \xB7 ", verified, " \xB7 ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+function bindReaderLayout(rootEl) {
+  const header = rootEl.previousElementSibling;
+  const shell = rootEl.closest("#main-content");
+  const fitReader = () => {
+    const top = rootEl.getBoundingClientRect().top;
+    const bottom = shell?.getBoundingClientRect().bottom;
+    const height = Math.floor(Math.min(bottom ?? window.innerHeight, window.innerHeight) - top);
+    if (height > 0) rootEl.style.setProperty("--lp-reader-height", height + "px");
+  };
+  const observer = new ResizeObserver(fitReader);
+  if (shell) observer.observe(shell);
+  if (header) observer.observe(header);
+  window.addEventListener("resize", fitReader);
+  fitReader();
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  toggle.addEventListener("click", () => {
+    const open = sidebar.toggleAttribute("data-drawer-open");
+    toggle.setAttribute("aria-expanded", String(open));
+  });
 }
 function movePickerIntoHeaderSlot(rootEl) {
   const headerRoot = rootEl.previousElementSibling;
