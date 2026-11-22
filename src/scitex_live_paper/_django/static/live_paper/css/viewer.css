@@ -71,6 +71,18 @@
   font-size: 0.875rem;
 }
 
+.lp-share:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.lp-share input {
+  max-inline-size: 100%;
+}
+
 .lp-reader-actions a {
   color: var(--lp-accent);
 }

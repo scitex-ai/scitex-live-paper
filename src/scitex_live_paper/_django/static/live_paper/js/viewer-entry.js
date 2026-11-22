@@ -110,6 +110,58 @@ function cssEscape(value) {
   return String(value).replace(/(["\\])/g, "\\$1");
 }
 
+// src/scitex_live_paper/_django/static/live_paper/js/share.js
+function bindShare(root2) {
+  const share = root2.querySelector(".lp-share");
+  const page = new URL(location.href);
+  const project = root2.dataset.viewProject || page.searchParams.get("project");
+  if (page.searchParams.has("working_dir") && !root2.dataset.viewProject) return;
+  const button = share.querySelector("button");
+  const status = share.querySelector('[role="status"]');
+  const input = share.querySelector("input");
+  share.hidden = false;
+  button.addEventListener("click", async () => {
+    const link = new URL(page.pathname, page.origin);
+    if (project) link.searchParams.set("project", project);
+    link.searchParams.set("shared", "1");
+    const panel = root2.querySelector("#lp-selection-panel:not([hidden])");
+    const claim = panel?.closest("#live-paper-claims").dataset.pinnedClaim;
+    if (claim) link.searchParams.set("claim", claim);
+    input.hidden = true;
+    try {
+      await navigator.clipboard.writeText(link.href);
+      status.textContent = claim ? "Claim link copied." : "Paper link copied.";
+    } catch {
+      input.value = link.href;
+      input.hidden = false;
+      input.focus();
+      input.select();
+      status.textContent = "Copy the selected link.";
+    }
+  });
+  return status;
+}
+function openSharedClaim(root2, claims, status) {
+  const params = new URL(location.href).searchParams;
+  const claim = params.get("claim");
+  if (params.get("shared") !== "1" || !claim) return;
+  if (!claims.some((entry) => entry.claim_id === claim)) {
+    if (status) status.textContent = "This claim is unavailable in the current paper.";
+    return;
+  }
+  const anchor = root2.querySelector('[data-overlay-id="' + CSS.escape(claim) + '"]');
+  if (anchor) {
+    anchor.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    anchor.click();
+  } else {
+    root2.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id: claim } }));
+  }
+  const toggle = root2.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
+}
+
 // src/scitex_live_paper/_django/static/live_paper/js/pdf-provider.js
 function createRichPdfViewer(options) {
   const { container, createPdfViewer, ports = {}, rendererOptions = {} } = options;
@@ -1541,6 +1593,7 @@ function bindPdfDownloads(root2, claims, original) {
   const options = root2.querySelector(".lp-pdf-download");
   if (!options) return;
   const status = options.querySelector("[role='status']");
+  const menu = options.querySelector("details");
   const buttons = [...options.querySelectorAll("button")];
   function graphSelection() {
     const detail = root2.querySelector(".lp-claim-detail");
@@ -1580,6 +1633,7 @@ function bindPdfDownloads(root2, claims, original) {
         link.href = url;
         link.download = graph ? "manuscript-with-evidence-graph.pdf" : "manuscript-highlighted.pdf";
         link.click();
+        menu.open = false;
         setTimeout(() => URL.revokeObjectURL(url), 3e4);
         status.textContent = "";
       } catch (error) {
@@ -2262,6 +2316,8 @@ async function boot(rootEl) {
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
   await viewer.load();
+  const shareStatus = bindShare(rootEl);
+  openSharedClaim(rootEl, viewer.claims, shareStatus);
 }
 async function renderTraceSummary(rootEl, apiBase) {
   const url = new URL("../review.json", new URL(apiBase, location.href));

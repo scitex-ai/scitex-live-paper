@@ -311,10 +311,10 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         with page.expect_download() as pending:
             page.get_by_role("link", name="Download PDF", exact=True).click()
         download = pending.value
-        page.locator("[aria-label='PDF download options']").click()
         exports = []
         page_count = document.locator(".stx-pdf-page").count()
         for title in ("With highlights", "With highlights and selected graph"):
+            page.locator("[aria-label='PDF download options']").click()
             with page.expect_download() as generated:
                 page.get_by_role("button", name=title, exact=True).click()
             file = generated.value.path().read_bytes()
@@ -347,6 +347,24 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert navigation.get_by_role("button", name="References", exact=True).is_visible()
         navigation.get_by_role("button", name="References", exact=True).press("Escape")
         assert navigation.is_hidden()
+        share = page.get_by_role("button", name="Share", exact=True)
+        page.evaluate("Object.defineProperty(navigator, 'clipboard', {value: undefined})")
+        if embed:
+            page.get_by_role("button", name="Claim evidence", exact=True).click()
+        inspector.get_by_role("tab", name="All claims", exact=False).click()
+        share.click()
+        paper_link = page.get_by_role("textbox", name="Share link").input_value()
+        assert paper_link == base + "?project=alice&shared=1"
+        inspector.get_by_role("tab", name="Selection", exact=True).click()
+        share.click()
+        claim_link = page.get_by_role("textbox", name="Share link").input_value()
+        assert claim_link == paper_link + "&claim=value"
+        linked = context.new_page()
+        linked.goto(claim_link + f"&embed={int(embed)}")
+        linked.get_by_role("region", name="Claim detail").wait_for()
+        assert linked.locator(".lp-claim-detail").get_attribute("data-claim-id") == claim_id
+        assert linked.locator('[data-overlay-id="value"]').get_attribute("aria-current") == "true"
+        linked.close()
         observed = (
             response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),

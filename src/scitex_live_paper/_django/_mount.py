@@ -78,6 +78,7 @@ from typing import Any, Callable, Tuple
 
 try:
     from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotFound
+    from django.shortcuts import render
     from django.urls import path
 except ImportError as exc:
     raise ImportError(
@@ -150,15 +151,27 @@ def _wrap_viewer_page(resolver: BundleResolver) -> Callable[..., Any]:
     travels on ``request.live_paper_empty_reason``; the API half
     (``_wrap_api_dispatch``) keeps the machine-readable 404.
     :class:`BundleAccessDenied` and anything else keep their mapped
-    statuses — access problems must not render as content.
+    statuses. Shared reader links use a generic page for missing or denied
+    resources, without exposing resolver messages or manuscript data.
     """
 
     def wrapped(request, **url_kwargs):
         try:
             request.live_paper_context = resolver(request, **url_kwargs)
         except BundleNotFound as exc:
+            if request.GET.get("shared") == "1":
+                return render(request, "live_paper/share-unavailable.html", status=404)
             request.live_paper_empty_reason = str(exc) or "bundle not found"
             return views.viewer_page(request)
+        except BundleAccessDenied as exc:
+            if request.GET.get("shared") == "1":
+                return render(
+                    request,
+                    "live_paper/share-unavailable.html",
+                    {"access_denied": True},
+                    status=403,
+                )
+            return _resolver_error_to_response(exc)
         except BundleResolverError as exc:
             return _resolver_error_to_response(exc)
         return views.viewer_page(request)

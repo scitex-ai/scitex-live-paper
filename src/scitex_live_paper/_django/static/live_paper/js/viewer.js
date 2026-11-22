@@ -27,6 +27,7 @@ import {
   ensureClaimsSidebar,
   renderError,
 } from "./_utils.js";
+import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer } from "./pdf-viewer.js";
 import { closeClaimDetail, invalidateEvidenceGraphs, renderClaimDetail } from "./claim-details.js";
@@ -225,6 +226,8 @@ async function boot(rootEl) {
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
   await viewer.load();
+  const shareStatus = bindShare(rootEl);
+  openSharedClaim(rootEl, viewer.claims, shareStatus);
 }
 
 /**

@@ -220,6 +220,20 @@ def test_viewer_bundle_access_denied_returns_403__assert_b_user_lacks_bundle_rea
 
 
 
+@pytest.mark.parametrize("error,status", [(BundleAccessDenied, 403), (BundleNotFound, 404)])
+def test_shared_paper_uses_generic_error_page(rf, error, status):
+    def resolver(request, **kwargs):
+        raise error("internal path /private/sealed-bundle")
+
+    response = _viewer_view_with(resolver)(rf.get("/?shared=1&claim=example"))
+
+    assert response.status_code == status
+    assert b"Paper unavailable" in response.content
+    assert b"account" in response.content and b"access" in response.content
+    assert b"Ask the project owner" in response.content
+    assert b"/private/sealed-bundle" not in response.content
+
+
 def test_viewer_base_bundle_resolver_error_returns_500__assert_response_status_code_500(rf):
     # Arrange
     def resolver(request, **kw):

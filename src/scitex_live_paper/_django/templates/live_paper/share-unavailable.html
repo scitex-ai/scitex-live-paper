@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Paper unavailable | SciTeX Live Paper</title>
+</head>
+<body>
+  <main>
+    <h1>Paper unavailable</h1>
+    {% if access_denied %}
+    <p>Your account does not have access to this paper.</p>
+    {% else %}
+    <p>This paper may have moved, or your account may not have access.</p>
+    {% endif %}
+    <p>Ask the project owner for access or an updated link.</p>
+  </main>
+</body>
+</html>
