@@ -6,6 +6,12 @@ The first release answers one question: **Where did this figure or value come fr
 
 Use one panel as the reader drills down. Keep the claim label and a compact Clew graph visible. Hovering or focusing a graph node shows its contents in the same panel. For inputs, show the recorded files and preview one immediately. Give readers a format-appropriate sample for large files, with the full file available through project tools. Semantic Reader's citation cards show the entry point from a paper. VS Code's Peek Definition shows how to inspect the next layer in place. [Semantic Reader research](https://arxiv.org/abs/2303.14334) · [VS Code Peek](https://code.visualstudio.com/docs/editing/editingevolved#_peek)
 
+## Relationships on the paper
+
+When a text claim and its supporting statistic both have anchors in the same PDF revision, hover or focus either one to highlight the other and draw a single labeled connector. Point a support arrow from the recorded result toward the statement it supports. Live Paper chooses the label and visibility from the relationship, and Rich PDF draws the connector from the existing SDK page geometry. Keep the rest of the page clear. If the result is on another page, offer its label and a jump to that page. If it lives in a separate artifact, open it in the evidence popup.
+
+Use a recorded relationship or an explicit author annotation. Equal numbers or a shared producing run alone carry no support verdict. In the laptop demo, the line relates the two occurrences of the same reported accuracy. The Clew graph continues to trace the actual supporting output and inputs. [Clew graph projection](https://github.com/scitex-ai/scitex-clew/blob/57ad743/src/scitex_clew/_evidence_provider/_graph.py)
+
 ## Three package responsibilities
 
 - **Clew** identifies the producing run and supplies one optional script record on its process node. That record carries the run ID, script name, recorded hash, and Clew's icon and color roles. The same cues can appear on the corresponding node in the full graph. [Clew graph projection](https://github.com/scitex-ai/scitex-clew/blob/57ad743/src/scitex_clew/_evidence_provider/_graph.py)
