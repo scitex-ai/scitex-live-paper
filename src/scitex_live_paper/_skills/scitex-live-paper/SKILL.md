@@ -32,6 +32,14 @@ The source checkout includes `examples/example-project-mnist`, a labeled
 three-page demo with registered claims and regeneration provenance. A Journal
 submission `bundle.yaml` by itself is not a LivePaper bundle directory.
 
+Register every reported result with a stable claim ID and an exact output locator.
+For a numeric table, give each evidence-bearing cell its own registration.
+Use the versioned `review.json` packet to inspect unresolved claims first. The
+mounted `claim.json?claim_id=<id>` also returns one claim's source and graph.
+Ask the author to approve the final wording and source assignment. An agent can
+propose that assignment and repair the trace. Keep unresolved submissions as
+preprints.
+
 For rich PDF consumers, use the public frontend package returned by
 `scitex_live_paper.get_frontend_package_dir()` and its `./pdf-provider` export.
 The SDK owns raster/text/link layers; the provider owns rich overlay/comment

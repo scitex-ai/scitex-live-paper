@@ -11,6 +11,7 @@ The ``HANDLERS`` mapping is the *single source of truth* for what the
 - ``api/pdf``          — bundle manuscript PDF bytes (ported from
                          ``scitex_writer/_django/handlers/compile.py:handle_pdf``;
                          see ``docs/research/writer-pdf-viewer-findings.md``)
+- ``claim.json``       — one claim from the versioned review packet
 - ``api/dag``          — bundle ``dag.mmd`` mermaid source for the SPA
                          DAG pane (JSON 404 when the bundle ships none)
 - ``api/claim/verify``  — M2 re-verify endpoint (asks the evidence provider
@@ -42,7 +43,12 @@ from .dag import handle_dag
 from .dashboard import handle_dashboard
 from .event_log import handle_event_log
 from .evidence_pages import (
-    handle_evidence_asset, handle_graph, handle_paper, handle_review_json, handle_review_text,
+    handle_claim_json,
+    handle_evidence_asset,
+    handle_graph,
+    handle_paper,
+    handle_review_json,
+    handle_review_text,
 )
 from .pdf import handle_pdf
 from .reverify import handle_reverify, handle_reverify_all
@@ -53,6 +59,7 @@ HandlerFn = Callable[..., object]
 HANDLERS: Dict[str, HandlerFn] = {
     "paper.html":         handle_paper,
     "graph.html":         handle_graph,
+    "claim.json":         handle_claim_json,
     "review.json":        handle_review_json,
     "review.txt":         handle_review_text,
     "assets":             handle_evidence_asset,

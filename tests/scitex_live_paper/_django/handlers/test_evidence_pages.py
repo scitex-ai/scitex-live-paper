@@ -137,7 +137,28 @@ def test_all_page_assets_and_review_graph_links_keep_host_selectors(evidence_hos
     ) == (True, True, ".", 20, 21, 200, True, True, True)
 
 
-@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "assets"])
+def test_claim_json_reuses_review_packet_entry(evidence_host):
+    packet = get(evidence_host, "review.json", working_dir="manuscript with spaces").json()
+    entry = packet["needs_inspection"][0]
+    response = get(
+        evidence_host, "claim.json", claim_id=entry["claim_id"],
+        working_dir="manuscript with spaces",
+    )
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/json"
+    assert response["Cache-Control"] == "private, no-store"
+    assert response.json() == {
+        "schema": packet["schema"],
+        "schema_version": packet["schema_version"],
+        "claim": entry,
+    }
+    assert get(evidence_host, "claim.json").status_code == 400
+    missing = get(evidence_host, "claim.json", claim_id="unknown")
+    assert missing.status_code == 404
+    assert missing.json() == {"error": "claim_not_found"}
+
+
+@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "claim.json", "assets"])
 def test_every_page_and_asset_runs_host_authorization(evidence_host, endpoint):
     # Arrange
     before = len(evidence_host.calls)

@@ -206,3 +206,18 @@ from the reference provider against it.
 - scitex-clew ships an adapter that maps its claim verification and per-claim
   provenance slice to this contract. It is documented in the scitex-clew
   repository.
+
+## Reading evidence from another application
+
+The same mounted Live Paper instance serves the human viewer and external clients.
+Send `GET review.json` for the versioned review packet, with unresolved registered
+claims first. Send `GET claim.json?claim_id=<id>` for one packet entry with its
+source locator, graph, and failure reasons. The response includes the packet
+`schema`, `schema_version`, and a `claim` object. An omitted ID returns 400 and an
+unknown ID returns 404. Use the host's authorized project and revision selectors
+when requesting either URL.
+
+Local clients can generate the packet through `scitex-live-paper export-review`
+or `scitex_live_paper.evidence.build_review_packet`. The browser, CLI, and HTTP
+API use the same claim entries and provider states. A provider's supported state
+describes the recorded trace. Authors own the claim wording and source selection.
