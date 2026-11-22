@@ -27,6 +27,7 @@ import {
   ensureClaimsSidebar,
   renderError,
 } from "./_utils.js";
+import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer } from "./pdf-viewer.js";
 import { renderClaimDetail } from "./claim-details.js";
 import { renderClaimsSidebar } from "./claims-sidebar.js";
@@ -204,6 +205,7 @@ async function boot(rootEl) {
     if (download) {
       download.href = withBundleContext(apiBase + "pdf?download=1");
       download.hidden = false;
+      bindPdfDownloads(rootEl, viewer.claims, download.href);
     }
   }
 }
@@ -218,8 +220,8 @@ export async function renderTraceSummary(rootEl, apiBase) {
   const url = new URL("../review.json", new URL(apiBase, location.href));
   const packet = await fetchOrNull(url.href);
   if (!packet?.counts) return;
-  const header = rootEl.querySelector("#live-paper-bundle-header");
-  if (!header) return;
+  const banner = rootEl.querySelector("#live-paper-trace-status");
+  if (!banner) return;
   const summary = document.createElement("a");
   summary.className = "lp-trace-summary";
   summary.href = withBundleContext(url.href);
@@ -229,8 +231,16 @@ export async function renderTraceSummary(rootEl, apiBase) {
   const label = typeof provider === "string" && provider
     ? `${provider[0].toUpperCase()}${provider.slice(1)} calculation traces`
     : "Calculation traces";
-  summary.textContent = `${label} · ${packet.counts.supported} verified · ${packet.needs_inspection.length} to inspect`;
-  header.append(summary);
+  const verified = document.createElement("strong");
+  verified.className = "lp-trace-verified";
+  verified.textContent = packet.counts.supported + " verified";
+  const inspect = document.createElement("strong");
+  inspect.className = "lp-trace-inspect";
+  inspect.textContent = packet.needs_inspection.length + " to inspect";
+  summary.dataset.needsInspection = String(packet.needs_inspection.length > 0);
+  summary.append(label, " · ", verified, " · ", inspect);
+  banner.replaceChildren(summary);
+  banner.hidden = false;
 }
 
 function movePickerIntoHeaderSlot(rootEl) {

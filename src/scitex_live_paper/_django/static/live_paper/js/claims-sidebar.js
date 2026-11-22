@@ -35,8 +35,12 @@ export function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
     sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
   }
 
-  const container = document.createElement("div");
+  const container = document.createElement("details");
   container.className = "lp-claims-list";
+  container.open = true;
+  const label = document.createElement("summary");
+  label.textContent = "All claims (" + count + ")";
+  container.appendChild(label);
   sidebar.appendChild(container);
   return {
     feedContainer: container,

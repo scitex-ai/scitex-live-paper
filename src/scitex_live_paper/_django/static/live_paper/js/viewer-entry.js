@@ -757,7 +757,9 @@ function renderClaimDetail(sidebarEl, claim, apiBase) {
   } catch (err) {
     console.warn("[live-paper] comments section failed:", err);
   }
-  sidebarEl.insertBefore(pane, sidebarEl.querySelector(".lp-claims-list"));
+  const claims = sidebarEl.querySelector(".lp-claims-list");
+  if (claims) claims.open = false;
+  sidebarEl.insertBefore(pane, claims);
   sidebarEl.scrollTop = 0;
   return pane;
 }
@@ -771,6 +773,8 @@ function removeClaimDetail(sidebarEl) {
 function closeClaimDetail(sidebarEl) {
   delete sidebarEl.dataset.pinnedClaim;
   removeClaimDetail(sidebarEl);
+  const claims = sidebarEl.querySelector(".lp-claims-list");
+  if (claims) claims.open = true;
 }
 function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
@@ -891,7 +895,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
   }
   try {
     if (typeof window.mermaid.initialize === "function") {
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
     }
     const { svg } = await window.mermaid.render("lp-dag-" + ++graphSequence, body.mermaid);
     if (signal?.aborted) return;
@@ -1104,11 +1108,40 @@ var PDFViewer = class {
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
+      this.watchFitWidth();
       return true;
     } catch (error) {
       console.warn("[pdf-viewer] load failed:", error);
       this.renderPlaceholder("No PDF available.");
       return false;
+    }
+  }
+  watchFitWidth() {
+    this.resizeObserver?.disconnect();
+    let width = this.container.clientWidth;
+    this.resizeObserver = new ResizeObserver(() => {
+      const next = this.container.clientWidth;
+      if (next <= 0 || Math.abs(next - width) < 2) return;
+      width = next;
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = setTimeout(() => void this.refitVisiblePage(), 180);
+    });
+    this.resizeObserver.observe(this.container);
+  }
+  async refitVisiblePage() {
+    const scroller = readerScroller(this.container);
+    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > top);
+    const old = pages[index]?.getBoundingClientRect();
+    const offset = old && old.top < top ? (top - old.top) / old.height : null;
+    try {
+      await this.provider.renderer.fitWidth();
+      if (offset === null) return;
+      const rect = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
+      if (rect) scroller.scrollBy({ top: rect.top + rect.height * offset - top, behavior: "instant" });
+    } catch (error) {
+      console.warn("[pdf-viewer] refit failed:", error);
     }
   }
   clear() {
@@ -1134,10 +1167,18 @@ var PDFViewer = class {
     return Math.round(this.provider.renderer.getScale() * 100);
   }
   destroy() {
+    clearTimeout(this.resizeTimer);
+    this.resizeObserver?.disconnect();
     this.stopEvidencePane?.();
     this.provider.destroy();
   }
 };
+function readerScroller(container) {
+  for (let node = container.parentElement; node; node = node.parentElement) {
+    if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+  }
+  return container.ownerDocument.scrollingElement;
+}
 function bindEvidencePane(container) {
   const listeners = new AbortController();
   const { signal } = listeners;
@@ -1187,6 +1228,74 @@ function bindEvidencePane(container) {
     clearTimeout(hover);
     listeners.abort();
   };
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/pdf-downloads.js
+function bindPdfDownloads(root2, claims, original) {
+  const options = root2.querySelector(".lp-pdf-variants");
+  if (!options) return;
+  const status = options.querySelector("[role='status']");
+  const buttons = [...options.querySelectorAll("button")];
+  function graphSelection() {
+    const detail = root2.querySelector(".lp-claim-detail");
+    const svg = detail?.querySelector(".lp-claim-dag-svg svg");
+    return svg ? { svg, claim: detail.dataset.claimId } : null;
+  }
+  const withGraph = options.querySelector('[data-pdf-export="graph"]');
+  let busy = false;
+  function update() {
+    withGraph.disabled = busy || !graphSelection();
+  }
+  const sidebar = root2.querySelector(".live-paper-claims");
+  if (sidebar) new MutationObserver(update).observe(sidebar, { childList: true, subtree: true });
+  for (const button of buttons) {
+    button.addEventListener("click", async () => {
+      if (busy) return;
+      const graph = button === withGraph ? graphSelection() : null;
+      if (button === withGraph && !graph) return;
+      const style = getComputedStyle(root2);
+      const marks = claims.map(toOverlay).filter(Boolean).map((mark) => ({
+        ...mark,
+        color: pdfColor(style, mark.status)
+      }));
+      const graphCopy = graph && { ...graph, svg: graph.svg.cloneNode(true) };
+      busy = true;
+      buttons.forEach((control) => {
+        control.disabled = true;
+      });
+      status.textContent = "Preparing PDF\u2026";
+      try {
+        const module = await import(options.dataset.exportSrc || new URL("./pdf-export-entry.js", import.meta.url).href);
+        const response = await fetch(original);
+        if (!response.ok) throw new Error("Original PDF could not be downloaded.");
+        const bytes = await module.exportReaderPdf(await response.arrayBuffer(), marks, graphCopy);
+        const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = graph ? "manuscript-with-evidence-graph.pdf" : "manuscript-highlighted.pdf";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3e4);
+        status.textContent = "";
+      } catch (error) {
+        status.textContent = error.message || "PDF export failed.";
+      } finally {
+        busy = false;
+        buttons.forEach((control) => {
+          control.disabled = false;
+        });
+        update();
+      }
+    });
+  }
+  update();
+  options.hidden = false;
+}
+function pdfColor(style, status) {
+  const allowed = ["verified", "suspect", "unsourced", "mismatch", "missing", "registered"];
+  const token = allowed.includes(status) ? status : "registered";
+  const hex = style.getPropertyValue("--lp-status-" + token).trim();
+  const digits = /^#[\da-f]{6}$/i.test(hex) ? hex.slice(1) : "6e7681";
+  return digits.match(/../g).map((value) => parseInt(value, 16) / 255);
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/reverify-all.js
@@ -1306,8 +1415,12 @@ function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   if (reVerifyEnabled) {
     sidebar.appendChild(renderReverifyAllButton(apiBase, pinnedCommit));
   }
-  const container = document.createElement("div");
+  const container = document.createElement("details");
   container.className = "lp-claims-list";
+  container.open = true;
+  const label = document.createElement("summary");
+  label.textContent = "All claims (" + count + ")";
+  container.appendChild(label);
   sidebar.appendChild(container);
   return {
     feedContainer: container,
@@ -1802,6 +1915,7 @@ async function boot(rootEl) {
     if (download) {
       download.href = withBundleContext(apiBase + "pdf?download=1");
       download.hidden = false;
+      bindPdfDownloads(rootEl, viewer.claims, download.href);
     }
   }
 }
@@ -1809,8 +1923,8 @@ async function renderTraceSummary(rootEl, apiBase) {
   const url = new URL("../review.json", new URL(apiBase, location.href));
   const packet = await fetchOrNull(url.href);
   if (!packet?.counts) return;
-  const header = rootEl.querySelector("#live-paper-bundle-header");
-  if (!header) return;
+  const banner = rootEl.querySelector("#live-paper-trace-status");
+  if (!banner) return;
   const summary = document.createElement("a");
   summary.className = "lp-trace-summary";
   summary.href = withBundleContext(url.href);
@@ -1818,8 +1932,16 @@ async function renderTraceSummary(rootEl, apiBase) {
   if (total === 0) return;
   const provider = packet.provider?.name;
   const label = typeof provider === "string" && provider ? `${provider[0].toUpperCase()}${provider.slice(1)} calculation traces` : "Calculation traces";
-  summary.textContent = `${label} \xB7 ${packet.counts.supported} verified \xB7 ${packet.needs_inspection.length} to inspect`;
-  header.append(summary);
+  const verified = document.createElement("strong");
+  verified.className = "lp-trace-verified";
+  verified.textContent = packet.counts.supported + " verified";
+  const inspect = document.createElement("strong");
+  inspect.className = "lp-trace-inspect";
+  inspect.textContent = packet.needs_inspection.length + " to inspect";
+  summary.dataset.needsInspection = String(packet.needs_inspection.length > 0);
+  summary.append(label, " \xB7 ", verified, " \xB7 ", inspect);
+  banner.replaceChildren(summary);
+  banner.hidden = false;
 }
 function movePickerIntoHeaderSlot(rootEl) {
   const headerRoot = rootEl.previousElementSibling;

@@ -90,9 +90,48 @@ export class PDFViewer {
   setClaims(claims) { this.claims = claims || []; this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean)); }
   setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }
   async load(docType = "manuscript") {
-    try { await this.provider.load(docType); await this.provider.renderer.fitWidth(); return true; }
-    catch (error) { console.warn("[pdf-viewer] load failed:", error); this.renderPlaceholder("No PDF available."); return false; }
+    try {
+      await this.provider.load(docType);
+      await this.provider.renderer.fitWidth();
+      this.watchFitWidth();
+      return true;
+    } catch (error) {
+      console.warn("[pdf-viewer] load failed:", error);
+      this.renderPlaceholder("No PDF available.");
+      return false;
+    }
   }
+
+  watchFitWidth() {
+    this.resizeObserver?.disconnect();
+    let width = this.container.clientWidth;
+    this.resizeObserver = new ResizeObserver(() => {
+      const next = this.container.clientWidth;
+      if (next <= 0 || Math.abs(next - width) < 2) return;
+      width = next;
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = setTimeout(() => void this.refitVisiblePage(), 180);
+    });
+    this.resizeObserver.observe(this.container);
+  }
+
+  async refitVisiblePage() {
+    const scroller = readerScroller(this.container);
+    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > top);
+    const old = pages[index]?.getBoundingClientRect();
+    const offset = old && old.top < top ? (top - old.top) / old.height : null;
+    try {
+      await this.provider.renderer.fitWidth();
+      if (offset === null) return;
+      const rect = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
+      if (rect) scroller.scrollBy({ top: rect.top + rect.height * offset - top, behavior: "instant" });
+    } catch (error) {
+      console.warn("[pdf-viewer] refit failed:", error);
+    }
+  }
+
   clear() { this.container.replaceChildren(); }
   renderPlaceholder(message = "No PDF available.") {
     this.clear(); const placeholder = document.createElement("p");
@@ -103,9 +142,18 @@ export class PDFViewer {
   setFitWidth() { return this.provider.renderer.fitWidth(); }
   get zoomPercent() { return Math.round(this.provider.renderer.getScale() * 100); }
   destroy() {
+    clearTimeout(this.resizeTimer);
+    this.resizeObserver?.disconnect();
     this.stopEvidencePane?.();
     this.provider.destroy();
   }
+}
+
+function readerScroller(container) {
+  for (let node = container.parentElement; node; node = node.parentElement) {
+    if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+  }
+  return container.ownerDocument.scrollingElement;
 }
 
 /** Use the viewer's existing overlay buttons as entry points to the side pane. */

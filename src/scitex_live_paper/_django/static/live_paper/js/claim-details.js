@@ -87,7 +87,9 @@ export function renderClaimDetail(sidebarEl, claim, apiBase) {
     console.warn("[live-paper] comments section failed:", err);
   }
 
-  sidebarEl.insertBefore(pane, sidebarEl.querySelector(".lp-claims-list"));
+  const claims = sidebarEl.querySelector(".lp-claims-list");
+  if (claims) claims.open = false;
+  sidebarEl.insertBefore(pane, claims);
   sidebarEl.scrollTop = 0;
   return pane;
 }
@@ -103,6 +105,8 @@ function removeClaimDetail(sidebarEl) {
 export function closeClaimDetail(sidebarEl) {
   delete sidebarEl.dataset.pinnedClaim;
   removeClaimDetail(sidebarEl);
+  const claims = sidebarEl.querySelector(".lp-claims-list");
+  if (claims) claims.open = true;
 }
 
 export function renderEvidencePreview(panel, claim, apiBase, signal) {
@@ -228,7 +232,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
   }
   try {
     if (typeof window.mermaid.initialize === "function") {
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", htmlLabels: false });
     }
     const { svg } = await window.mermaid.render("lp-dag-" + (++graphSequence), body.mermaid);
     if (signal?.aborted) return;
