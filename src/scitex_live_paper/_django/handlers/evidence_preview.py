@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import re
@@ -13,19 +12,13 @@ from scitex_live_paper.evidence import find_claim
 
 from .._evidence_files import ResourceError, ResourceReader
 from .._evidence_request import request_evidence
+from .._preview_formats import format_preview, read_limit
 from .evidence_pages import _response
 
-_MAX_FILE = 512 * 1024
-_MAX_TEXT = 16_000
 _DIGEST = re.compile(r"(?:sha256:)?([0-9a-f]{32}|[0-9a-f]{64})", re.IGNORECASE)
-_TEXT = frozenset({
-    ".csv", ".ini", ".ipynb", ".json", ".jsonl", ".md", ".py", ".r", ".sh",
-    ".tex", ".toml", ".tsv", ".txt", ".yaml", ".yml",
-})
-_IMAGES = {".png": "image/png", ".jpeg": "image/jpeg", ".jpg": "image/jpeg"}
 
 
-def _preview(root: Path, entry: Mapping, node_id: str) -> dict:
+def _preview(root: Path, entry: Mapping, node_id: str, *, start: int, member: int | None) -> dict:
     node = next(
         (node for node in (entry.get("graph") or {}).get("nodes", []) if node["id"] == node_id),
         None,
@@ -46,25 +39,15 @@ def _preview(root: Path, entry: Mapping, node_id: str) -> dict:
     match = _DIGEST.fullmatch(digest) if isinstance(digest, str) else None
     if match is None:
         raise ResourceError("A comparable file hash was not recorded.", 409)
-    suffix = Path(name).suffix.lower()
-    if suffix not in _TEXT and suffix not in _IMAGES:
-        raise ResourceError("Inline preview is unavailable for this file format.", 415)
     with ResourceReader(root) as reader:
-        content = reader.read(name, limit=_MAX_FILE)
+        content = reader.read(name, limit=read_limit(name))
     expected = match.group(1).lower()
     if hashlib.sha256(content).hexdigest()[:len(expected)] != expected:
         raise ResourceError("The current file differs from the recorded evidence.", 409)
-    payload = {"file": name, "hash": digest}
-    if suffix in _IMAGES:
-        return {
-            **payload, "kind": "image", "media_type": _IMAGES[suffix],
-            "data": base64.b64encode(content).decode("ascii"),
-        }
-    try:
-        text = content.decode("utf-8")
-    except UnicodeDecodeError:
-        raise ResourceError("This evidence file is not UTF-8 text.", 415) from None
-    return {**payload, "kind": "text", "text": text[:_MAX_TEXT], "truncated": len(text) > _MAX_TEXT}
+    return {
+        "file": name, "hash": digest, "size": len(content),
+        **format_preview(name, content, start, member),
+    }
 
 
 def handle_evidence_preview(request):
@@ -78,11 +61,20 @@ def handle_evidence_preview(request):
     claim_id, node_id = request.GET.get("claim_id"), request.GET.get("node_id")
     if not claim_id or not node_id:
         return respond({"error": "A claim ID and node ID are required."}, 400)
+    start, member = request.GET.get("start", "0"), request.GET.get("member")
+    if any(
+        len(value) > 10 or not value.isascii() or not value.isdecimal()
+        for value in (start, member) if value is not None
+    ):
+        return respond({"error": "Invalid preview window or member."}, 400)
     try:
         root, packet = request_evidence(request)
         entry = find_claim(packet, claim_id)
         if entry is None:
             raise ResourceError("Registered claim not found.", 404)
-        return respond(_preview(root, entry, node_id))
+        return respond(_preview(
+            root, entry, node_id, start=int(start),
+            member=int(member) if member is not None else None,
+        ))
     except ResourceError as error:
         return respond({"error": str(error)}, error.status)

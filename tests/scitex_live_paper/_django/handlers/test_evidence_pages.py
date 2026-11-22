@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import copy
+import gzip
 import hashlib
 import json
 import os
 import shutil
+import struct
 from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
@@ -363,3 +366,25 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
         ready.status_code, ready.json()["text"], ready["Cache-Control"],
         unknown.status_code, changed.status_code, symlink.status_code,
     ) == (200, recorded.decode(), "private, no-store", 404, 409, 403)
+
+
+
+def test_preview_selects_idx_decoder_by_header_not_filename(evidence_host):
+    root = evidence_host.roots["alice"]
+    pixels = bytes(range(40))
+    content = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + pixels)
+    name = "original-data.gz"
+    (root / name).write_bytes(content)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "input", "kind": "input", "label": name,
+        "hash": hashlib.sha256(content).hexdigest(),
+    })
+
+    first = get(evidence_host, "preview.json", claim_id="value", node_id="input").json()
+    last = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=8).json()
+    outside = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=10)
+
+    assert (first["file"], first["kind"], first["total"], first["end"]) == (name, "idx", 10, 8)
+    assert (last["rows"], last["columns"], last["start"], last["end"]) == (2, 2, 8, 10)
+    assert (base64.b64decode(last["records"]), outside.status_code) == (pixels[32:], 416)

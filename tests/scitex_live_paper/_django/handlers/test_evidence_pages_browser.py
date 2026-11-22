@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import os
 import shutil
+import struct
 import threading
 from pathlib import Path
 from wsgiref.simple_server import WSGIRequestHandler, make_server
@@ -128,6 +130,13 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         "id": "p1", "kind": "process", "label": "recorded-run",
         "script": {"file": "analysis.py", "hash": hashlib.sha256(script).hexdigest()},
     })
+    grids = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + bytes(range(40)))
+    (root / "samples.gz").write_bytes(grids)
+    graph["nodes"].append({
+        "id": "data", "kind": "input", "label": "samples.gz",
+        "hash": hashlib.sha256(grids).hexdigest(),
+    })
+    graph["edges"].append({"source": "data", "target": "p1"})
     graph["edges"].append({"source": "p1", "target": "output"})
     server = make_server(
         "127.0.0.1", 0, StaticFilesHandler(WSGIHandler()), handler_class=QuietHandler
@@ -178,6 +187,13 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         trace_summary.wait_for()
         marked = overlay.get_attribute("data-appearance") == "highlight"
         source_selected = reference.get_attribute("aria-pressed")
+        overlay.click()
+        preview.get_by_role("button", name="Input samples.gz", exact=True).hover()
+        preview.get_by_text("Records 1–8 of 10", exact=False).wait_for()
+        first_grid_count = preview.locator(".lp-idx-grids canvas").count()
+        preview.get_by_role("button", name="Next records", exact=True).click()
+        preview.get_by_text("Records 9–10 of 10", exact=False).wait_for()
+        last_grid_count = preview.locator(".lp-idx-grids canvas").count()
         page.keyboard.press("Escape")
         preview.wait_for(state="hidden")
         overlay.focus()
@@ -200,6 +216,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
             source_selected, source_link_is_claim_bound, marked, focus_restored,
+            first_grid_count, last_grid_count,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -213,5 +230,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 8, 2
     )

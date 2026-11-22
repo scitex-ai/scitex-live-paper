@@ -22,9 +22,26 @@ recorded kind and source metadata regardless of whether the bytes are
 available. The SDK remains responsible for PDF rendering and page geometry.
 
 The next features reuse these boundaries. Cross-page relationships need
-explicit manuscript relationship records. Archive or dataset previews need
-format-specific readers. Opening a current file or running a script uses
-capabilities supplied and authorized by the host.
+explicit manuscript relationship records. Opening a current file or running
+a script uses capabilities supplied and authorized by the host.
+
+## Repository files as the evidence surface
+
+Authors register claims. The Clew graph and the authorized project repository
+supply the file identities and hashes. Live Paper selects a format reader from
+the recorded bytes and file type and generates previews at request time. The
+viewer uses the filename from the graph. It accepts no per-article thumbnail
+or display-name manifest. An unknown format still has a file identity.
+
+An unsigned-byte IDX header supplies the rank and dimensions. A vector can be
+shown as values, and a stack of two-dimensional grids can be shown in grayscale.
+The header carries no split, units, label meaning, or link to another file.
+Archive views list stored member names and can preview one bounded member on
+demand. Members remain in the archive.
+
+The PDF and browser views point back to the same repository. The mounted host
+owns file navigation and execution authorization. A new run has its own identity
+and can inform a new paper revision.
 
 ## Relationships on the paper
 

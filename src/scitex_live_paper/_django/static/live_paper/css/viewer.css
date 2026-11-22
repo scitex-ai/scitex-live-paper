@@ -1041,3 +1041,35 @@
   font-size: 0.82rem;
   color: var(--accent, #285876);
 }
+
+.lp-idx-grids {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 5px;
+}
+
+.lp-idx-grids canvas {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.lp-source-preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+
+.lp-archive-preview {
+  max-block-size: 12rem;
+  overflow: auto;
+}
+
+.lp-archive-preview button {
+  overflow-wrap: anywhere;
+}
+
+/* Keep the pointer target in place while a graph or file preview is loading. */
+.lp-rich-preview:has(.lp-evidence-preview-title) {
+  block-size: min(35rem, calc(100vh - 16px));
+}
