@@ -1,12 +1,12 @@
 # Rich PDF provider
 
-LivePaper owns rich PDF overlay and comment orchestration. The SDK owns page
-rasterization, text/link layers, pen input and coordinate transforms. The provider
-does not resolve application routes, fetch data, import consumer applications, or
-persist notes itself. All consumers, including the native LivePaper page, supply
-adapters to the same public factory.
+SciTeX Rich PDF owns overlay and comment orchestration. The SDK owns page
+rasterization, text/link layers, pen input and coordinate transforms. Each
+consumer supplies document access, data, route resolution, and mutation policy
+to the public Rich PDF factory. Live Paper supplies the claim-aware adapter
+and publishes compatibility assets for existing consumers.
 
-The public browser module is `live_paper/js/pdf-provider.js` (use Django
+The Live Paper compatibility browser module is `live_paper/js/pdf-provider.js` (use Django
 `app_static`). For bundled consumers, the private npm file package exported by
 `scitex_live_paper.get_frontend_package_dir()` provides
 `@scitex/live-paper/pdf-provider` and `@scitex/live-paper/pdf-provider.css`.
@@ -100,3 +100,13 @@ component's synchronized feed, including claims without a resolved PDF region.
 To refresh the compatibility assets, install the version pinned in
 `scripts/sync-rich-pdf.py`, run `python scripts/sync-rich-pdf.py`, and rebuild
 with `npm ci && npm run build:frontend`. Use `--check` to verify asset parity.
+
+## Reader integration rules
+
+1. **Use the owner’s public surface.** The SDK owns PDF geometry, Rich PDF owns provider interaction, and Live Paper owns the evidence inspector. Keep domain logic in the adapter that owns it. Sync compatibility assets from the released Rich PDF wheel and check their parity. [SciTeX Dev boundary convention](https://github.com/scitex-ai/scitex-dev/blob/78235625/src/scitex_dev/_skills/general/01_ecosystem/16_boundary-ports-and-producers.md)
+2. **Bind rectangles and evidence to their revisions.** Join anchored claims by their stable claim ID and the exact PDF revision. Bind evidence resources to the project or bundle, the claim, and the evidence snapshot revision. Recheck the revision when a compilation or document selection changes.
+3. **Keep evidence optional.** A PDF viewer can operate with the document port alone. A report viewer can show its recorded graph without project access. Enable source previews only when the host authorizes the resource through its resolver. The host decides file access and gives the adapter the authorized document or project context. [SciTeX access primitive](https://github.com/scitex-ai/scitex-dev/blob/78235625/docs/adr/0014-access-primitive-v1.md)
+4. **Use provider metadata for provenance.** When adding source previews, use the provider's resource type, icon, and color role across the inspector and graph. Keep accessible text labels and a generic fallback. Show the identity of the version being inspected and require a recorded hash match when presenting code as run evidence. [Evidence provider contract](evidence-provider-contract.md)
+5. **Reuse the same reader across deployments.** Use SDK mount-aware URLs and request-bound project access. The local or hosted provider supplies file actions and any execution grant. The reader can display evidence from a saved bundle when the host has no execution capability. [Standalone and hosted design](evidence-source-navigation.md#standalone-and-hosted-use) · [SDK mounting contract](https://github.com/scitex-ai/scitex-sdk/blob/7df1114/src/scitex_sdk/ui/_skills/scitex-ui/41_dual-mode-mounting.md)
+
+The [ecosystem audit](research/evidence-ecosystem-audit.md) maps these rules to the consumers and their acceptance checks.

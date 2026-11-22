@@ -9,7 +9,7 @@ from shutil import copyfile
 
 from scitex_rich_pdf import get_frontend_package_dir
 
-RICH_PDF_VERSION = "0.1.1"
+RICH_PDF_VERSION = "0.1.2"
 ASSETS = {
     "pdf-provider.js": "js",
     "pdf-provider.d.ts": "js",

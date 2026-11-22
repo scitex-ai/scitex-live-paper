@@ -46,6 +46,29 @@ def _page(request, kind):
         root, packet = request_evidence(request)
         if kind == "review.json":
             return _response(json.dumps(packet), content_type="application/json")
+        if kind == "claim.json":
+            claim_id = request.GET.get("claim_id")
+            if not claim_id:
+                return _response(
+                    '{"error": "claim_id_required"}',
+                    status=400,
+                    content_type="application/json",
+                )
+            entry = find_claim(packet, claim_id)
+            if entry is None:
+                return _response(
+                    '{"error": "claim_not_found"}',
+                    status=404,
+                    content_type="application/json",
+                )
+            return _response(
+                json.dumps({
+                    "schema": packet["schema"],
+                    "schema_version": packet["schema_version"],
+                    "claim": entry,
+                }),
+                content_type="application/json",
+            )
         if kind == "review.txt":
             return _response(review_text(packet), content_type="text/plain; charset=utf-8")
         def asset(name):
@@ -98,6 +121,10 @@ def handle_graph(request):
 
 def handle_review_json(request):
     return _page(request, "review.json")
+
+
+def handle_claim_json(request):
+    return _page(request, "claim.json")
 
 
 def handle_review_text(request):

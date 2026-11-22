@@ -2,7 +2,7 @@ import type { PdfSource, PdfViewerApi, PdfViewerOptions, PenInput } from '@scite
 export interface PdfDocument { id: string; src: PdfSource; revision?: string; readonly?: boolean; }
 /** All geometry uses 1-based pages and bottom-left PDF units. */
 export interface PdfTarget { overlayId?: string; page?: number; bbox?: number[]; readonly?: boolean; }
-export interface PdfOverlay { id: string; page: number; bbox: number[]; label?: string; status?: string; readonly?: boolean; target?: unknown; }
+export interface PdfOverlay { id: string; page: number; bbox: number[]; label?: string; status?: string; appearance?: "highlight" | "region"; readonly?: boolean; target?: unknown; }
 export interface PdfComment { id: string; body: string; author?: string; target: PdfTarget; }
 export interface PdfEvent { type: string; documentId: string | null; [key: string]: unknown; }
 export interface PdfFeedEntry {
@@ -19,6 +19,7 @@ export interface RichPdfPorts {
     list(document: PdfDocument): PdfFeedEntry[] | Promise<PdfFeedEntry[]>;
     renderEntry?(entry: PdfFeedEntry): Node | null;
   };
+  preview?: { render(container: HTMLElement, overlay: PdfOverlay, signal: AbortSignal): void };
   events?: { emit(event: PdfEvent): void };
   mutations?: { createMark?(document: PdfDocument, input: PenInput): void | Promise<void> };
   policy?: { canMutate(context: { document: PdfDocument; action: string; target: unknown }): boolean };

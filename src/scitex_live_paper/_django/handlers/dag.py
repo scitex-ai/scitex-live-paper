@@ -45,7 +45,14 @@ def handle_dag(request) -> Mapping[str, Any]:
                 return JsonResponse({"error": "No evidence graph for this claim."}, status=404)
             mermaid, _ = graph_to_mermaid(graph, state=entry["state"])
             references = [
-                {"id": f"n{index}", "label": node["label"], "kind": node["kind"]}
+                {
+                    "id": f"n{index}",
+                    "node_id": node["id"],
+                    "label": node["label"],
+                    "kind": node["kind"],
+                    "script_file": (node["script"].get("file")
+                                    if isinstance(node.get("script"), Mapping) else None),
+                }
                 for index, node in enumerate(graph["nodes"])
                 if node["kind"] in {"input", "output", "process"}
             ]
@@ -54,6 +61,8 @@ def handle_dag(request) -> Mapping[str, Any]:
                 "present": True,
                 "scope": "claim",
                 "provider": packet["provider"]["name"],
+                "state": entry["state"],
+                "reason": entry["reason"],
                 "references": references,
             }
 

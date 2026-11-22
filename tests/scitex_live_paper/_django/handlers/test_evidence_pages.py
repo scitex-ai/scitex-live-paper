@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import copy
+import gzip
 import hashlib
 import json
 import os
 import shutil
+import struct
 from html.parser import HTMLParser
 from pathlib import Path
 from types import SimpleNamespace
@@ -137,7 +140,29 @@ def test_all_page_assets_and_review_graph_links_keep_host_selectors(evidence_hos
     ) == (True, True, ".", 20, 21, 200, True, True, True)
 
 
-@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "assets"])
+def test_claim_json_reuses_review_packet_entry(evidence_host):
+    # Arrange
+    packet = get(evidence_host, "review.json", working_dir="manuscript with spaces").json()
+    entry = packet["needs_inspection"][0]
+    # Act
+    response = get(
+        evidence_host, "claim.json", claim_id=entry["claim_id"],
+        working_dir="manuscript with spaces",
+    )
+    omitted = get(evidence_host, "claim.json")
+    missing = get(evidence_host, "claim.json", claim_id="unknown")
+    # Assert
+    assert (
+        response.status_code, response["Content-Type"], response["Cache-Control"],
+        response.json(), omitted.status_code, missing.status_code, missing.json(),
+    ) == (
+        200, "application/json", "private, no-store",
+        {"schema": packet["schema"], "schema_version": packet["schema_version"], "claim": entry},
+        400, 404, {"error": "claim_not_found"},
+    )
+
+
+@pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "claim.json", "preview.json", "assets"])
 def test_every_page_and_asset_runs_host_authorization(evidence_host, endpoint):
     # Arrange
     before = len(evidence_host.calls)
@@ -305,10 +330,69 @@ def test_claim_rectangles_are_bound_to_the_downloaded_pdf(evidence_host, valid_p
 
 def test_dag_selector_exposes_only_the_requested_claims_references(evidence_host):
     # Arrange
-    references = [{"id": "n0", "label": "result.json", "kind": "output"}]
+    references = [{
+        "id": "n0", "node_id": "output", "label": "result.json",
+        "kind": "output", "script_file": None,
+    }]
     # Act
     chosen = get(evidence_host, "api/dag", claim_id="value").json()
     missing = get(evidence_host, "api/dag", claim_id="unregistered")
     # Assert
     assert (chosen["scope"], chosen["references"], "result.json" in chosen["mermaid"],
             missing.status_code) == ("claim", references, True, 404)
+
+
+
+def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    script = root / "analysis.py"
+    recorded = b"print('recorded')\n"
+    script.write_bytes(recorded)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "run", "kind": "process", "label": "run-1",
+        "script": {"file": "analysis.py", "hash": hashlib.sha256(recorded).hexdigest()},
+    })
+    graph["edges"].append({"source": "run", "target": "output"})
+
+    # Act
+    ready = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+    unknown = get(evidence_host, "preview.json", claim_id="value", node_id="analysis.py")
+    script.write_bytes(b"print('changed')\n")
+    changed = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+    script.unlink()
+    script.symlink_to(evidence_host.roots["bob"] / "paper.tex")
+    symlink = get(evidence_host, "preview.json", claim_id="value", node_id="run")
+    # Assert
+    assert (
+        ready.status_code, ready.json()["text"], ready["Cache-Control"],
+        unknown.status_code, changed.status_code, symlink.status_code,
+    ) == (200, recorded.decode(), "private, no-store", 404, 409, 403)
+
+
+
+def test_preview_selects_idx_decoder_by_header_not_filename(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    pixels = bytes(range(40))
+    content = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + pixels)
+    name = "original-data.gz"
+    (root / name).write_bytes(content)
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "input", "kind": "input", "label": name,
+        "hash": hashlib.sha256(content).hexdigest(),
+    })
+
+    # Act
+    first = get(evidence_host, "preview.json", claim_id="value", node_id="input").json()
+    last = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=8).json()
+    outside = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=10)
+
+    # Assert
+    assert (
+        first["file"], first["kind"], first["total"], first["end"],
+        last["rows"], last["columns"], last["start"], last["end"],
+        base64.b64decode(last["records"]), outside.status_code,
+    ) == (name, "idx", 10, 8, 2, 2, 8, 10, pixels[32:], 416)

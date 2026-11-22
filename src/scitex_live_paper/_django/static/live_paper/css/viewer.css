@@ -939,7 +939,6 @@
   }
 }
 
-#live-paper-pdf .lp-rich-overlay:hover,
 #live-paper-pdf .lp-rich-overlay:focus-visible {
   outline: 2px solid var(--lp-accent);
   outline-offset: 1px;
@@ -984,4 +983,93 @@
 .lp-claim-dag-svg .lp-source-highlight > :is(rect, polygon, path, circle) {
   stroke: #1769aa !important;
   stroke-width: 4px !important;
+}
+
+.lp-evidence-preview-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.lp-rich-preview .lp-claim-dag-svg {
+  max-block-size: 42vh;
+  overflow: auto;
+}
+
+.lp-rich-preview .lp-claim-dag-svg svg {
+  max-block-size: 420px;
+  min-inline-size: 220px;
+}
+
+.lp-source-kind {
+  font-weight: 600;
+  margin-inline-end: 6px;
+}
+
+.lp-claim-trace-status {
+  margin-block: 4px;
+  font-size: 0.85rem;
+}
+
+.lp-source-preview {
+  margin-block-start: 12px;
+  border-block-start: 1px solid var(--border-color, #a4afbd);
+  padding-block-start: 8px;
+}
+
+.lp-source-preview-status {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.lp-source-preview pre {
+  overflow: auto;
+  max-block-size: 13rem;
+  white-space: pre;
+}
+
+.lp-source-preview img {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 14rem;
+  object-fit: contain;
+}
+
+.lp-trace-summary {
+  display: inline-block;
+  margin-inline-start: 10px;
+  font-size: 0.82rem;
+  color: var(--accent, #285876);
+}
+
+.lp-idx-grids {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 5px;
+}
+
+.lp-idx-grids canvas {
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.lp-source-preview-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+
+.lp-archive-preview {
+  max-block-size: 12rem;
+  overflow: auto;
+}
+
+.lp-archive-preview button {
+  overflow-wrap: anywhere;
+}
+
+/* Keep the pointer target in place while a graph or file preview is loading. */
+.lp-rich-preview:has(.lp-evidence-preview-title) {
+  block-size: min(35rem, calc(100vh - 16px));
 }
