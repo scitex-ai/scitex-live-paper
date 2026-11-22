@@ -109,7 +109,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
     selectReference: (reference) => load(reference),
   });
 
-  function load(reference, { start = 0, member } = {}) {
+  function load(reference, { member } = {}) {
     request?.abort();
     request = new AbortController();
     const current = request;
@@ -118,7 +118,6 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
-    if (start) url.searchParams.set("start", start);
     if (member !== undefined) url.searchParams.set("member", member);
     fetch(withBundleContext(url.href), {
       signal: AbortSignal.any([signal, current.signal]),
@@ -136,7 +135,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
         const back = previewButton("Archive contents", () => load(reference));
         preview.append(el("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options), member);
+      renderSourceContent(preview, result, (options) => load(reference, options));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
         preview.replaceChildren(
@@ -155,14 +154,18 @@ function previewButton(label, action) {
   return button;
 }
 
-function renderSourceContent(panel, result, load, member) {
+function renderSourceContent(panel, result, load) {
   if (result.kind === "image") {
     const image = el("img");
     image.src = `data:${result.media_type};base64,${result.data}`;
     image.alt = result.file;
     panel.append(image);
   } else if (result.kind === "text") {
-    panel.append(el("pre", null, result.text));
+    const code = el("code", result.language ? "language-" + result.language : null, result.text);
+    const block = el("pre");
+    block.append(code);
+    panel.append(block);
+    if (result.language) window.hljs?.highlightElement(code);
   } else if (result.kind === "archive") {
     const list = el("ul", "lp-archive-preview");
     for (const item of result.members) {
@@ -171,47 +174,12 @@ function renderSourceContent(panel, result, load, member) {
       list.append(row);
     }
     panel.append(el("p", null, "First archive entries"), list);
-  } else if (result.kind === "idx") {
-    renderIdxWindow(panel, result, load, member);
-  } else {
-    panel.append(el("p", null, result.description));
+  } else if (result.kind === "metadata") {
+    const size = result.size.toLocaleString();
+    const identity = el("details");
+    identity.append(el("summary", null, "Recorded hash"), el("code", null, result.hash));
+    panel.append(el("p", null, `${result.description} · ${size} bytes`), identity);
   }
-}
-
-function renderIdxWindow(panel, result, load, member) {
-  const { start, end, total, rows, columns, page_size: size } = result;
-  const recordType = rows ? ` · ${rows} × ${columns} unsigned-byte grids` : " · unsigned-byte values";
-  panel.append(el("p", null, `Records ${start + 1}–${end} of ${total}${recordType}`));
-  const records = atob(result.records);
-  if (rows) {
-    const grid = el("div", "lp-idx-grids");
-    const stride = rows * columns;
-    for (let index = 0; index < end - start; index++) {
-      const canvas = el("canvas");
-      canvas.width = columns;
-      canvas.height = rows;
-      canvas.setAttribute("role", "img");
-      canvas.setAttribute("aria-label", `Grayscale grid for record ${start + index + 1}`);
-      const context = canvas.getContext("2d");
-      const image = context.createImageData(columns, rows);
-      for (let pixel = 0; pixel < stride; pixel++) {
-        const intensity = records.charCodeAt(index * stride + pixel);
-        image.data.set([intensity, intensity, intensity, 255], pixel * 4);
-      }
-      context.putImageData(image, 0, 0);
-      grid.append(canvas);
-    }
-    panel.append(grid);
-  } else {
-    panel.append(el("pre", null, Array.from(records, (value) => value.charCodeAt(0)).join("  ")));
-  }
-  const navigation = el("div", "lp-source-preview-navigation");
-  const previous = previewButton("Previous records", () => load({ start: Math.max(0, start - size), member }));
-  const next = previewButton("Next records", () => load({ start: end, member }));
-  previous.disabled = start === 0;
-  next.disabled = end >= total;
-  navigation.append(previous, next);
-  panel.append(navigation);
 }
 
 export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
@@ -252,6 +220,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
     const heading = el("h3", "lp-claim-graph-title", title);
     if (body.provider) heading.append(" (" + body.provider + ")");
     const wrap = el("div", "lp-claim-dag-svg");
+    wrap.dataset.evidenceState = body.state || "";
     wrap.innerHTML = svg;
     dagBox.replaceChildren(heading);
     if (selectReference && body.reason) {
@@ -280,55 +249,68 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
 
 function bindReferences(dagBox, graph, references, selectReference) {
   if (!Array.isArray(references) || !references.length) return;
-  const list = el("ul", "lp-claim-references");
-  dagBox.append(el("h4", "lp-claim-graph-title", "Source references"), list);
-  const entries = new Map();
+  const nodes = [...graph.querySelectorAll("g.node")];
+  const entries = references.map((reference) => ({
+    reference,
+    node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-")),
+  }));
+  let activeReference;
   let hoverTimer;
-  function highlight(id) {
-    for (const [key, { button, node }] of entries) {
-      button.setAttribute("aria-pressed", String(key === id));
-      node.classList.toggle("lp-source-highlight", key === id);
+  const fallback = entries.length > 6 || entries.some(({ node }) => !node);
+  const list = fallback ? el("ul", "lp-claim-references") : null;
+
+  function activate(entry) {
+    const { reference, node } = entry;
+    if (activeReference === reference.id) return;
+    activeReference = reference.id;
+    for (const other of entries) {
+      const selected = other === entry;
+      other.node?.setAttribute("aria-pressed", String(selected));
+      other.node?.classList.toggle("lp-source-highlight", selected);
+      other.button?.setAttribute("aria-pressed", String(selected));
     }
+    if (selectReference) selectReference(reference);
+    else node?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
-  for (const reference of references) {
-    const node = [...graph.querySelectorAll("g.node")].find(
-      (element) => element.id.startsWith("flowchart-" + reference.id + "-"),
-    );
-    if (!node) continue;
-    const item = el("li", null);
-    const label = reference.script_file || reference.label;
-    const button = el("button", null, label);
-    if (selectReference) {
-      const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
-      button.prepend(el("span", "lp-source-kind", role + " "));
-    }
-    button.type = "button";
-    button.setAttribute("aria-pressed", "false");
-    function select() {
-      if (selectReference && button.getAttribute("aria-pressed") === "true") return;
-      highlight(reference.id);
-      selectReference?.(reference);
-    }
-    button.addEventListener("click", () => {
-      select();
-      if (!selectReference) node.scrollIntoView({ block: "nearest", inline: "nearest" });
-    });
-    node.addEventListener("click", select);
-    if (selectReference) {
-      for (const target of [node, button]) {
-        target.addEventListener("pointerenter", () => {
-          clearTimeout(hoverTimer);
-          hoverTimer = setTimeout(() => { if (target.isConnected) select(); }, 80);
-        });
-        target.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
-      }
-      button.addEventListener("focus", () => {
-        clearTimeout(hoverTimer);
+
+  for (const entry of entries) {
+    const { reference, node } = entry;
+    const role = { input: "Input", output: "Output", process: "Run" }[reference.kind];
+    const label = (role ? role + " " : "") + (reference.script_file || reference.label);
+    const select = () => activate(entry);
+    if (node) {
+      node.setAttribute("role", "button");
+      node.setAttribute("tabindex", "0");
+      node.setAttribute("aria-label", label);
+      node.setAttribute("aria-pressed", "false");
+      node.addEventListener("click", select);
+      node.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
         select();
       });
     }
-    entries.set(reference.id, { button, node });
-    item.append(button);
-    list.append(item);
+    if (list) {
+      const item = el("li");
+      entry.button = previewButton(label, select);
+      entry.button.setAttribute("aria-pressed", "false");
+      item.append(entry.button);
+      list.append(item);
+    }
+    if (!selectReference) continue;
+    for (const control of [node, entry.button].filter(Boolean)) {
+      control.addEventListener("pointerenter", () => {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => { if (control.isConnected) select(); }, 80);
+      });
+      control.addEventListener("pointerleave", () => clearTimeout(hoverTimer));
+      control.addEventListener("focus", select);
+    }
+  }
+
+  if (list) {
+    const details = el("details");
+    details.append(el("summary", null, "Browse sources"), list);
+    dagBox.append(details);
   }
 }

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import copy
 import gzip
 import hashlib
@@ -372,27 +371,19 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
 
 
 
-def test_preview_selects_idx_decoder_by_header_not_filename(evidence_host):
+def test_gzip_preview_reports_original_file_metadata(evidence_host):
     # Arrange
     root = evidence_host.roots["alice"]
-    pixels = bytes(range(40))
-    content = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + pixels)
+    content = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + bytes(range(40)))
     name = "original-data.gz"
+    digest = hashlib.sha256(content).hexdigest()
     (root / name).write_bytes(content)
     graph = evidence_host.reports["alice"]["claims"][0]["graph"]
-    graph["nodes"].append({
-        "id": "input", "kind": "input", "label": name,
-        "hash": hashlib.sha256(content).hexdigest(),
-    })
-
+    graph["nodes"].append({"id": "input", "kind": "input", "label": name, "hash": digest})
     # Act
-    first = get(evidence_host, "preview.json", claim_id="value", node_id="input").json()
-    last = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=8).json()
-    outside = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=10)
-
+    response = get(evidence_host, "preview.json", claim_id="value", node_id="input")
     # Assert
-    assert (
-        first["file"], first["kind"], first["total"], first["end"],
-        last["rows"], last["columns"], last["start"], last["end"],
-        base64.b64decode(last["records"]), outside.status_code,
-    ) == (name, "idx", 10, 8, 2, 2, 8, 10, pixels[32:], 416)
+    assert (response.status_code, response.json()) == (200, {
+        "kind": "metadata", "file": name, "size": len(content), "hash": digest,
+        "description": "Gzip-compressed file.",
+    })

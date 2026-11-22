@@ -229,11 +229,11 @@ A Clew process node may carry a provider extension, `script`, with `file`
 nodes use their existing path label and hash. For bytes that the authorized
 host can still read, send `GET preview.json?claim_id=<id>&node_id=<graph-node-id>`.
 The response gives the recorded file, stored size, and hash. Its `kind` can be
-`text`, `image`, `idx`, `archive`, or `metadata`. The IDX window uses an optional
-zero-based `start` and returns a record count plus the selected bytes. An archive
-can be listed or browsed with a returned integer `member` ID. Small UTF-8, PNG, and
-JPEG content uses the same file preview rules inside supported archives.
-Preview limits apply to the original bytes and to decompression. A current file that differs from the recorded digest
+`text`, `image`, `archive`, or `metadata`. Gzip files return metadata.
+ZIP and uncompressed TAR files can be listed or browsed with a returned
+integer `member` ID. Small UTF-8, PNG, and JPEG content uses the same file
+preview rules inside supported archives. Preview limits apply to the
+original bytes and to archive members. A current file that differs from the recorded digest
 returns 409. An unavailable file leaves the inspected graph usable.
 
 Python clients can generate the same bounded preview from bytes without a web
