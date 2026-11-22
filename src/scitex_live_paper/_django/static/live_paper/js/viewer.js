@@ -183,6 +183,7 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
+    outline: rootEl.querySelector(".lp-pdf-bookmarks"),
     container: pdfContainer,
     pdfjs: pdfjs,
     createPdfViewer,

@@ -4,6 +4,10 @@
   <div id="live-paper-bundle-header" hidden></div>
   <div class="lp-reader-actions">
     {% if not empty_reason %}<button type="button" class="stx-button lp-reader-evidence-toggle" aria-controls="live-paper-claims" aria-expanded="false">Claim evidence</button>{% endif %}
+    <details class="lp-pdf-bookmarks" hidden>
+      <summary>Bookmarks</summary>
+      <nav aria-label="PDF bookmarks"></nav>
+    </details>
     <a id="live-paper-download-pdf" hidden>Download PDF</a>
     <details class="lp-pdf-variants" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
       <summary>PDF variants</summary>
