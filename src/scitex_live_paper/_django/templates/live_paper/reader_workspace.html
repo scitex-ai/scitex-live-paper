@@ -4,10 +4,10 @@
   <div id="live-paper-bundle-header" hidden></div>
   <div class="lp-reader-actions">
     {% if not empty_reason %}<button type="button" class="stx-button lp-reader-evidence-toggle" aria-controls="live-paper-claims" aria-expanded="false">Claim evidence</button>{% endif %}
-    <details class="lp-pdf-bookmarks" hidden>
-      <summary>Bookmarks</summary>
-      <nav aria-label="PDF bookmarks"></nav>
-    </details>
+    {% if not empty_reason %}
+    <button type="button" class="stx-button lp-pdf-navigation-toggle" aria-expanded="false"
+            aria-controls="live-paper-navigation">Pages &amp; bookmarks</button>
+    {% endif %}
     <a id="live-paper-download-pdf" hidden>Download PDF</a>
     <details class="lp-pdf-variants" data-export-src="{% app_static 'live_paper/js/pdf-export-entry.js' %}" hidden>
       <summary>PDF variants</summary>
@@ -26,6 +26,7 @@
 {% if not empty_reason %}
 <div class="lp-verification-banner" id="live-paper-trace-status" hidden></div>
 <div class="lp-reader-workspace">
+  <nav id="live-paper-navigation" aria-label="PDF navigation" hidden></nav>
   <section aria-label="Manuscript" tabindex="0" class="lp-reader-document">
     <div id="live-paper-pdf" class="live-paper-pdf"></div>
   </section>

@@ -43,3 +43,23 @@ export interface RichPdfApi {
   destroy(): void;
 }
 export function createRichPdfViewer(options: RichPdfOptions): RichPdfApi;
+
+type PdfRuntime = NonNullable<PdfViewerOptions["pdfjs"]>;
+type LoadedPdf = Awaited<ReturnType<PdfRuntime["getDocument"]>["promise"]>;
+
+export interface PdfNavigationOptions {
+  /** Empty mount beside the scrollable PDF viewport. */
+  container: HTMLElement;
+  toggle: HTMLButtonElement;
+  pdfjs: PdfRuntime;
+  onDocument?(document: LoadedPdf): void;
+}
+
+export interface PdfNavigationApi {
+  readonly runtime: PdfRuntime;
+  pageRendered(page: number, surface: import('@scitex/sdk/ui/pdf-viewer').PdfPageSurface): void;
+  finishRender(): void;
+  destroy(): void;
+}
+
+export function createPdfNavigation(options: PdfNavigationOptions): PdfNavigationApi;

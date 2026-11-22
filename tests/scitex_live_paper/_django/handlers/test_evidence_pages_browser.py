@@ -295,13 +295,19 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
                 return count;
             }""", base64.b64encode(file).decode())
             exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
-        bookmarks = page.locator(".lp-pdf-bookmarks")
-        bookmarks.locator("summary").click()
-        bookmarks.get_by_role("button", name="References").click()
+        navigation_toggle = page.get_by_role("button", name="Pages & bookmarks", exact=True)
+        navigation_toggle.click()
+        navigation = page.get_by_role("navigation", name="PDF navigation")
+        navigation.get_by_role("button", name="Page 1", exact=True).wait_for()
+        navigation.locator("canvas").first.wait_for()
+        navigation.get_by_role("button", name="Page 2", exact=True).click()
+        page.wait_for_function("document.querySelector('.lp-reader-document').scrollTop > 0")
+        navigation.get_by_role("button", name="Bookmarks", exact=True).click()
+        navigation.get_by_role("button", name="References", exact=True).click()
         reference = document.locator(".lp-bibliography-highlight", has_text="Second page destination")
-        reference.wait_for(state="attached")
-        reference.scroll_into_view_if_needed(timeout=5000)
-        bookmarks_work = bookmarks.evaluate("node => !node.open") and reference.is_visible()
+        reference.wait_for(state="visible")
+        navigation_toggle.click()
+        bookmarks_work = navigation.is_hidden()
         observed = (
             response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),

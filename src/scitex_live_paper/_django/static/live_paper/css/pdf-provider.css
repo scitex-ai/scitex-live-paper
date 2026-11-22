@@ -100,3 +100,74 @@
   cursor: pointer;
 }
 @media print { .lp-rich-preview { display: none !important; } }
+
+/* Optional shared PDF page and bookmark navigation. */
+.rpdf-navigation:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  border: 1px solid var(--rpdf-nav-border, #d6dce1);
+  border-radius: 8px;
+  background: var(--rpdf-nav-surface, #fff);
+  color: var(--rpdf-nav-text, #202733);
+}
+
+.rpdf-nav-controls {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-block-end: 1px solid var(--rpdf-nav-border, #d6dce1);
+}
+
+.rpdf-navigation button {
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rpdf-navigation button:is(:hover, :focus-visible, [aria-pressed="true"]) {
+  background: var(--rpdf-nav-hover, #ddeaf5);
+}
+
+.rpdf-nav-content {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+}
+
+.rpdf-nav-pages,
+.rpdf-nav-bookmarks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rpdf-nav-pages {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.rpdf-nav-pages button {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.rpdf-nav-pages canvas {
+  max-inline-size: 100%;
+  block-size: auto;
+  background: white;
+  border: 1px solid var(--rpdf-nav-border, #d6dce1);
+}
+
+.rpdf-nav-bookmarks .rpdf-nav-bookmarks {
+  padding-inline-start: 12px;
+}

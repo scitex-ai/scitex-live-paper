@@ -567,119 +567,238 @@ function createFeed(container, choose, renderEntry) {
     }
   };
 }
+function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
+  const controls = document.createElement("div");
+  controls.className = "rpdf-nav-controls";
+  const content = document.createElement("div");
+  content.className = "rpdf-nav-content";
+  container.classList.add("rpdf-navigation");
+  container.replaceChildren(controls, content);
+  const pagePanel = document.createElement("div");
+  const bookmarkPanel = document.createElement("div");
+  content.append(pagePanel, bookmarkPanel);
+  const pageTab = control("Pages", () => select("pages"));
+  const bookmarkTab = control("Bookmarks", () => select("bookmarks"));
+  controls.append(pageTab, bookmarkTab);
+  let generation = 0;
+  let observer;
+  let ready = false;
+  let destination;
+  const surfaces = /* @__PURE__ */ new Map();
+  const events = new AbortController();
+  function control(label, action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", action);
+    return button;
+  }
+  function select(view) {
+    const pages = view === "pages";
+    pagePanel.hidden = !pages;
+    bookmarkPanel.hidden = pages;
+    pageTab.setAttribute("aria-pressed", String(pages));
+    bookmarkTab.setAttribute("aria-pressed", String(!pages));
+    content.scrollTop = 0;
+  }
+  function setOpen(open) {
+    container.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+  }
+  toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
+  container.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    setOpen(false);
+    toggle.focus();
+    event.stopPropagation();
+  }, { signal: events.signal });
+  select("pages");
+  setOpen(false);
+  function choose(target) {
+    destination = target;
+    jump();
+  }
+  function jump() {
+    if (!destination) return;
+    const surface = surfaces.get(destination.page);
+    if (!surface?.element.isConnected) return;
+    const scroller = closestScrollContainer(surface.element);
+    if (scroller) {
+      const [, offset] = Number.isFinite(destination.top) ? surface.pdfToViewportPoint(destination.left ?? 0, destination.top) : [0, 0];
+      const top = scroller.scrollTop + surface.element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTo({ top: top + offset - 12 });
+    } else {
+      surface.element.scrollIntoView({ block: "start" });
+    }
+    if (ready) destination = null;
+  }
+  function renderPages(pdf, current) {
+    const list = document.createElement("ol");
+    list.className = "rpdf-nav-pages";
+    observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        const page = Number(entry.target.dataset.page);
+        void renderThumbnail(pdf, page, entry.target, () => current === generation).catch(() => {
+        });
+      }
+    }, { root: content, rootMargin: "100px 0px" });
+    for (let page = 1; page <= pdf.numPages; page += 1) {
+      const row = document.createElement("li");
+      const button = control("Page " + page, () => choose({ page }));
+      const canvas = document.createElement("canvas");
+      canvas.width = 112;
+      canvas.height = 146;
+      canvas.dataset.page = String(page);
+      canvas.setAttribute("aria-hidden", "true");
+      button.prepend(canvas);
+      row.append(button);
+      list.append(row);
+      observer.observe(canvas);
+    }
+    pagePanel.replaceChildren(list);
+  }
+  async function documentReady(pdf, current) {
+    if (current !== generation) return;
+    renderPages(pdf, current);
+    const items = await pdf.getOutline();
+    const list = await renderPdfOutline(pdf, items ?? [], choose);
+    if (current !== generation) return;
+    bookmarkPanel.replaceChildren(list);
+    if (!list.childElementCount) bookmarkPanel.textContent = "This PDF has no bookmarks.";
+  }
+  const runtime = {
+    ...pdfjs,
+    getDocument(...args) {
+      const task = pdfjs.getDocument(...args);
+      const current = ++generation;
+      ready = false;
+      destination = null;
+      surfaces.clear();
+      observer?.disconnect();
+      pagePanel.textContent = "Loading pages\u2026";
+      bookmarkPanel.textContent = "Loading bookmarks\u2026";
+      task.promise.then((pdf) => {
+        void documentReady(pdf, current).catch(() => {
+          if (current === generation) bookmarkPanel.textContent = "Bookmarks unavailable.";
+        });
+        if (current === generation && onDocument) onDocument(pdf);
+      }, () => {
+        if (current !== generation) return;
+        pagePanel.textContent = "Pages unavailable.";
+        bookmarkPanel.textContent = "Bookmarks unavailable.";
+      });
+      return task;
+    }
+  };
+  return {
+    runtime,
+    pageRendered(page, surface) {
+      surfaces.set(page, surface);
+      if (destination?.page === page) jump();
+    },
+    finishRender() {
+      ready = true;
+      jump();
+    },
+    destroy() {
+      generation += 1;
+      events.abort();
+      observer?.disconnect();
+      surfaces.clear();
+      container.replaceChildren();
+      setOpen(false);
+    }
+  };
+}
+function closestScrollContainer(element) {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    if (["auto", "scroll"].includes(getComputedStyle(parent).overflowY)) return parent;
+  }
+  return null;
+}
+async function renderThumbnail(pdf, number, canvas, isCurrent) {
+  const page = await pdf.getPage(number);
+  if (!isCurrent() || !canvas.isConnected) return;
+  const view = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: Math.min(112 / view.width, 146 / view.height) });
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+}
+async function renderPdfOutline(pdf, items, choose) {
+  const list = document.createElement("ul");
+  list.className = "rpdf-nav-bookmarks";
+  for (const item of items) {
+    const dest = typeof item.dest === "string" ? await pdf.getDestination(item.dest) : item.dest;
+    const row = document.createElement("li");
+    const target = await pdfOutlineTarget(pdf, dest);
+    const title = document.createElement(target ? "button" : "span");
+    title.textContent = item.title;
+    if (target) {
+      title.type = "button";
+      title.addEventListener("click", () => choose(target));
+    }
+    row.append(title);
+    if (item.items?.length) row.append(await renderPdfOutline(pdf, item.items, choose));
+    list.append(row);
+  }
+  return list;
+}
+async function pdfOutlineTarget(pdf, dest) {
+  if (!Array.isArray(dest)) return null;
+  const [ref, mode, left, top] = dest;
+  try {
+    const index = Number.isInteger(ref) ? ref : ref ? await pdf.getPageIndex(ref) : -1;
+    if (index < 0 || index >= pdf.numPages) return null;
+    return {
+      page: index + 1,
+      left: mode?.name === "XYZ" ? left : null,
+      top: mode?.name === "XYZ" ? top : mode?.name === "FitH" ? left : null
+    };
+  } catch {
+    return null;
+  }
+}
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-overlays.js
 function pickAnchor(claim) {
   return claim?.anchor ?? claim?.extras?.anchor ?? null;
 }
 
-// src/scitex_live_paper/_django/static/live_paper/js/pdf-navigation.js
-function bindPdfNavigation(pdfjs, outline) {
-  let documentTask;
-  let references = /* @__PURE__ */ new Map();
+// src/scitex_live_paper/_django/static/live_paper/js/bibliography-highlights.js
+function createBibliographyHighlights() {
   const pages = /* @__PURE__ */ new Map();
-  const runtime = {
-    ...pdfjs,
-    getDocument(...args) {
-      const task = pdfjs.getDocument(...args);
-      documentTask = task.promise;
-      return task;
-    }
-  };
-  function jump(target, navigate) {
-    const surface = pages.get(target.page);
-    if (!surface || !Number.isFinite(target.top)) {
-      navigate(target.page);
-      return;
-    }
-    const [, offset] = surface.pdfToViewportPoint(0, target.top);
-    navigate(target.page, offset);
-  }
+  let references = /* @__PURE__ */ new Map();
+  let activeDocument;
   return {
-    runtime,
-    async load() {
-      if (outline) {
-        outline.hidden = true;
-        outline.querySelector("nav").replaceChildren();
-      }
+    documentLoaded(pdf) {
+      activeDocument = pdf;
+      pages.clear();
       references = /* @__PURE__ */ new Map();
-      const pdf = await documentTask;
-      if (!pdf) return;
-      const [items, names] = await Promise.all([pdf.getOutline(), pdf.getDestinations()]);
-      const fromName = (destination) => resolveDestination(pdf, names, destination);
-      if (outline && items?.length) {
-        const list = await renderOutline(items, fromName, (target) => {
-          jump(target, (page, offset) => navigateToPage(pages, page, offset));
-          outline.open = false;
-          outline.querySelector("summary").focus({ preventScroll: true });
-        });
-        if (list.childElementCount) {
-          outline.querySelector("nav").append(list);
-          outline.hidden = false;
+      void pdf.getDestinations().then(async (destinations) => {
+        const resolved = /* @__PURE__ */ new Map();
+        for (const [name, dest] of Object.entries(destinations ?? {})) {
+          if (!name.startsWith("cite.") || !Array.isArray(dest)) continue;
+          const [ref, mode, left, top] = dest;
+          if (mode?.name !== "XYZ" || !Number.isFinite(left) || !Number.isFinite(top)) continue;
+          const index = Number.isInteger(ref) ? ref : await pdf.getPageIndex(ref).catch(() => -1);
+          if (index < 0 || index >= pdf.numPages) continue;
+          const page = resolved.get(index + 1) ?? [];
+          page.push({ left, top });
+          resolved.set(index + 1, page);
         }
-      }
-      for (const [name, dest] of Object.entries(names ?? {})) {
-        if (!name.startsWith("cite.")) continue;
-        const location2 = await fromName(dest);
-        if (!location2 || !Number.isFinite(location2.left) || !Number.isFinite(location2.top)) continue;
-        const page = references.get(location2.page) ?? [];
-        page.push(location2);
-        references.set(location2.page, page);
-      }
-      for (const [page, surface] of pages) markReferences(surface, references.get(page));
+        if (pdf !== activeDocument) return;
+        references = resolved;
+        for (const [page, surface] of pages) markReferences(surface, references.get(page));
+      }).catch((error) => console.warn("[pdf-viewer] bibliography destinations unavailable", error));
     },
-    pageRendered(page, _viewport, surface) {
+    pageRendered(page, surface) {
       pages.set(page, surface);
       markReferences(surface, references.get(page));
     }
   };
-}
-async function resolveDestination(pdf, names, value) {
-  const dest = typeof value === "string" ? names?.[value] : value;
-  if (!Array.isArray(dest)) return null;
-  const [ref, mode, left, top] = dest;
-  let index;
-  try {
-    index = Number.isInteger(ref) ? ref : ref ? await pdf.getPageIndex(ref) : -1;
-  } catch {
-    return null;
-  }
-  if (index < 0 || index >= pdf.numPages) return null;
-  return {
-    page: index + 1,
-    left: mode?.name === "XYZ" ? left : null,
-    top: mode?.name === "XYZ" ? top : mode?.name === "FitH" ? left : null
-  };
-}
-async function renderOutline(items, resolve, navigate) {
-  const list = document.createElement("ul");
-  for (const item of items) {
-    const target = await resolve(item.dest);
-    const children = await renderOutline(item.items ?? [], resolve, navigate);
-    if (!target && !children.childElementCount) continue;
-    const row = document.createElement("li");
-    const title = document.createElement(target ? "button" : "span");
-    title.textContent = item.title;
-    if (target) {
-      title.type = "button";
-      title.addEventListener("click", () => navigate(target));
-    }
-    row.append(title);
-    if (children.childElementCount) row.append(children);
-    list.append(row);
-  }
-  return list;
-}
-function navigateToPage(pages, page, offset = 0) {
-  const surface = pages.get(page);
-  if (!surface?.element.isConnected) return;
-  const manuscript = surface.element.closest(".lp-reader-document");
-  if (!manuscript) {
-    surface.element.scrollIntoView({ block: "start" });
-    return;
-  }
-  const top = manuscript.scrollTop + surface.element.getBoundingClientRect().top - manuscript.getBoundingClientRect().top + offset;
-  manuscript.scrollTo({ top: top - 12 });
 }
 function markReferences(surface, references) {
   if (!references?.length) return;
@@ -1158,7 +1277,12 @@ var PDFViewer = class {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    this.navigation = bindPdfNavigation(options.pdfjs, options.outline);
+    const bibliography = createBibliographyHighlights();
+    this.navigation = createPdfNavigation({
+      ...options.navigation,
+      pdfjs: options.pdfjs,
+      onDocument: bibliography.documentLoaded
+    });
     this.container.classList.add("pdf-viewer-host");
     this.provider = createRichPdfViewer({
       container: this.container,
@@ -1167,7 +1291,12 @@ var PDFViewer = class {
       rendererOptions: {
         pdfjs: this.navigation.runtime,
         workerSrc: options.workerSrc,
-        hooks: { onPageRender: this.navigation.pageRendered },
+        hooks: {
+          onPageRender: (page, _viewport, surface) => {
+            this.navigation.pageRendered(page, surface);
+            bibliography.pageRendered(page, surface);
+          }
+        },
         textLayer: true,
         linkLayer: true
       },
@@ -1236,7 +1365,7 @@ var PDFViewer = class {
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
-      void this.navigation.load().catch((error) => console.warn("[pdf-viewer] navigation unavailable", error));
+      this.navigation.finishRender();
       this.watchFitWidth();
       return true;
     } catch (error) {
@@ -1299,6 +1428,7 @@ var PDFViewer = class {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
     this.stopEvidencePane?.();
+    this.navigation.destroy();
     this.provider.destroy();
   }
 };
@@ -2026,7 +2156,10 @@ async function boot(rootEl) {
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
-    outline: rootEl.querySelector(".lp-pdf-bookmarks"),
+    navigation: {
+      container: rootEl.querySelector("#live-paper-navigation"),
+      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle")
+    },
     container: pdfContainer,
     pdfjs,
     createPdfViewer,
@@ -2041,14 +2174,13 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  if (await viewer.load()) {
-    const download = rootEl.querySelector("#live-paper-download-pdf");
-    if (download) {
-      download.href = withBundleContext(apiBase + "pdf?download=1");
-      download.hidden = false;
-      bindPdfDownloads(rootEl, viewer.claims, download.href);
-    }
+  const download = rootEl.querySelector("#live-paper-download-pdf");
+  if (bundleInfo && download) {
+    download.href = withBundleContext(apiBase + "pdf?download=1");
+    download.hidden = false;
+    bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
+  await viewer.load();
 }
 async function renderTraceSummary(rootEl, apiBase) {
   const url = new URL("../review.json", new URL(apiBase, location.href));

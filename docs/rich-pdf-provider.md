@@ -1,6 +1,6 @@
 # Rich PDF provider
 
-SciTeX Rich PDF owns overlay and comment orchestration. The SDK owns page
+SciTeX Rich PDF owns overlay and comment orchestration, page thumbnails, and bookmark navigation. The SDK owns page
 rasterization, text/link layers, pen input and coordinate transforms. Each
 consumer supplies document access, data, route resolution, and mutation policy
 to the public Rich PDF factory. Live Paper supplies the claim-aware adapter
@@ -62,7 +62,7 @@ Rebuild with `npm ci && npm run build:frontend`.
 --chromium <binary>` uses a disposable two-page PDF and actual PDF.js. It covers
 region/count rendering, comment create and refusal, read-only/policy guards,
 failed-save draft retention, reload cleanup, native claim events and translated
-comment requests. Its HTTP port fixtures are synthetic, not proof of a deployed
+comment requests. The mounted browser suite also exercises Rich PDF’s Pages and Bookmarks pane. Its HTTP port fixtures are synthetic, not proof of a deployed
 host's credentials, authorization, persistence or available documents.
 
 Native browser comment POSTs require the `live-paper-csrf-token` DOM token from
