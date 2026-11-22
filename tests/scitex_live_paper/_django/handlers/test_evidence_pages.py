@@ -141,24 +141,25 @@ def test_all_page_assets_and_review_graph_links_keep_host_selectors(evidence_hos
 
 
 def test_claim_json_reuses_review_packet_entry(evidence_host):
+    # Arrange
     packet = get(evidence_host, "review.json", working_dir="manuscript with spaces").json()
     entry = packet["needs_inspection"][0]
+    # Act
     response = get(
         evidence_host, "claim.json", claim_id=entry["claim_id"],
         working_dir="manuscript with spaces",
     )
-    assert response.status_code == 200
-    assert response["Content-Type"] == "application/json"
-    assert response["Cache-Control"] == "private, no-store"
-    assert response.json() == {
-        "schema": packet["schema"],
-        "schema_version": packet["schema_version"],
-        "claim": entry,
-    }
-    assert get(evidence_host, "claim.json").status_code == 400
+    omitted = get(evidence_host, "claim.json")
     missing = get(evidence_host, "claim.json", claim_id="unknown")
-    assert missing.status_code == 404
-    assert missing.json() == {"error": "claim_not_found"}
+    # Assert
+    assert (
+        response.status_code, response["Content-Type"], response["Cache-Control"],
+        response.json(), omitted.status_code, missing.status_code, missing.json(),
+    ) == (
+        200, "application/json", "private, no-store",
+        {"schema": packet["schema"], "schema_version": packet["schema_version"], "claim": entry},
+        400, 404, {"error": "claim_not_found"},
+    )
 
 
 @pytest.mark.parametrize("endpoint", ["paper.html", "graph.html", "review.json", "review.txt", "claim.json", "preview.json", "assets"])
@@ -343,6 +344,7 @@ def test_dag_selector_exposes_only_the_requested_claims_references(evidence_host
 
 
 def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evidence_host):
+    # Arrange
     root = evidence_host.roots["alice"]
     script = root / "analysis.py"
     recorded = b"print('recorded')\n"
@@ -354,6 +356,7 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
     })
     graph["edges"].append({"source": "run", "target": "output"})
 
+    # Act
     ready = get(evidence_host, "preview.json", claim_id="value", node_id="run")
     unknown = get(evidence_host, "preview.json", claim_id="value", node_id="analysis.py")
     script.write_bytes(b"print('changed')\n")
@@ -361,7 +364,7 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
     script.unlink()
     script.symlink_to(evidence_host.roots["bob"] / "paper.tex")
     symlink = get(evidence_host, "preview.json", claim_id="value", node_id="run")
-
+    # Assert
     assert (
         ready.status_code, ready.json()["text"], ready["Cache-Control"],
         unknown.status_code, changed.status_code, symlink.status_code,
@@ -370,6 +373,7 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
 
 
 def test_preview_selects_idx_decoder_by_header_not_filename(evidence_host):
+    # Arrange
     root = evidence_host.roots["alice"]
     pixels = bytes(range(40))
     content = gzip.compress(struct.pack(">IIII", 2051, 10, 2, 2) + pixels)
@@ -381,10 +385,14 @@ def test_preview_selects_idx_decoder_by_header_not_filename(evidence_host):
         "hash": hashlib.sha256(content).hexdigest(),
     })
 
+    # Act
     first = get(evidence_host, "preview.json", claim_id="value", node_id="input").json()
     last = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=8).json()
     outside = get(evidence_host, "preview.json", claim_id="value", node_id="input", start=10)
 
-    assert (first["file"], first["kind"], first["total"], first["end"]) == (name, "idx", 10, 8)
-    assert (last["rows"], last["columns"], last["start"], last["end"]) == (2, 2, 8, 10)
-    assert (base64.b64decode(last["records"]), outside.status_code) == (pixels[32:], 416)
+    # Assert
+    assert (
+        first["file"], first["kind"], first["total"], first["end"],
+        last["rows"], last["columns"], last["start"], last["end"],
+        base64.b64decode(last["records"]), outside.status_code,
+    ) == (name, "idx", 10, 8, 2, 2, 8, 10, pixels[32:], 416)
