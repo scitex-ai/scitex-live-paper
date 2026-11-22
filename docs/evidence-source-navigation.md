@@ -2,9 +2,9 @@
 
 **Status** Proposed
 
-The first release answers one question: **Which script produced this figure or value?** Hover over a claim rectangle to see the script name and recorded run ID. Hover over the script row for a short inline preview. Click the rectangle to pin the popup, or tap to open it on a touch screen. **Open current file** opens the project file when available. **Open full evidence graph** lets the reader inspect the chain. The feed still works for browsing the paper.
+The first release answers one question: **Where did this figure or value come from?** Hover over a claim rectangle to see the Clew graph. Move onto the script node for an inline code preview, or onto an input for a sample of the recorded data. Click the rectangle to pin the popup, or tap to open it on a touch screen. The feed still works for browsing the paper.
 
-Use one panel as the reader drills down. The claim summary leads to the script preview, and the preview can expose the recorded run ID and graph link. Keep the claim label visible so the reader can trace a detail back to its place in the paper. Semantic Reader's citation cards show the entry point from a paper. VS Code's Peek Definition shows how to inspect the next layer in place. [Semantic Reader research](https://arxiv.org/abs/2303.14334) · [VS Code Peek](https://code.visualstudio.com/docs/editing/editingevolved#_peek)
+Use one panel as the reader drills down. Keep the claim label and a compact Clew graph visible. Hovering or focusing a graph node shows its contents in the same panel. For inputs, show the recorded files and preview one immediately. Give readers a format-appropriate sample for large files, with the full file available through project tools. Semantic Reader's citation cards show the entry point from a paper. VS Code's Peek Definition shows how to inspect the next layer in place. [Semantic Reader research](https://arxiv.org/abs/2303.14334) · [VS Code Peek](https://code.visualstudio.com/docs/editing/editingevolved#_peek)
 
 ## Three package responsibilities
 
@@ -18,7 +18,9 @@ After a brief hover or keyboard focus on the script row, the browser requests th
 
 Compare the bytes to the recorded hash before showing a plain-text excerpt labeled **Matches recorded hash**. A changed, missing, or unauthorized script gets an unavailable message. Exported reports can still show their graph and any recorded script label. They offer a preview only when the host has a resolver for that evidence. [Evidence request](../src/scitex_live_paper/_django/_evidence_request.py) · [Resource reader](../src/scitex_live_paper/_django/_evidence_files.py)
 
-The same lookup can return an **Open current file** link when Hub can resolve the recorded path to a readable file in the authorized project. Hub builds the link using its existing project file viewer. A working copy may change after the run, so the link stays labeled **Open current file** even when the inline preview matches. When Clew has only a text label or database record, retain the recorded details and graph. [Hub file viewer](https://github.com/scitex-ai/scitex-hub/blob/3d700fcd6/apps/infra/project_app/views/directory_views/file_view.py)
+The same lookup can return an **Open current file** link under project tools when Hub can resolve the recorded path to a readable file in the authorized project. A working copy may change after the run, so the link stays labeled **Open current file** even when the inline preview matches. When Clew has only a text label or database record, retain the recorded details and graph. [Hub file viewer](https://github.com/scitex-ai/scitex-hub/blob/3d700fcd6/apps/infra/project_app/views/directory_views/file_view.py)
+
+Offer **Run in Hub** as a secondary script action when the host confirms both project execution permission and a ready runtime. The user chooses the script revision and starts the job explicitly. Hub's Console owns execution and returns a new run ID. Show the new output separately from the run that supported the published claim. [Hub Console](https://github.com/scitex-ai/scitex-hub/blob/3d700fcd6/apps/workspace/console_app/urls/pages.py)
 
 ## First acceptance check
 
