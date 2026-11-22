@@ -171,8 +171,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             navigation_ok = pdf["width"] > 600
         overlay = document.locator('[data-overlay-id="value"]')
         overlay.wait_for()
-        assert overlay.get_attribute("data-status") == "verified"
-        assert overlay.evaluate("""element => {
+        mark_status = overlay.get_attribute("data-status")
+        status_color = overlay.evaluate("""element => {
             const style = getComputedStyle(element);
             const verified = style.getPropertyValue("--lp-status-verified").trim();
             return verified && style.getPropertyValue("--lp-rich-mark").trim() === verified;
@@ -219,7 +219,7 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             download.suggested_filename,
             download.path().read_bytes() == fixture.read_bytes(),
             source_selected, source_link_is_claim_bound, marked, focus_restored,
-            guessed_images,
+            guessed_images, mark_status, status_color,
         )
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
@@ -233,5 +233,5 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
 
     # Assert
     assert observed == (
-        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0
+        200, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True
     )
