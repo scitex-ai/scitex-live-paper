@@ -1299,13 +1299,18 @@
 }
 
 #live-paper-navigation {
+  --lp-navigation-default: collapsed;
   --rpdf-nav-surface: var(--lp-surface);
   --rpdf-nav-text: var(--lp-fg);
   --rpdf-nav-border: var(--lp-border);
   --rpdf-nav-hover: var(--lp-raised);
 }
 
-@container (min-width: 1001px) {
+@container (width > 1000px) {
+  #live-paper-navigation {
+    --lp-navigation-default: expanded;
+  }
+
   .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])) {
     grid-template-columns: minmax(175px, 16%) minmax(0, 1fr) minmax(270px, 30%);
   }

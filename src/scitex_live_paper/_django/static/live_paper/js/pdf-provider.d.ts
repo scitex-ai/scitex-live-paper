@@ -52,6 +52,7 @@ export interface PdfNavigationOptions {
   container: HTMLElement;
   toggle: HTMLButtonElement;
   pdfjs: PdfRuntime;
+  initiallyOpen?: boolean;
   onDocument?(document: LoadedPdf): void;
 }
 

@@ -175,6 +175,12 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         document = page.get_by_role("region", name="Manuscript", exact=True)
         document.locator("canvas").first.wait_for()
         page.get_by_role("link", name="Download PDF", exact=True).wait_for()
+        navigation_toggle = page.get_by_role("button", name="Pages & bookmarks", exact=True)
+        navigation = page.locator("#live-paper-navigation")
+        assert navigation_toggle.get_attribute("aria-expanded") == str(not embed).lower()
+        assert navigation.is_visible() == (not embed)
+        if not embed:
+            assert navigation.bounding_box()["x"] < document.bounding_box()["x"]
         inspector = page.get_by_role("complementary", name="Claim evidence")
         row = inspector.locator(".scitex-rich-pdf-feed button").first
         pdf = document.bounding_box()
@@ -322,9 +328,8 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
                 return count;
             }""", base64.b64encode(file).decode())
             exports.append((generated.value.suggested_filename, count, file != fixture.read_bytes()))
-        navigation_toggle = page.get_by_role("button", name="Pages & bookmarks", exact=True)
-        navigation_toggle.click()
-        navigation = page.get_by_role("navigation", name="PDF navigation")
+        if embed:
+            navigation_toggle.click()
         navigation.get_by_role("button", name="Page 1", exact=True).wait_for()
         navigation.locator("canvas").first.wait_for()
         navigation.get_by_role("button", name="Page 2", exact=True).click()
@@ -333,8 +338,15 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         navigation.get_by_role("button", name="References", exact=True).click()
         reference = document.locator(".lp-bibliography-highlight", has_text="Second page destination")
         reference.wait_for(state="visible")
+        docked_width = document.bounding_box()["width"]
         navigation_toggle.click()
-        bookmarks_work = navigation.is_hidden()
+        bookmarks_work = navigation.is_hidden() and navigation_toggle.get_attribute("aria-expanded") == "false"
+        if not embed:
+            assert document.bounding_box()["width"] > docked_width
+        navigation_toggle.click()
+        assert navigation.get_by_role("button", name="References", exact=True).is_visible()
+        navigation.get_by_role("button", name="References", exact=True).press("Escape")
+        assert navigation.is_hidden()
         observed = (
             response.status, arrangement_ok, navigation_ok, isolated_scroll,
             row.get_attribute("aria-current"),

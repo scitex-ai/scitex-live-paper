@@ -192,12 +192,14 @@ async function boot(rootEl) {
   });
 
   const pdfContainer = ensurePdfContainer(rootEl);
+  const navigation = rootEl.querySelector("#live-paper-navigation");
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
     navigation: {
-      container: rootEl.querySelector("#live-paper-navigation"),
+      container: navigation,
       toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
+      initiallyOpen: getComputedStyle(navigation).getPropertyValue("--lp-navigation-default").trim() === "expanded",
     },
     container: pdfContainer,
     pdfjs: pdfjs,

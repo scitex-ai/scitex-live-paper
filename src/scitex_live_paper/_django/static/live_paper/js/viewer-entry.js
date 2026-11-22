@@ -567,7 +567,7 @@ function createFeed(container, choose, renderEntry) {
     }
   };
 }
-function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
+function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, onDocument }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
@@ -604,6 +604,7 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
   function setOpen(open) {
     container.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
+    toggle.title = open ? "Hide pages and bookmarks" : "Show pages and bookmarks";
   }
   toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
@@ -613,7 +614,7 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(false);
+  setOpen(initiallyOpen);
   function choose(target) {
     destination = target;
     jump();
@@ -2232,12 +2233,14 @@ async function boot(rootEl) {
     }
   });
   const pdfContainer = ensurePdfContainer(rootEl);
+  const navigation = rootEl.querySelector("#live-paper-navigation");
   const viewer = new PDFViewer({
     ...sidebarOptions,
     evidencePane: true,
     navigation: {
-      container: rootEl.querySelector("#live-paper-navigation"),
-      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle")
+      container: navigation,
+      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
+      initiallyOpen: getComputedStyle(navigation).getPropertyValue("--lp-navigation-default").trim() === "expanded"
     },
     container: pdfContainer,
     pdfjs,

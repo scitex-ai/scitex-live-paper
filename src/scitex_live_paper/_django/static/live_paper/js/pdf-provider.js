@@ -420,7 +420,7 @@ function createFeed(container, choose, renderEntry) {
 }
 
 /** Shared PDF navigation. Wrap the PDF.js runtime passed to the renderer once. */
-export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
+export function createPdfNavigation({ container, toggle, pdfjs, initiallyOpen = false, onDocument }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
@@ -461,6 +461,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
   function setOpen(open) {
     container.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
+    toggle.title = open ? "Hide pages and bookmarks" : "Show pages and bookmarks";
   }
 
   toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
@@ -471,7 +472,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(false);
+  setOpen(initiallyOpen);
 
   function choose(target) {
     destination = target;
