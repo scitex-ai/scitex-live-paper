@@ -736,3 +736,112 @@ async function pdfOutlineTarget(pdf, dest) {
     return null;
   }
 }
+
+/** Attach the configured reading actions using the host's context-menu component. */
+export function bindPdfContextMenu({ ContextMenu, container, scrollContainer = container,
+  canOpen = () => true, items = () => [], pan = true, copy = true, zoom }) {
+  const pdf = container;
+  const reader = scrollContainer;
+  const doc = reader.ownerDocument;
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let opener;
+  let commands;
+  const menu = new ContextMenu({
+    items: () => commands,
+    onOpen() {
+      const element = doc.body.lastElementChild;
+      element.classList.add("rpdf-context-menu");
+      element.setAttribute("aria-label", "PDF page actions");
+      element.querySelector("[role=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
+    },
+    onClose() {
+      if (doc.activeElement === doc.body) opener?.focus({ preventScroll: true });
+    },
+  });
+
+  function open(target, x, y, point) {
+    if (!canOpen() || target.closest("a[href]")) return false;
+    menu.close();
+    const selection = doc.getSelection();
+    const text = selection?.anchorNode && pdf.contains(selection.anchorNode)
+      && pdf.contains(selection.focusNode) ? selection.toString() : "";
+    commands = [];
+    if (copy && text.trim() && doc.defaultView.navigator.clipboard) {
+      commands.push({ label: "Copy text", onSelect: () => {
+        void doc.defaultView.navigator.clipboard.writeText(text).catch(() => doc.execCommand("copy"));
+      } });
+    }
+    commands.push(...items(target, point));
+    if (pan) {
+      if (commands.length) commands.push({ kind: "divider" });
+      const hand = reader.hasAttribute("data-pdf-pan");
+      commands.push(
+        { label: "Hand tool", disabled: hand, onSelect: () => {
+          selection?.removeAllRanges();
+          reader.setAttribute("data-pdf-pan", "");
+        } },
+        { label: "Select text", disabled: !hand, onSelect: () => reader.removeAttribute("data-pdf-pan") },
+      );
+    }
+    if (zoom) {
+      if (commands.length) commands.push({ kind: "divider" });
+      commands.push(
+        { label: "Zoom in", shortcut: "Ctrl + +", onSelect: () => zoom("in", point) },
+        { label: "Zoom out", shortcut: "Ctrl + −", onSelect: () => zoom("out", point) },
+        { label: "Fit width", shortcut: "Ctrl + 0", onSelect: () => zoom("reset", point) },
+      );
+    }
+    if (!commands.length) return false;
+    opener = target.closest("button") || reader;
+    menu.openAt(x, y, target);
+    return true;
+  }
+
+  pdf.addEventListener("contextmenu", (event) => {
+    const point = { x: event.clientX, y: event.clientY };
+    if (event.target.closest(".stx-pdf-page") && open(event.target, point.x, point.y, point)) {
+      event.preventDefault();
+    }
+  }, { signal });
+  reader.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    const { left, bottom } = event.target.getBoundingClientRect();
+    const y = Math.min(bottom, reader.getBoundingClientRect().bottom) - 8;
+    if (open(event.target, left + 8, y)) event.preventDefault();
+  }, { signal });
+
+  let drag;
+  reader.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !reader.hasAttribute("data-pdf-pan")) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+      left: reader.scrollLeft, top: reader.scrollTop };
+    reader.setPointerCapture(event.pointerId);
+    reader.setAttribute("data-pdf-panning", "");
+    event.preventDefault();
+  }, { signal, capture: true });
+  reader.addEventListener("pointermove", (event) => {
+    if (drag?.id !== event.pointerId) return;
+    reader.scrollTo({
+      left: drag.left + drag.x - event.clientX,
+      top: drag.top + drag.y - event.clientY,
+      behavior: "instant",
+    });
+  }, { signal });
+  reader.addEventListener("lostpointercapture", () => {
+    drag = null;
+    reader.removeAttribute("data-pdf-panning");
+  }, { signal });
+  reader.addEventListener("click", (event) => {
+    if (!reader.hasAttribute("data-pdf-pan") || event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { signal, capture: true });
+
+  return () => {
+    listeners.abort();
+    reader.removeAttribute("data-pdf-pan");
+    reader.removeAttribute("data-pdf-panning");
+    menu.destroy();
+  };
+}

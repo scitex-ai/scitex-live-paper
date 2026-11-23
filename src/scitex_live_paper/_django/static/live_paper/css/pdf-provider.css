@@ -203,3 +203,14 @@
 .rpdf-nav-bookmarks .rpdf-nav-bookmarks {
   padding-inline-start: 12px;
 }
+
+[data-pdf-pan],
+[data-pdf-pan] .stx-pdf-page * {
+  cursor: grab;
+  user-select: none;
+}
+
+[data-pdf-panning],
+[data-pdf-panning] .stx-pdf-page * {
+  cursor: grabbing;
+}

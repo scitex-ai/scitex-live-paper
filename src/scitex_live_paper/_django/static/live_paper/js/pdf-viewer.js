@@ -32,6 +32,7 @@ export class PDFViewer {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
+    this.pageSurfaces = new Map();
     const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
@@ -45,7 +46,8 @@ export class PDFViewer {
       createPdfViewer: options.createPdfViewer,
       rendererOptions: { pdfjs: this.navigation.runtime, workerSrc: options.workerSrc,
         hooks: {
-          onPageRender: (page, _viewport, surface) => {
+          onPageRender: (page, viewport, surface) => {
+            this.pageSurfaces.set(page, { viewport, surface });
             this.navigation.pageRendered(page, surface);
             bibliography.pageRendered(page, surface);
           },
@@ -121,6 +123,7 @@ export class PDFViewer {
   setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }
   async load(docType = "manuscript") {
     this.loaded = false;
+    this.pageSurfaces.clear();
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
@@ -148,6 +151,20 @@ export class PDFViewer {
       }
     });
     this.resizeObserver.observe(this.container);
+  }
+
+  noteTarget(page, point) {
+    const view = this.pageSurfaces.get(page);
+    if (!view?.surface.element.isConnected || !point) return null;
+    const { viewport, surface } = view;
+    const rect = surface.element.getBoundingClientRect();
+    const x = Math.max(0, Math.min(viewport.width - 1, (point.x - rect.left) * viewport.width / rect.width));
+    const y = Math.max(0, Math.min(viewport.height - 1, (point.y - rect.top) * viewport.height / rect.height));
+    const a = surface.viewportToPdfPoint(x, y);
+    const b = surface.viewportToPdfPoint(x + 1, y + 1);
+    return { page, bbox: [
+      Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]),
+    ] };
   }
 
   currentPage() {
@@ -227,7 +244,9 @@ export class PDFViewer {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
     this.zoomListeners.abort();
+    this.pageSurfaces.clear();
     this.stopEvidencePane?.();
+    this.stopContextMenu?.();
     this.navigation.destroy();
     this.provider.destroy();
   }
@@ -274,7 +293,7 @@ function bindEvidencePane(container) {
   }, { capture: true, passive: true, signal });
   container.addEventListener("pointerenter", (event) => {
     const anchor = event.target;
-    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    if (!anchor.matches?.(".lp-rich-overlay") || container.closest("[data-pdf-pan]")) return;
     event.stopImmediatePropagation();
     if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
     clearTimeout(hover);

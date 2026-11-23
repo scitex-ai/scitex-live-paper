@@ -20,11 +20,12 @@
   <title>SciTeX Live Paper (embedded)</title>
   <link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/form-controls.css' %}">
   <link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/content-tabs.css' %}">
+  <link rel="stylesheet" href="{% app_static 'scitex_sdk/ui/css/app/context-menu.css' %}">
   <link rel="stylesheet" href="{% app_static 'live_paper/css/viewer.css' %}">
   <link rel="stylesheet" href="{% app_static 'live_paper/css/pdf-provider.css' %}">
 </head>
 <body class="live-paper-embed">
-  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
+  <main id="live-paper-root"{% if view_scope %} data-view-scope="{{ view_scope }}" data-view-project="{{ view_project }}"{% endif %} data-api-base="/{{ api_base }}" data-pdf-context-menu="{% app_static 'scitex_sdk/ui/js/app/context-menu.js' %}" data-pdf-factory="{% app_static 'scitex_sdk/ui/js/app/pdf-viewer.js' %}" data-embed-mode="1" data-empty-reason="{{ empty_reason }}">
     {% include "live_paper/reader_workspace.html" %}
   </main>
   <script src="{% static 'live_paper/js/vendor/mermaid.min.js' %}"></script>

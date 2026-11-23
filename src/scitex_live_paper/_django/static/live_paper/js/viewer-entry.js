@@ -882,6 +882,121 @@ async function pdfOutlineTarget(pdf, dest) {
     return null;
   }
 }
+function bindPdfContextMenu({
+  ContextMenu,
+  container,
+  scrollContainer = container,
+  canOpen = () => true,
+  items = () => [],
+  pan = true,
+  copy = true,
+  zoom
+}) {
+  const pdf = container;
+  const reader = scrollContainer;
+  const doc = reader.ownerDocument;
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let opener;
+  let commands;
+  const menu = new ContextMenu({
+    items: () => commands,
+    onOpen() {
+      const element2 = doc.body.lastElementChild;
+      element2.classList.add("rpdf-context-menu");
+      element2.setAttribute("aria-label", "PDF page actions");
+      element2.querySelector("[role=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
+    },
+    onClose() {
+      if (doc.activeElement === doc.body) opener?.focus({ preventScroll: true });
+    }
+  });
+  function open(target, x, y, point) {
+    if (!canOpen() || target.closest("a[href]")) return false;
+    menu.close();
+    const selection = doc.getSelection();
+    const text = selection?.anchorNode && pdf.contains(selection.anchorNode) && pdf.contains(selection.focusNode) ? selection.toString() : "";
+    commands = [];
+    if (copy && text.trim() && doc.defaultView.navigator.clipboard) {
+      commands.push({ label: "Copy text", onSelect: () => {
+        void doc.defaultView.navigator.clipboard.writeText(text).catch(() => doc.execCommand("copy"));
+      } });
+    }
+    commands.push(...items(target, point));
+    if (pan) {
+      if (commands.length) commands.push({ kind: "divider" });
+      const hand = reader.hasAttribute("data-pdf-pan");
+      commands.push(
+        { label: "Hand tool", disabled: hand, onSelect: () => {
+          selection?.removeAllRanges();
+          reader.setAttribute("data-pdf-pan", "");
+        } },
+        { label: "Select text", disabled: !hand, onSelect: () => reader.removeAttribute("data-pdf-pan") }
+      );
+    }
+    if (zoom) {
+      if (commands.length) commands.push({ kind: "divider" });
+      commands.push(
+        { label: "Zoom in", shortcut: "Ctrl + +", onSelect: () => zoom("in", point) },
+        { label: "Zoom out", shortcut: "Ctrl + \u2212", onSelect: () => zoom("out", point) },
+        { label: "Fit width", shortcut: "Ctrl + 0", onSelect: () => zoom("reset", point) }
+      );
+    }
+    if (!commands.length) return false;
+    opener = target.closest("button") || reader;
+    menu.openAt(x, y, target);
+    return true;
+  }
+  pdf.addEventListener("contextmenu", (event) => {
+    const point = { x: event.clientX, y: event.clientY };
+    if (event.target.closest(".stx-pdf-page") && open(event.target, point.x, point.y, point)) {
+      event.preventDefault();
+    }
+  }, { signal });
+  reader.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    const { left, bottom } = event.target.getBoundingClientRect();
+    const y = Math.min(bottom, reader.getBoundingClientRect().bottom) - 8;
+    if (open(event.target, left + 8, y)) event.preventDefault();
+  }, { signal });
+  let drag;
+  reader.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !reader.hasAttribute("data-pdf-pan")) return;
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: reader.scrollLeft,
+      top: reader.scrollTop
+    };
+    reader.setPointerCapture(event.pointerId);
+    reader.setAttribute("data-pdf-panning", "");
+    event.preventDefault();
+  }, { signal, capture: true });
+  reader.addEventListener("pointermove", (event) => {
+    if (drag?.id !== event.pointerId) return;
+    reader.scrollTo({
+      left: drag.left + drag.x - event.clientX,
+      top: drag.top + drag.y - event.clientY,
+      behavior: "instant"
+    });
+  }, { signal });
+  reader.addEventListener("lostpointercapture", () => {
+    drag = null;
+    reader.removeAttribute("data-pdf-panning");
+  }, { signal });
+  reader.addEventListener("click", (event) => {
+    if (!reader.hasAttribute("data-pdf-pan") || event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { signal, capture: true });
+  return () => {
+    listeners.abort();
+    reader.removeAttribute("data-pdf-pan");
+    reader.removeAttribute("data-pdf-panning");
+    menu.destroy();
+  };
+}
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-overlays.js
 function pickAnchor(claim) {
@@ -1025,9 +1140,10 @@ async function postComment(apiBase, { body, target, author, kind }) {
   }
   return payload.comment;
 }
-function showComments(panel, { apiBase, page, claimId, onComments }) {
+function showComments(panel, { apiBase, page, note, claimId, onComments }) {
   const targetControl = el("label", null, "Attach to");
   const select = el("select", "stx-select");
+  if (note) select.add(new Option(`PDF page ${page} \xB7 note location`, "note"));
   if (page) select.add(new Option(`PDF page ${page}`, "page"));
   if (claimId) select.add(new Option(`Claim \xB7 ${claimId}`, "claim"));
   targetControl.append(select);
@@ -1048,7 +1164,7 @@ function showComments(panel, { apiBase, page, claimId, onComments }) {
       return comments.map(toDiscussion);
     },
     post: select.options.length ? async (body) => {
-      const target = select.value === "claim" ? { claim_id: claimId } : { page };
+      const target = select.value === "claim" ? { claim_id: claimId } : select.value === "note" ? note : { page };
       const entry = await postComment(apiBase, { body, target });
       comments.push(entry);
       onComments(comments);
@@ -1057,7 +1173,7 @@ function showComments(panel, { apiBase, page, claimId, onComments }) {
     targetControl,
     labelTarget: (target) => {
       if (target.overlayId) return `Claim \xB7 ${target.overlayId}`;
-      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " \xB7 region" : "");
+      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " \xB7 note location" : "");
       return "Quoted passage";
     }
   });
@@ -1921,6 +2037,7 @@ var PDFViewer = class {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
+    this.pageSurfaces = /* @__PURE__ */ new Map();
     const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
@@ -1936,7 +2053,8 @@ var PDFViewer = class {
         pdfjs: this.navigation.runtime,
         workerSrc: options.workerSrc,
         hooks: {
-          onPageRender: (page, _viewport, surface) => {
+          onPageRender: (page, viewport, surface) => {
+            this.pageSurfaces.set(page, { viewport, surface });
             this.navigation.pageRendered(page, surface);
             bibliography.pageRendered(page, surface);
           }
@@ -2022,6 +2140,7 @@ var PDFViewer = class {
   }
   async load(docType = "manuscript") {
     this.loaded = false;
+    this.pageSurfaces.clear();
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
@@ -2048,6 +2167,22 @@ var PDFViewer = class {
       }
     });
     this.resizeObserver.observe(this.container);
+  }
+  noteTarget(page, point) {
+    const view = this.pageSurfaces.get(page);
+    if (!view?.surface.element.isConnected || !point) return null;
+    const { viewport, surface } = view;
+    const rect = surface.element.getBoundingClientRect();
+    const x = Math.max(0, Math.min(viewport.width - 1, (point.x - rect.left) * viewport.width / rect.width));
+    const y = Math.max(0, Math.min(viewport.height - 1, (point.y - rect.top) * viewport.height / rect.height));
+    const a = surface.viewportToPdfPoint(x, y);
+    const b = surface.viewportToPdfPoint(x + 1, y + 1);
+    return { page, bbox: [
+      Math.min(a[0], b[0]),
+      Math.min(a[1], b[1]),
+      Math.max(a[0], b[0]),
+      Math.max(a[1], b[1])
+    ] };
   }
   currentPage() {
     const viewport = readerScroller(this.container).getBoundingClientRect();
@@ -2131,7 +2266,9 @@ var PDFViewer = class {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
     this.zoomListeners.abort();
+    this.pageSurfaces.clear();
     this.stopEvidencePane?.();
+    this.stopContextMenu?.();
     this.navigation.destroy();
     this.provider.destroy();
   }
@@ -2173,7 +2310,7 @@ function bindEvidencePane(container) {
   }, { capture: true, passive: true, signal });
   container.addEventListener("pointerenter", (event) => {
     const anchor = event.target;
-    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    if (!anchor.matches?.(".lp-rich-overlay") || container.closest("[data-pdf-pan]")) return;
     event.stopImmediatePropagation();
     if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
     clearTimeout(hover);
@@ -2268,6 +2405,35 @@ function pdfColor(style, status) {
   const hex = style.getPropertyValue("--lp-status-" + token).trim();
   const digits = /^#[\da-f]{6}$/i.test(hex) ? hex.slice(1) : "6e7681";
   return digits.match(/../g).map((value) => parseInt(value, 16) / 255);
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/pdf-context-menu.js
+function bindPdfContextMenu2(ContextMenu, viewer, { commentOnPage, revealSidebar }) {
+  const pdf = viewer.container;
+  return bindPdfContextMenu({
+    ContextMenu,
+    container: pdf,
+    scrollContainer: pdf.closest(".lp-reader-document") || pdf,
+    canOpen: () => viewer.loaded,
+    zoom: (action, point) => viewer.zoomAt(action, point),
+    items(target, point) {
+      const index = [...pdf.querySelectorAll(".stx-pdf-page")].indexOf(target.closest(".stx-pdf-page"));
+      const page = index >= 0 ? index + 1 : viewer.currentPage();
+      if (!page) return [];
+      const note = index >= 0 && viewer.noteTarget(page, point);
+      const overlay = target.closest(".lp-rich-overlay");
+      const entries = [];
+      if (overlay) entries.push({ label: "View claim evidence", onSelect: () => {
+        revealSidebar();
+        overlay.click();
+      } });
+      entries.push({
+        label: note ? "Add note here" : "Comment on this page",
+        onSelect: () => commentOnPage(page, note)
+      });
+      return entries;
+    }
+  });
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/reverify-all.js
@@ -2892,10 +3058,7 @@ async function boot(rootEl) {
     citationVerification: claimsPayload?.citation_verification,
     onCitationSelect(key, citation, goToReference) {
       const sidebar = ensureClaimsSidebar(rootEl);
-      const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
-      if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
-        toggle.click();
-      }
+      showEvidenceDrawer(rootEl);
       renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
     },
     navigation: {
@@ -2915,20 +3078,48 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  rootEl.addEventListener("live-paper:comments-tab", (event) => {
-    const sidebar = event.target;
+  let commentTarget;
+  function openComments(sidebar, { page, note, focus }) {
     const panel = sidebar.querySelector("#lp-comments-panel");
-    void showComments(panel, {
+    const ready = showComments(panel, {
       apiBase,
-      page: viewer.currentPage(),
+      page,
+      note,
       claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
       onComments: (comments) => viewer.setComments(comments)
     });
+    if (focus) void ready.then(() => {
+      if (!panel.hidden) panel.querySelector("textarea")?.focus();
+    });
+  }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    openComments(event.target, commentTarget ?? { page: viewer.currentPage() });
   });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
     bindPdfDownloads(rootEl, viewer.claims, download.href);
+  }
+  const menuUrl = rootEl.dataset.pdfContextMenu;
+  if (menuUrl) {
+    import(menuUrl).then(({ ContextMenu }) => {
+      viewer.stopContextMenu = bindPdfContextMenu2(ContextMenu, viewer, {
+        revealSidebar: () => showEvidenceDrawer(rootEl),
+        commentOnPage(page, note) {
+          const sidebar = ensureClaimsSidebar(rootEl);
+          showEvidenceDrawer(rootEl);
+          const tab = sidebar.querySelector("#lp-comments-tab");
+          if (tab.getAttribute("aria-selected") === "true") {
+            openComments(sidebar, { page, note, focus: true });
+          } else {
+            commentTarget = { page, note, focus: true };
+            tab.click();
+            commentTarget = null;
+          }
+          tab.focus({ preventScroll: true });
+        }
+      });
+    }).catch((error) => console.warn("[live-paper] PDF actions unavailable", error));
   }
   await viewer.load();
   const shareStatus = bindShare(rootEl);
@@ -2957,6 +3148,12 @@ async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " \xB7 ", verified, " \xB7 ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+function showEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
 }
 function hideEvidenceDrawer(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");

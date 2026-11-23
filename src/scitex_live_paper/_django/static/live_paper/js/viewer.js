@@ -30,6 +30,7 @@ import {
 import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
 import { PDFViewer, toOverlay } from "./pdf-viewer.js";
+import { bindPdfContextMenu } from "./pdf-context-menu.js";
 import { closeClaimDetail, invalidateEvidenceGraphs, renderCitationDetail, renderClaimDetail } from "./claim-details.js";
 import { bindTabs, renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
@@ -211,10 +212,7 @@ async function boot(rootEl) {
     citationVerification: claimsPayload?.citation_verification,
     onCitationSelect(key, citation, goToReference) {
       const sidebar = ensureClaimsSidebar(rootEl);
-      const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
-      if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
-        toggle.click();
-      }
+      showEvidenceDrawer(rootEl);
       renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
     },
     navigation: {
@@ -238,20 +236,48 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
-  rootEl.addEventListener("live-paper:comments-tab", (event) => {
-    const sidebar = event.target;
+  let commentTarget;
+  function openComments(sidebar, { page, note, focus }) {
     const panel = sidebar.querySelector("#lp-comments-panel");
-    void showComments(panel, {
+    const ready = showComments(panel, {
       apiBase,
-      page: viewer.currentPage(),
+      page,
+      note,
       claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
       onComments: (comments) => viewer.setComments(comments),
     });
+    if (focus) void ready.then(() => {
+      if (!panel.hidden) panel.querySelector("textarea")?.focus();
+    });
+  }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    openComments(event.target, commentTarget ?? { page: viewer.currentPage() });
   });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
     bindPdfDownloads(rootEl, viewer.claims, download.href);
+  }
+  const menuUrl = rootEl.dataset.pdfContextMenu;
+  if (menuUrl) {
+    import(menuUrl).then(({ ContextMenu }) => {
+      viewer.stopContextMenu = bindPdfContextMenu(ContextMenu, viewer, {
+        revealSidebar: () => showEvidenceDrawer(rootEl),
+        commentOnPage(page, note) {
+          const sidebar = ensureClaimsSidebar(rootEl);
+          showEvidenceDrawer(rootEl);
+          const tab = sidebar.querySelector("#lp-comments-tab");
+          if (tab.getAttribute("aria-selected") === "true") {
+            openComments(sidebar, { page, note, focus: true });
+          } else {
+            commentTarget = { page, note, focus: true };
+            tab.click();
+            commentTarget = null;
+          }
+          tab.focus({ preventScroll: true });
+        },
+      });
+    }).catch((error) => console.warn("[live-paper] PDF actions unavailable", error));
   }
   await viewer.load();
   const shareStatus = bindShare(rootEl);
@@ -289,6 +315,13 @@ export async function renderTraceSummary(rootEl, apiBase) {
   summary.append(label, " · ", verified, " · ", inspect);
   banner.replaceChildren(summary);
   banner.hidden = false;
+}
+
+function showEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
 }
 
 function hideEvidenceDrawer(rootEl) {

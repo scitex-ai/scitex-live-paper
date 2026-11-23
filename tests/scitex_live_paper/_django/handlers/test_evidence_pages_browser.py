@@ -577,6 +577,42 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
             page.locator(".lp-rich-preview").count(), source_action_urls, code_colors, bookmarks_work, fresh_graph, exports,
         )
+        if not embed:
+            pdf_actions = page.get_by_role("menu", name="PDF page actions")
+            overlay.click(button="right")
+            assert pdf_actions.get_by_role("menuitem", name="View claim evidence").is_visible()
+            page.keyboard.press("Escape")
+            assert pdf_actions.is_hidden()
+            assert overlay.evaluate("node => node === globalThis.document.activeElement")
+            document.focus()
+            page.keyboard.press("Shift+F10")
+            assert pdf_actions.get_by_role("menuitem", name="Fit width", exact=False).is_visible()
+            page.keyboard.press("Escape")
+            assert pdf_actions.is_hidden()
+            page.emulate_media(reduced_motion="reduce")
+            page_two = document.locator(".stx-pdf-page").nth(1)
+            page_two.evaluate("node => node.scrollIntoView({block: 'start', behavior: 'instant'})")
+            page.wait_for_timeout(240)
+            page_two.click(button="right", position={"x": 12, "y": 25})
+            assert pdf_actions.get_by_role("menuitem", name="View claim evidence").count() == 0
+            pdf_actions.get_by_role("menuitem", name="Hand tool", exact=True).click()
+            assert document.get_attribute("data-pdf-pan") == ""
+            page_two.click(button="right", position={"x": 12, "y": 25})
+            pdf_actions.get_by_role("menuitem", name="Select text", exact=True).click()
+            assert document.get_attribute("data-pdf-pan") is None
+            page_two.click(button="right", position={"x": 12, "y": 25})
+            pdf_actions.get_by_role("menuitem", name="Add note here", exact=True).click()
+            target = inspector.get_by_role("combobox", name="Attach to")
+            target.wait_for()
+            assert target.locator("option:checked").inner_text() == "PDF page 2 · note location"
+            editor = inspector.get_by_role("textbox", name="Comment", exact=True)
+            editor.fill("A note at this PDF location.")
+            with page.expect_response(lambda r: "/api/comments" in r.url and r.request.method == "POST") as note:
+                inspector.get_by_role("button", name="Post comment", exact=True).click()
+            assert note.value.json()["comment"]["target"]["page"] == 2
+            assert len(note.value.json()["comment"]["target"]["bbox"]) == 4
+            page_two.get_by_role("button", name="Comment: A note at this PDF location.").wait_for()
+            inspector.get_by_role("tab", name="Selected claim", exact=True).click()
         comments_tab = inspector.get_by_role("tab", name="Comments", exact=True)
         assert preview.get_by_role("textbox", name="Comment", exact=True).count() == 0
         comments_tab.click()

@@ -138,9 +138,10 @@ function toggleMarkerPopup(marker, commentsForPage) {
 }
 
 /** Adapt bundle comments to the shared Rich PDF discussion. */
-export function showComments(panel, { apiBase, page, claimId, onComments }) {
+export function showComments(panel, { apiBase, page, note, claimId, onComments }) {
   const targetControl = el("label", null, "Attach to");
   const select = el("select", "stx-select");
+  if (note) select.add(new Option(`PDF page ${page} · note location`, "note"));
   if (page) select.add(new Option(`PDF page ${page}`, "page"));
   if (claimId) select.add(new Option(`Claim · ${claimId}`, "claim"));
   targetControl.append(select);
@@ -162,7 +163,8 @@ export function showComments(panel, { apiBase, page, claimId, onComments }) {
       return comments.map(toDiscussion);
     },
     post: select.options.length ? async (body) => {
-      const target = select.value === "claim" ? { claim_id: claimId } : { page };
+      const target = select.value === "claim" ? { claim_id: claimId } :
+        select.value === "note" ? note : { page };
       const entry = await postComment(apiBase, { body, target });
       comments.push(entry);
       onComments(comments);
@@ -171,7 +173,7 @@ export function showComments(panel, { apiBase, page, claimId, onComments }) {
     targetControl,
     labelTarget: (target) => {
       if (target.overlayId) return `Claim · ${target.overlayId}`;
-      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " · region" : "");
+      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " · note location" : "");
       return "Quoted passage";
     },
   });

@@ -1545,3 +1545,25 @@
 .lp-stats-reported-line { font-family: ui-serif, Georgia, serif; }
 .lp-stats-card details { margin-block: 6px; }
 .lp-stats-card summary { cursor: pointer; font-weight: 600; }
+
+/* The SDK portals the menu to body, including in the standalone embed. */
+.rpdf-context-menu {
+  --bg-surface: var(--workspace-bg-secondary, #fff);
+  --text-primary: var(--workspace-text-primary, #17191c);
+  --text-secondary: var(--text-primary);
+  --border-default: var(--workspace-border-default, #d6dce1);
+}
+
+[data-theme="dark"] .rpdf-context-menu {
+  --bg-surface: var(--workspace-bg-secondary, #20252c);
+  --text-primary: var(--workspace-text-primary, #e6edf3);
+  --border-default: var(--workspace-border-default, #414953);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .rpdf-context-menu {
+    --bg-surface: var(--workspace-bg-secondary, #20252c);
+    --text-primary: var(--workspace-text-primary, #e6edf3);
+    --border-default: var(--workspace-border-default, #414953);
+  }
+}

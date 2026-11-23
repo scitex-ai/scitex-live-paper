@@ -75,3 +75,29 @@ export interface PdfNavigationApi {
 }
 
 export function createPdfNavigation(options: PdfNavigationOptions): PdfNavigationApi;
+
+
+type PdfMenuPoint = {x: number; y: number};
+type PdfMenuEntry =
+  | {kind: "divider"}
+  | {label: string; disabled?: boolean; shortcut?: string; onSelect(): void};
+type PdfMenuOptions = {
+  items(): PdfMenuEntry[];
+  onOpen(): void;
+  onClose(): void;
+};
+export interface PdfContextMenuOptions {
+  ContextMenu: new (options: PdfMenuOptions) => {
+    openAt(x: number, y: number, target: HTMLElement): void;
+    close(): void;
+    destroy(): void;
+  };
+  container: HTMLElement;
+  scrollContainer?: HTMLElement;
+  canOpen?(): boolean;
+  items?(target: HTMLElement, point?: PdfMenuPoint): PdfMenuEntry[];
+  pan?: boolean;
+  copy?: boolean;
+  zoom?(action: "in" | "out" | "reset", point?: PdfMenuPoint): void;
+}
+export function bindPdfContextMenu(options: PdfContextMenuOptions): () => void;
