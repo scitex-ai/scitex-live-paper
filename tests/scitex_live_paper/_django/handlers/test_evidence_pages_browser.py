@@ -301,8 +301,14 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert document.evaluate(
             "pane => [pane.scrollTop, pane.querySelector('canvas').getBoundingClientRect().width]"
         ) == pdf_before_zoom
-        zoom_controls.get_by_role("button", name="Reset evidence graph zoom").click()
+        viewport.hover()
+        page.keyboard.press("Control+-")
+        assert zoom_controls.get_by_text("150%", exact=True).is_visible()
+        page.keyboard.press("Control+0")
         assert zoom_controls.get_by_text("100%", exact=True).is_visible()
+        assert document.evaluate(
+            "pane => [pane.scrollTop, pane.querySelector('canvas').getBoundingClientRect().width]"
+        ) == pdf_before_zoom
         download_graph = zoom_controls.get_by_text("Download graph", exact=True)
         for format, signature in (("SVG", b"<svg"), ("PNG", bytes.fromhex("89504e470d0a1a0a"))):
             download_graph.click()
@@ -470,7 +476,36 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             toggle.click()
 
         navigation.get_by_role("button", name="Page 1", exact=True).wait_for()
-        navigation.locator("canvas").first.wait_for()
+        thumbnail = navigation.locator("canvas").first
+        thumbnail.wait_for()
+        if not embed:
+            pdf_page = document.locator(".stx-pdf-page").first
+            thumbnail_width = thumbnail.bounding_box()["width"]
+            pdf_width = pdf_page.bounding_box()["width"]
+
+            thumbnail.hover()
+            page.keyboard.press("Control+=")
+            assert thumbnail.bounding_box()["width"] > thumbnail_width
+            assert pdf_page.bounding_box()["width"] == pdf_width
+            page.keyboard.press("Control+0")
+            assert thumbnail.bounding_box()["width"] == thumbnail_width
+
+            document.hover()
+            page.keyboard.press("Control+=")
+            page.wait_for_function(
+                "width => parseFloat(document.querySelector('.stx-pdf-page')?.style.width) > width",
+                arg=pdf_width,
+            )
+            assert thumbnail.bounding_box()["width"] == thumbnail_width
+            page.keyboard.press("Control+0")
+            page.wait_for_function(
+                """width => {
+                    const page = document.querySelector('.stx-pdf-page');
+                    return page && Math.abs(page.getBoundingClientRect().width - width) < 1;
+                }""",
+                arg=pdf_width,
+            )
+
         navigation.get_by_role("button", name="Page 2", exact=True).click()
         page.wait_for_function("document.querySelector('.lp-reader-document').scrollTop > 0")
         navigation.get_by_role("button", name="Bookmarks", exact=True).click()

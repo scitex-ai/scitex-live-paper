@@ -1210,6 +1210,50 @@ function renderStatistics(panel, data, loadPlot) {
 }
 
 // src/scitex_live_paper/_renderer/assets/graph-controls.js
+var zoomScopes = /* @__PURE__ */ new WeakMap();
+var zoomKeys = { __proto__: null, "+": "in", "=": "in", "-": "out", "0": "reset" };
+function bindScopedZoom(surface, zoom, signal) {
+  if (!surface || signal?.aborted) return;
+  const doc = surface.ownerDocument;
+  let scope = zoomScopes.get(doc);
+  if (!scope) {
+    const listeners = new AbortController();
+    scope = { handlers: /* @__PURE__ */ new WeakMap(), count: 0, listeners };
+    zoomScopes.set(doc, scope);
+    let pointer;
+    const listenerOptions = { capture: true, signal: listeners.signal };
+    const track = (event) => {
+      pointer = { x: event.clientX, y: event.clientY };
+    };
+    doc.addEventListener("pointermove", track, listenerOptions);
+    doc.addEventListener("pointerdown", track, listenerOptions);
+    doc.addEventListener("pointerout", (event) => {
+      if (event.relatedTarget === null) pointer = null;
+    }, listenerOptions);
+    doc.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+      const action = zoomKeys[event.key];
+      if (!action) return;
+      let target = pointer === void 0 ? doc.activeElement : pointer && doc.elementFromPoint(pointer.x, pointer.y);
+      for (; target; target = target.parentElement) {
+        const handler = scope.handlers.get(target);
+        if (!handler) continue;
+        if (handler(action, pointer) !== false) event.preventDefault();
+        return;
+      }
+    }, listenerOptions);
+  }
+  scope.handlers.set(surface, zoom);
+  scope.count += 1;
+  signal?.addEventListener("abort", () => {
+    scope.handlers.delete(surface);
+    scope.count -= 1;
+    if (scope.count === 0) {
+      scope.listeners.abort();
+      zoomScopes.delete(doc);
+    }
+  }, { once: true });
+}
 function graphControls(viewport, signal) {
   const controls = document.createElement("div");
   controls.className = "lp-graph-controls";
@@ -1243,11 +1287,12 @@ function graphControls(viewport, signal) {
       viewport.scrollWidth > viewport.clientWidth || viewport.scrollHeight > viewport.clientHeight
     );
   }
-  function resize(next, resetPosition = false) {
+  function resize(next, resetPosition = false, point) {
     const previous = zoom;
     zoom = Math.max(minimum, Math.min(maximum, next));
-    const centerX = viewport.clientWidth / 2;
-    const centerY = viewport.clientHeight / 2;
+    const bounds = point && viewport.getBoundingClientRect();
+    const centerX = bounds ? point.x - bounds.left : viewport.clientWidth / 2;
+    const centerY = bounds ? point.y - bounds.top : viewport.clientHeight / 2;
     const x = (viewport.scrollLeft + centerX) * zoom / previous - centerX;
     const y = (viewport.scrollTop + centerY) * zoom / previous - centerY;
     viewport.style.setProperty("--lp-graph-zoom", String(zoom));
@@ -1261,6 +1306,12 @@ function graphControls(viewport, signal) {
     percent.textContent = Math.round(zoom * 100) + "%";
     updatePan();
   }
+  function shortcut(action, point) {
+    if (action === "reset") resize(1, true);
+    else resize(zoom + (action === "in" ? step : -step), false, point);
+  }
+  bindScopedZoom(viewport, shortcut, signal);
+  bindScopedZoom(controls, (action) => shortcut(action), signal);
   resize(1);
   const observer = new ResizeObserver(updatePan);
   observer.observe(viewport);
@@ -1922,9 +1973,9 @@ var PDFViewer = class {
             return toComment(comment);
           }
         },
-        preview: options.inlineEvidence && { render: (panel, overlay, signal) => {
+        preview: options.inlineEvidence && { render: (panel, overlay, signal2) => {
           const claim = this.claims.find((claim2) => claim2.claim_id === overlay.id);
-          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal);
+          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal2);
         } },
         events: { emit: (event) => {
           const fromFeed = event.type === "feed-select";
@@ -1948,6 +1999,12 @@ var PDFViewer = class {
         } }
       }
     });
+    this.zoomListeners = new AbortController();
+    const { signal } = this.zoomListeners;
+    const manuscript = this.container.closest(".lp-reader-document") || this.container;
+    bindScopedZoom(manuscript, (action, point) => this.zoomAt(action, point), signal);
+    const navigation = options.navigation.container;
+    bindScopedZoom(navigation, (action) => zoomNavigation(navigation, action), signal);
     options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
@@ -1965,10 +2022,12 @@ var PDFViewer = class {
     this.provider.setComments(this.comments.map(toComment));
   }
   async load(docType = "manuscript") {
+    this.loaded = false;
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
       this.navigation.finishRender();
+      this.loaded = true;
       this.watchFitWidth();
       return true;
     } catch (error) {
@@ -1985,25 +2044,61 @@ var PDFViewer = class {
       if (next <= 0 || Math.abs(next - width) < 2) return;
       width = next;
       clearTimeout(this.resizeTimer);
-      this.resizeTimer = setTimeout(() => void this.refitVisiblePage(), 180);
+      if (this.manualZoom === void 0) {
+        this.resizeTimer = setTimeout(() => this.queueZoom(null), 180);
+      }
     });
     this.resizeObserver.observe(this.container);
   }
-  async refitVisiblePage() {
-    const scroller = readerScroller(this.container);
-    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
-    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
-    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > top);
-    const old = pages[index]?.getBoundingClientRect();
-    const offset = old && old.top < top ? (top - old.top) / old.height : null;
-    try {
-      await this.provider.renderer.fitWidth();
-      if (offset === null) return;
-      const rect = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
-      if (rect) scroller.scrollBy({ top: rect.top + rect.height * offset - top, behavior: "instant" });
-    } catch (error) {
-      console.warn("[pdf-viewer] refit failed:", error);
+  zoomAt(action, point) {
+    if (!this.loaded) return false;
+    clearTimeout(this.resizeTimer);
+    if (action === "reset") {
+      this.manualZoom = void 0;
+    } else {
+      const current = this.manualZoom ?? this.provider.renderer.getScale();
+      const factor = action === "in" ? 1.2 : 1 / 1.2;
+      const minimum = Math.min(current, 0.25);
+      const maximum = Math.max(current, 4);
+      this.manualZoom = Math.max(minimum, Math.min(maximum, current * factor));
     }
+    this.queueZoom(this.manualZoom ?? null, point);
+  }
+  async queueZoom(scale, point) {
+    this.pendingZoom = { scale, point };
+    if (this.zooming) return;
+    this.zooming = true;
+    try {
+      while (this.pendingZoom && !this.zoomListeners.signal.aborted) {
+        const next = this.pendingZoom;
+        this.pendingZoom = null;
+        const renderer = this.provider.renderer;
+        if (next.scale !== null && next.scale === renderer.getScale()) continue;
+        await this.keepPosition(() => next.scale === null ? renderer.fitWidth() : renderer.setScale(next.scale), next.point);
+      }
+    } catch (error) {
+      console.warn("[pdf-viewer] zoom failed:", error);
+    } finally {
+      this.zooming = false;
+    }
+  }
+  async keepPosition(action, point) {
+    const scroller = readerScroller(this.container);
+    const bounds = scroller.getBoundingClientRect();
+    const y = point?.y ?? Math.max(0, bounds.top);
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > y);
+    const before = pages[index]?.getBoundingClientRect();
+    const fractionY = before && Math.max(0, Math.min(1, (y - before.top) / before.height));
+    const fractionX = before && point && point.x >= before.left && point.x <= before.right ? (point.x - before.left) / before.width : null;
+    await action();
+    const after = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
+    if (!before || !after) return;
+    scroller.scrollBy({
+      top: after.top - before.top + fractionY * (after.height - before.height),
+      left: fractionX === null ? 0 : after.left + fractionX * after.width - point.x,
+      behavior: "instant"
+    });
   }
   clear() {
     this.container.replaceChildren();
@@ -2030,6 +2125,7 @@ var PDFViewer = class {
   destroy() {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
+    this.zoomListeners.abort();
     this.stopEvidencePane?.();
     this.navigation.destroy();
     this.provider.destroy();
@@ -2037,9 +2133,16 @@ var PDFViewer = class {
 };
 function readerScroller(container) {
   for (let node = container.parentElement; node; node = node.parentElement) {
-    if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
   }
   return container.ownerDocument.scrollingElement;
+}
+function zoomNavigation(container, action) {
+  if (container.hasAttribute("data-collapsed")) return false;
+  const list = container.querySelector(".rpdf-nav-content > :not([hidden]) > :is(.rpdf-nav-pages, .rpdf-nav-bookmarks)");
+  if (!list) return false;
+  const zoom = Number(list.style.zoom || 1);
+  list.style.zoom = String(action === "reset" ? 1 : Math.max(0.5, Math.min(3, zoom + (action === "in" ? 0.2 : -0.2))));
 }
 function bindEvidencePane(container) {
   const listeners = new AbortController();

@@ -1,3 +1,51 @@
+const zoomScopes = new WeakMap();
+const zoomKeys = { __proto__: null, "+": "in", "=": "in", "-": "out", "0": "reset" };
+
+/** Route zoom to the innermost registered surface at the current pointer position. */
+export function bindScopedZoom(surface, zoom, signal) {
+  if (!surface || signal?.aborted) return;
+  const doc = surface.ownerDocument;
+  let scope = zoomScopes.get(doc);
+  if (!scope) {
+    const listeners = new AbortController();
+    scope = { handlers: new WeakMap(), count: 0, listeners };
+    zoomScopes.set(doc, scope);
+    let pointer;
+    const listenerOptions = { capture: true, signal: listeners.signal };
+    const track = (event) => { pointer = { x: event.clientX, y: event.clientY }; };
+    doc.addEventListener("pointermove", track, listenerOptions);
+    doc.addEventListener("pointerdown", track, listenerOptions);
+    doc.addEventListener("pointerout", (event) => {
+      if (event.relatedTarget === null) pointer = null;
+    }, listenerOptions);
+    doc.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) ||
+          event.altKey || event.isComposing) return;
+      const action = zoomKeys[event.key];
+      if (!action) return;
+      let target = pointer === undefined ? doc.activeElement :
+        pointer && doc.elementFromPoint(pointer.x, pointer.y);
+      for (; target; target = target.parentElement) {
+        const handler = scope.handlers.get(target);
+        if (!handler) continue;
+        if (handler(action, pointer) !== false) event.preventDefault();
+        return;
+      }
+    }, listenerOptions);
+  }
+
+  scope.handlers.set(surface, zoom);
+  scope.count += 1;
+  signal?.addEventListener("abort", () => {
+    scope.handlers.delete(surface);
+    scope.count -= 1;
+    if (scope.count === 0) {
+      scope.listeners.abort();
+      zoomScopes.delete(doc);
+    }
+  }, { once: true });
+}
+
 /** Zoom the SVG inside its own scrollable viewport. Native scrolling also
  * supports arrow keys, trackpads and touch without changing the PDF zoom. */
 export function graphControls(viewport, signal) {
@@ -36,11 +84,12 @@ export function graphControls(viewport, signal) {
       viewport.scrollWidth > viewport.clientWidth || viewport.scrollHeight > viewport.clientHeight);
   }
 
-  function resize(next, resetPosition = false) {
+  function resize(next, resetPosition = false, point) {
     const previous = zoom;
     zoom = Math.max(minimum, Math.min(maximum, next));
-    const centerX = viewport.clientWidth / 2;
-    const centerY = viewport.clientHeight / 2;
+    const bounds = point && viewport.getBoundingClientRect();
+    const centerX = bounds ? point.x - bounds.left : viewport.clientWidth / 2;
+    const centerY = bounds ? point.y - bounds.top : viewport.clientHeight / 2;
     const x = (viewport.scrollLeft + centerX) * zoom / previous - centerX;
     const y = (viewport.scrollTop + centerY) * zoom / previous - centerY;
     viewport.style.setProperty("--lp-graph-zoom", String(zoom));
@@ -54,6 +103,12 @@ export function graphControls(viewport, signal) {
     percent.textContent = Math.round(zoom * 100) + "%";
     updatePan();
   }
+  function shortcut(action, point) {
+    if (action === "reset") resize(1, true);
+    else resize(zoom + (action === "in" ? step : -step), false, point);
+  }
+  bindScopedZoom(viewport, shortcut, signal);
+  bindScopedZoom(controls, (action) => shortcut(action), signal);
   resize(1);
 
   const observer = new ResizeObserver(updatePan);
