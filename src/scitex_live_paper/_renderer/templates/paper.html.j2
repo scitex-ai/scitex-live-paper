@@ -10,7 +10,8 @@
 <link rel="stylesheet" href="{{ support_css_url }}">
 <link rel="stylesheet" href="{{ paper_css_url }}">
 </head>
-<body class="live-paper lp-paper-page">
+<body class="live-paper lp-paper-page{% if inline %} lp-paper-inline{% endif %}">
+{% if not inline %}
 <a class="lp-skip-link" href="#lp-paper-main">Skip to the manuscript</a>
 <div data-stx-app-header
      data-app-title="SciTeX Live Paper"
@@ -18,11 +19,23 @@
   <p class="lp-static-header-fallback">SciTeX Live Paper{% if project_label %} · {{ project_label }}{% endif %}</p>
   {% if project_label %}<span data-lp-static-project>{{ project_label }}</span>{% endif %}
 </div>
+{% endif %}
 
-<div class="lp-paper-layout">
+<div class="lp-paper-layout{% if compiled is not none %} lp-compiled-layout{% endif %}">
+  {% if headings %}
+  <nav class="lp-section-nav" aria-label="Manuscript sections">
+    <details open>
+      <summary>Sections</summary>
+      {% for id, label, level in headings %}
+      <a class="lp-section-level-{{ level }}" href="#{{ id }}">{{ label }}</a>
+      {% endfor %}
+    </details>
+  </nav>
+  {% endif %}
   {# Claims navigator: needs inspection first (the packet's order). Plain
      #claim-<id> links, so it works without JavaScript; paper.js turns each
      into "scroll to the mark, highlight it, open its evidence panel". #}
+  {% if not inline %}
   <nav class="lp-claim-nav" id="lp-claim-nav" aria-labelledby="lp-claim-nav-title">
     <details class="lp-claim-nav-box" open>
       <summary><h2 id="lp-claim-nav-title" class="lp-claim-nav-title">Claims ({{ claims_data|length }})</h2></summary>
@@ -36,8 +49,10 @@
       {% endif %}{% endfor %}
     </details>
   </nav>
+  {% endif %}
 
   <main class="lp-paper-shell" id="lp-paper-main" data-review-schema-version="{{ review.schema_version }}">
+    {% if not inline %}
     <p class="live-paper-subtitle">Manuscript with every <strong>registered</strong> claim marked by its evidence state (supplied by the evidence provider <code>{{ review.provider.name }}</code>).
       Unmarked text is not a registered claim and is not assessed.
       Select a mark (click, tap or Enter) to open its evidence panel.
@@ -45,6 +60,10 @@
     <p class="lp-support-legend" aria-label="Legend">
       {% for state, label in review.states.items() %}<span class="lp-support-badge" data-support="{{ state }}">{{ review.symbols[state] }} {{ label }}: {{ review.counts[state] }}</span>{% endfor %}
     </p>
+    {% endif %}
+    {% if compiled is not none %}
+    <article class="lp-paper-text lp-compiled-article">{{ compiled }}</article>
+    {% endif %}
     {% for s in sections %}
     <section class="lp-paper-section">
     <p class="lp-paper-file"><code>{{ s.file }}</code></p>
@@ -58,6 +77,7 @@
   </main>
 </div>
 
+{% if not inline %}
 {# The evidence panel: non-modal, so the paper stays readable and scrollable
    beside it. paper.js fills it from #lp-claims-data with DOM text nodes
    (never HTML from the data). Esc or the close button closes it and returns
@@ -74,11 +94,12 @@
 <footer class="live-paper-footer">
   <span>scitex-live-paper · claim states from the evidence provider · select a mark for its evidence panel (Esc closes) · mermaid v{{ mermaid_version }} (vendored)</span>
 </footer>
-<script id="lp-claims-data" type="application/json">{{ claims_data|tojson }}</script>
 <script type="module" src="{{ sdk_header_js_url }}"></script>
 <script type="module" src="{{ sdk_header_slot_js_url }}"></script>
+<script id="lp-claims-data" type="application/json">{{ claims_data|tojson }}</script>
 <script src="{{ mermaid_url }}" defer></script>
 <script src="{{ paper_panel_js_url }}" defer></script>
+{% endif %}
 <script src="{{ paper_js_url }}" defer></script>
 </body>
 </html>

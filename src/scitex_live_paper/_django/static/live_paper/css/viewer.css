@@ -1,12 +1,13 @@
 /* The host owns the page shell. The reader owns its document and evidence panes. */
 #live-paper-root {
   --lp-bg: var(--bg-primary, #faf9f6);
-  --lp-surface: var(--workspace-bg-secondary, var(--bg-surface, #ffffff));
-  --lp-raised: var(--workspace-bg-tertiary, var(--bg-muted, #f0eeea));
-  --lp-fg: var(--text-primary, #202733);
-  --lp-muted: var(--text-secondary, #526070);
-  --lp-border: var(--workspace-border-default, var(--border-default, #d6dce1));
-  --lp-accent: var(--text-link, #285876);
+  color-scheme: light dark;
+  --lp-surface: var(--workspace-bg-secondary, var(--bg-surface, light-dark(#ffffff, #161b22)));
+  --lp-raised: var(--workspace-bg-tertiary, var(--bg-muted, light-dark(#f0eeea, #21262d)));
+  --lp-fg: var(--text-primary, light-dark(#202733, #e6edf3));
+  --lp-muted: var(--text-secondary, light-dark(#526070, #aab5c2));
+  --lp-border: var(--workspace-border-default, var(--border-default, light-dark(#d6dce1, #30363d)));
+  --lp-accent: var(--text-link, light-dark(#285876, #79b6ef));
   box-sizing: border-box;
   container-type: inline-size;
   width: 100%;
@@ -15,6 +16,9 @@
   color: var(--lp-fg);
   line-height: 1.5;
 }
+
+[data-theme="light"] #live-paper-root { color-scheme: light; }
+[data-theme="dark"] #live-paper-root { color-scheme: dark; }
 
 #live-paper-root:has(.lp-reader-workspace) {
   display: flex;
@@ -25,7 +29,8 @@
 
 .live-paper-embed {
   margin: 0;
-  background: var(--bg-primary, #faf9f6);
+  color-scheme: light dark;
+  background: var(--bg-primary, light-dark(#faf9f6, #0d1117));
   font-family: system-ui, sans-serif;
 }
 
@@ -69,6 +74,18 @@
   flex-wrap: wrap;
   gap: 6px 14px;
   font-size: 0.875rem;
+}
+
+.lp-share:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.lp-share input {
+  max-inline-size: 100%;
 }
 
 .lp-reader-actions a {
@@ -206,6 +223,63 @@
 
 /* The renderer gives each page an explicit size. Keep that space while
  * Chromium skips layout and paint for pages far from the viewport. */
+.lp-toolbar-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+}
+
+.lp-toolbar-icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 32px;
+}
+
+.lp-pdf-theme {
+  inline-size: auto;
+}
+
+.lp-pdf-theme-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lp-pdf-theme-label[hidden] {
+  display: none;
+}
+
+/* Scope the PDF appearance to raster canvases. Text, links, and Clew marks
+   live on independent layers and retain their original interaction and colors. */
+#live-paper-root {
+  --lp-pdf-raster-filter: none;
+  --lp-pdf-watermark-color: #526070;
+  --lp-pdf-dark-filter: invert(0.89) hue-rotate(180deg);
+}
+
+[data-theme="dark"] #live-paper-root[data-pdf-theme="auto"],
+#live-paper-root[data-pdf-theme="dark"] {
+  --lp-pdf-raster-filter: var(--lp-pdf-dark-filter);
+  --lp-pdf-watermark-color: #bdc7d3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) #live-paper-root[data-pdf-theme="auto"] {
+    --lp-pdf-raster-filter: var(--lp-pdf-dark-filter);
+    --lp-pdf-watermark-color: #bdc7d3;
+  }
+}
+
+.live-paper-pdf .stx-pdf-page > canvas:first-child,
+#live-paper-navigation .rpdf-nav-pages canvas {
+  filter: var(--lp-pdf-raster-filter);
+}
+
+@media print {
+  .lp-pdf-theme-label { display: none !important; }
+  .live-paper-pdf .stx-pdf-page > canvas:first-child { filter: none; }
+}
+
 .live-paper-pdf .stx-pdf-page {
   content-visibility: auto;
 }
@@ -346,7 +420,7 @@
   --lp-status-unsourced: var(--lp-status-suspect);
   /* Evidence states (provider-neutral contract), colour-blind-safe hues.
    * "unassessed" = no evidence provider was available. */
-  --lp-status-supported: #005a8c;
+  --lp-status-supported: var(--lp-status-verified);
   --lp-status-not_supported: #b34700;
   --lp-status-not_checkable: #7a5400;
   --lp-status-no_evidence_graph: #4d4d4d;
@@ -381,6 +455,36 @@
   color: var(--lp-muted);
   font-size: 0.875rem;
   margin: 0 0 16px;
+}
+
+.lp-claim-filters:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-block: 8px;
+}
+
+.lp-claim-filters input {
+  min-inline-size: 0;
+}
+
+.lp-claim-type-tabs > .stx-content-tabs__tab {
+  font-size: 0.8rem;
+  padding-inline: 8px;
+}
+
+.lp-claim-type-tabs > [hidden] {
+  display: none;
+}
+
+.lp-claim-filter-status {
+  margin-block: 0 8px;
+  color: var(--lp-muted);
+  font-size: 0.85rem;
+}
+
+.lp-claim-filter-status:empty {
+  margin-block: 0;
 }
 
 .lp-claims-list .scitex-rich-pdf-feed > li > button {
@@ -698,7 +802,8 @@
 
 .lp-claim-dag {
   margin-top: 8px;
-  background: #fff;
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
   border-radius: 4px;
   padding: 8px;
   overflow-x: auto;
@@ -706,13 +811,13 @@
 
 .lp-claim-dag-loading,
 .lp-claim-dag-empty {
-  color: #666;
+  color: var(--lp-muted);
   font-size: 12px;
   margin: 4px;
 }
 
 .lp-claim-dag-source {
-  color: #222;
+  color: var(--lp-fg);
   font-size: 11px;
   white-space: pre-wrap;
   margin: 4px;
@@ -926,62 +1031,9 @@
   font-size: 12px;
 }
 
-.lp-comments-title {
-  margin: 12px 0 4px 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.lp-comments-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.lp-comments-item {
-  margin: 6px 0;
-  padding: 6px 8px;
-  border: 1px solid var(--lp-border);
-  border-radius: 4px;
-}
-
-.lp-comments-head {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--lp-muted);
-}
-
-.lp-comment-author {
-  font-weight: 600;
-}
-
-.lp-comment-body {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-}
-
-.lp-comments-form {
-  margin-top: 8px;
-}
-
-.lp-comments-input {
-  width: 100%;
-}
-
-.lp-comments-form-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.lp-comments-author {
-  flex: 1;
-}
-
-.lp-comments-error {
-  color: #cf222e;
-  font-size: 12px;
+#lp-comments-panel .rpdf-discussion {
+  --border-color: var(--lp-border);
+  --text-secondary: var(--lp-muted);
 }
 
 @container (min-width: 751px) {
@@ -993,7 +1045,8 @@
 }
 
 @container (max-width: 750px) {
-  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(.lp-claim-detail)) {
+  .lp-reader-workspace > .live-paper-claims:not([data-drawer-open], :has(.lp-claim-detail)),
+  .lp-reader-workspace > .live-paper-claims[data-document-focused] {
     display: none;
   }
 
@@ -1056,7 +1109,39 @@
   outline: 2px solid #1769aa;
 }
 
-.lp-claim-dag-svg .node[role="button"] {
+#live-paper-root .lp-claim-dag-svg .node {
+  --lp-dag-node-stroke: var(--lp-muted);
+}
+
+#live-paper-root .lp-claim-dag-svg .node.run { --lp-dag-node-stroke: var(--lp-accent); }
+#live-paper-root .lp-claim-dag-svg .node.author_source { --lp-dag-node-stroke: #258773; }
+#live-paper-root .lp-claim-dag-svg .node.supported { --lp-dag-node-stroke: var(--lp-status-verified); }
+#live-paper-root .lp-claim-dag-svg .node.not_checkable { --lp-dag-node-stroke: var(--lp-status-suspect); }
+#live-paper-root .lp-claim-dag-svg .node:is(.not_supported, .failing) { --lp-dag-node-stroke: var(--lp-status-mismatch); }
+
+#live-paper-root .lp-claim-dag-svg .node > :is(rect, polygon, path, circle) {
+  fill: color-mix(in srgb, var(--lp-dag-node-stroke) 12%, var(--lp-surface)) !important;
+  stroke: var(--lp-dag-node-stroke) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg svg text {
+  fill: var(--lp-fg) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .edgeLabel .labelBkg {
+  fill: var(--lp-surface) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .flowchart-link {
+  stroke: var(--lp-muted) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg svg marker path {
+  stroke: var(--lp-muted) !important;
+  fill: var(--lp-muted) !important;
+}
+
+#live-paper-root .lp-claim-dag-svg .node[role="button"] {
   cursor: pointer;
 }
 
@@ -1072,7 +1157,7 @@
   --lp-graph-accent: var(--lp-status-suspect);
 }
 
-.lp-claim-dag-svg :is(.lp-source-highlight, .node[role="button"]:focus-visible) > :is(rect, polygon, path, circle) {
+#live-paper-root .lp-claim-dag-svg :is(.lp-source-highlight, .node[role="button"]:focus-visible) > :is(rect, polygon, path, circle) {
   stroke: var(--lp-graph-accent, var(--lp-accent)) !important;
   stroke-width: 4px !important;
 }
@@ -1086,12 +1171,33 @@
 :is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg {
   max-block-size: 42vh;
   overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.lp-graph-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 6px;
+}
+
+.lp-graph-controls summary { cursor: pointer; }
+
+.lp-claim-dag-svg[data-can-pan] {
+  cursor: grab;
+}
+
+.lp-claim-dag-svg[data-panning] {
+  cursor: grabbing;
+  user-select: none;
 }
 
 :is(.lp-rich-preview, .lp-claim-detail) .lp-claim-dag-svg svg {
-  max-block-size: 420px;
-  min-inline-size: min(34rem, var(--lp-graph-width, 34rem));
-  max-inline-size: none;
+  display: block;
+  width: calc(100% * var(--lp-graph-zoom, 1));
+  max-width: none !important; /* Mermaid writes an inline max-width. */
+  height: auto;
 }
 
 .lp-claim-trace-status {
@@ -1122,10 +1228,16 @@
   font-size: 0.78rem;
 }
 
-/* The shared syntax tokens are light and require a dark code surface. */
+.lp-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 8px;
+}
+
 .lp-source-preview pre {
-  background: #20262e;
-  color: #e6edf3;
+  background: #f6f8fa;
+  color: #24292f;
   border: 1px solid var(--lp-border);
   border-radius: 4px;
   padding: 8px 10px;
@@ -1137,6 +1249,35 @@
 .lp-source-preview pre > code {
   color: inherit;
   background: transparent;
+}
+
+/* The Hub highlighter sets global token colors, so scope the light palette. */
+[data-theme="light"] .lp-source-preview pre [class^="hljs-"] {
+  color: inherit !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-attr, .hljs-number, .hljs-literal, .hljs-symbol, .hljs-params) {
+  color: #0550ae !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-string, .hljs-link) {
+  color: #0a6335 !important;
+}
+
+[data-theme="light"]
+  .lp-source-preview pre :is(.hljs-keyword, .hljs-built_in, .hljs-type, .hljs-title, .hljs-section, .hljs-name, .hljs-tag) {
+  color: #6a2da8 !important;
+}
+
+[data-theme="light"] .lp-source-preview pre .hljs-comment {
+  color: #53606c !important;
+}
+
+[data-theme="dark"] .lp-source-preview pre {
+  background: #20262e;
+  color: #e6edf3;
 }
 
 .lp-source-preview img {
@@ -1210,10 +1351,6 @@
   border-end-end-radius: 0;
 }
 
-.lp-download-icon {
-  line-height: 1;
-  border-block-end: 1px solid currentColor;
-}
 
 .lp-pdf-variants {
   position: relative;
@@ -1270,39 +1407,163 @@
   --rpdf-nav-hover: var(--lp-raised);
 }
 
-@container (min-width: 1001px) {
+.lp-reader-workspace:has(> #live-paper-navigation:not([hidden])) {
+  --lp-nav-width: minmax(130px, 16%);
+  grid-template-columns: var(--lp-nav-width) minmax(0, 1fr) minmax(270px, 30%);
+}
+
+.lp-reader-workspace:has(> #live-paper-navigation[data-collapsed]) {
+  --lp-nav-width: 36px;
+}
+
+.lp-reader-workspace:has(> #live-paper-navigation:not([hidden])):has(> .live-paper-claims[hidden]) {
+  grid-template-columns: var(--lp-nav-width) minmax(0, 1fr);
+}
+
+@container (max-width: 750px) {
   .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])) {
-    grid-template-columns: minmax(175px, 16%) minmax(0, 1fr) minmax(270px, 30%);
+    --lp-nav-width: max(85px, 23%);
+    grid-template-columns: var(--lp-nav-width) minmax(0, 1fr);
+    gap: 8px;
   }
 
-  .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])):has(> .live-paper-claims[hidden]) {
-    grid-template-columns: minmax(175px, 16%) minmax(0, 1fr);
+  .lp-reader-workspace:has(> #live-paper-navigation[data-collapsed]) {
+    --lp-nav-width: 34px;
+  }
+
+  .lp-reader-workspace:has(> #live-paper-navigation:not([hidden])) > .live-paper-claims {
+    inset-inline-start: calc(var(--lp-nav-width) + 8px);
   }
 }
 
-@container (max-width: 1000px) {
-  .lp-reader-workspace {
-    position: relative;
-  }
-
-  #live-paper-navigation:not([hidden]) {
-    position: absolute;
-    z-index: 5;
-    inset-block: 0;
-    inset-inline-start: 0;
-    inline-size: min(240px, 72%);
-    box-shadow: 0 4px 16px #0003;
-  }
+#live-paper-root[data-paper-stage="preprint"] .stx-pdf-page::after {
+  content: "Preprint";
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 4px;
+  inset-inline-end: 8px;
+  color: var(--lp-pdf-watermark-color);
+  opacity: 0.8;
+  font-size: clamp(8px, 1.1vw, 13px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  pointer-events: none;
 }
 
 @media print {
-  #live-paper-navigation,
-  .lp-pdf-navigation-toggle {
-    display: none !important;
-  }
+  #live-paper-navigation { display: none !important; }
 }
 
-.live-paper-pdf .lp-bibliography-highlight {
-  background: #72ace66b;
-  box-shadow: inset 0 -2px #2364a3;
+.live-paper-pdf .lp-bibliography-highlight,
+.live-paper-pdf [data-citation-key],
+.lp-citation-status {
+  --lp-citation-mark: var(--lp-status-registered);
+}
+
+.live-paper-pdf [data-citation-key][data-status="verified"],
+.lp-citation-status[data-status="verified"] {
+  --lp-citation-mark: var(--lp-status-verified);
+}
+
+.live-paper-pdf [data-citation-key][data-status="unverified"],
+.lp-citation-status[data-status="unverified"] {
+  --lp-citation-mark: var(--lp-status-suspect);
+}
+
+.live-paper-pdf [data-citation-key][data-status="stub"],
+.lp-citation-status[data-status="stub"] {
+  --lp-citation-mark: var(--lp-status-mismatch);
+}
+
+.live-paper-pdf .lp-bibliography-highlight,
+.live-paper-pdf [data-stx-pdf-layer="links"] > a[data-citation-key] {
+  background: color-mix(in srgb, var(--lp-citation-mark) 30%, transparent);
+  box-shadow: inset 0 -2px var(--lp-citation-mark);
+}
+
+.live-paper-pdf .lp-bibliography-highlight:is(:hover, :focus-visible),
+.live-paper-pdf [data-stx-pdf-layer="links"] > a[data-citation-key]:is(:hover, :focus-visible) {
+  outline: 2px solid var(--lp-citation-mark);
+  outline-offset: 1px;
+}
+
+.lp-citation-status {
+  border-inline-start: 3px solid var(--lp-citation-mark);
+  padding-inline-start: 8px;
+}
+
+.lp-manuscript-pane,
+.lp-format-panel {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.lp-format-panel,
+.lp-format-panel > .lp-reader-document,
+.lp-format-panel > iframe {
+  flex: 1;
+}
+
+.lp-format-panel[hidden],
+#live-paper-root[data-manuscript-format="html"] .lp-pdf-theme-label {
+  display: none;
+}
+
+.lp-format-tabs {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 4;
+  background: var(--lp-bg);
+}
+
+.lp-format-panel > iframe {
+  inline-size: 100%;
+  min-block-size: 0;
+  border: 1px solid var(--lp-border);
+  border-radius: 8px;
+  background: var(--lp-surface);
+}
+
+@media print {
+  .lp-format-tabs { display: none; }
+}
+
+.lp-statistics-selection:empty { display: none; }
+.lp-statistics-selection { margin-block: 12px; }
+.lp-stats-card { margin-block: 8px; }
+.lp-stats-card h3 { margin-block: 8px; font-size: 1.05rem; }
+.lp-stats-card h4 { margin-block: 10px 4px; font-size: 0.95rem; }
+.lp-stats-card p { margin-block: 4px; }
+.lp-stats-table-scroll { overflow: auto; }
+.lp-stats-card table { width: 100%; border-collapse: collapse; }
+.lp-stats-card :is(td, th) { padding: 4px 6px; border-bottom: 1px solid var(--lp-border); text-align: start; }
+.lp-stats-card td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+.lp-stats-card figure { margin: 8px 0; }
+.lp-stats-card img { max-width: 100%; height: auto; }
+.lp-stats-reported-line { font-family: ui-serif, Georgia, serif; }
+.lp-stats-card details { margin-block: 6px; }
+.lp-stats-card summary { cursor: pointer; font-weight: 600; }
+
+/* The SDK portals the menu to body, including in the standalone embed. */
+.rpdf-context-menu {
+  --bg-surface: var(--workspace-bg-secondary, #fff);
+  --text-primary: var(--workspace-text-primary, #17191c);
+  --text-secondary: var(--text-primary);
+  --border-default: var(--workspace-border-default, #d6dce1);
+}
+
+[data-theme="dark"] .rpdf-context-menu {
+  --bg-surface: var(--workspace-bg-secondary, #20252c);
+  --text-primary: var(--workspace-text-primary, #e6edf3);
+  --border-default: var(--workspace-border-default, #414953);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .rpdf-context-menu {
+    --bg-surface: var(--workspace-bg-secondary, #20252c);
+    --text-primary: var(--workspace-text-primary, #e6edf3);
+    --border-default: var(--workspace-border-default, #414953);
+  }
 }

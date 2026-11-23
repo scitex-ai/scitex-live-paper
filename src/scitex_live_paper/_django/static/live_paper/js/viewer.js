@@ -27,15 +27,16 @@ import {
   ensureClaimsSidebar,
   renderError,
 } from "./_utils.js";
+import { bindShare, openSharedClaim } from "./share.js";
 import { bindPdfDownloads } from "./pdf-downloads.js";
-import { PDFViewer } from "./pdf-viewer.js";
-import { closeClaimDetail, invalidateEvidenceGraphs, renderClaimDetail } from "./claim-details.js";
-import { renderClaimsSidebar } from "./claims-sidebar.js";
+import { PDFViewer, toOverlay } from "./pdf-viewer.js";
+import { bindPdfContextMenu } from "./pdf-context-menu.js";
+import { closeClaimDetail, invalidateEvidenceGraphs, renderCitationDetail, renderClaimDetail } from "./claim-details.js";
+import { bindTabs, renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
-import { fetchComments } from "./comments.js";
-import { renderArchiveButton } from "./archive.js";
+import { fetchComments, showComments } from "./comments.js";
 import { isMissingPaper, renderEmptyState } from "./empty-state.js";
 import { hideLoading } from "./_utils.js";
 
@@ -75,6 +76,7 @@ async function boot(rootEl) {
     return;
   }
   bindReaderLayout(rootEl);
+  bindPdfTheme(rootEl);
   // CCT 3000 overlay wiring: port bus serves evidence popups for
   // overlay regions; the event log records the session for the
   // archive sidecar (PDF + event-log). Both bind once at boot.
@@ -82,14 +84,6 @@ async function boot(rootEl) {
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
   rootEl._livePaperEventLog = eventLog;
-  // Archive action renders immediately (reads log + bundle lazily
-  // at click time) so it survives failed boot RPCs.
-  try {
-    renderArchiveButton(rootEl, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] archive button render failed", err);
-  }
-
   let pdfjs;
   let createPdfViewer;
   try {
@@ -132,6 +126,7 @@ async function boot(rootEl) {
     }
 
     setStatus(bundleInfo);
+    rootEl.dataset.paperStage = bundleInfo.paper_state?.stage || "";
     void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     // Stash for the Archive action (archive.js reads it lazily at
@@ -165,11 +160,23 @@ async function boot(rootEl) {
     closeClaimDetail(ensureClaimsSidebar(rootEl));
   });
 
+  function showClaim(sidebar, claim, refresh) {
+    const overlay = toOverlay(claim);
+    renderClaimDetail(sidebar, claim, apiBase, {
+      refresh,
+      goToPdf: overlay && (() => {
+        showPdf();
+        hideEvidenceDrawer(rootEl)?.focus({ preventScroll: true });
+        viewer.goToClaim(overlay);
+      }),
+    });
+  }
+
   rootEl.addEventListener("live-paper:selection-tab", (event) => {
     const sidebar = event.target;
     const id = sidebar.querySelector(".lp-claim-detail")?.dataset.claimId;
     const claim = claimsPayload?.claims?.find((entry) => entry.claim_id === id);
-    if (claim) renderClaimDetail(sidebar, claim, apiBase, { refresh: true });
+    if (claim) showClaim(sidebar, claim, true);
   });
 
   // The PDF and the claim list both open the evidence sidebar.
@@ -183,21 +190,33 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
-      if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
-      renderClaimDetail(sidebar, claim, apiBase, { refresh: !event.detail?.preview });
+      if (event.detail?.preview &&
+          (sidebar.dataset.pinnedClaim || !sidebar.querySelector("#lp-comments-panel").hidden)) return;
+      if (!event.detail?.preview) {
+        sidebar.removeAttribute("data-document-focused");
+        sidebar.dataset.pinnedClaim = id;
+      }
+      showClaim(sidebar, claim, !event.detail?.preview);
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
   });
 
   const pdfContainer = ensurePdfContainer(rootEl);
+  const navigation = rootEl.querySelector("#live-paper-navigation");
+  const showPdf = bindManuscriptFormats(rootEl, navigation);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    showPdf,
     evidencePane: true,
+    citationVerification: claimsPayload?.citation_verification,
+    onCitationSelect(key, citation, goToReference) {
+      const sidebar = ensureClaimsSidebar(rootEl);
+      showEvidenceDrawer(rootEl);
+      renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
+    },
     navigation: {
-      container: rootEl.querySelector("#live-paper-navigation"),
-      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle"),
+      container: navigation,
     },
     container: pdfContainer,
     pdfjs: pdfjs,
@@ -217,12 +236,52 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
+  let commentTarget;
+  function openComments(sidebar, { page, note, focus }) {
+    const panel = sidebar.querySelector("#lp-comments-panel");
+    const ready = showComments(panel, {
+      apiBase,
+      page,
+      note,
+      claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
+      onComments: (comments) => viewer.setComments(comments),
+    });
+    if (focus) void ready.then(() => {
+      if (!panel.hidden) panel.querySelector("textarea")?.focus();
+    });
+  }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    openComments(event.target, commentTarget ?? { page: viewer.currentPage() });
+  });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
+  const menuUrl = rootEl.dataset.pdfContextMenu;
+  if (menuUrl) {
+    import(menuUrl).then(({ ContextMenu }) => {
+      viewer.stopContextMenu = bindPdfContextMenu(ContextMenu, viewer, {
+        revealSidebar: () => showEvidenceDrawer(rootEl),
+        commentOnPage(page, note) {
+          const sidebar = ensureClaimsSidebar(rootEl);
+          showEvidenceDrawer(rootEl);
+          const tab = sidebar.querySelector("#lp-comments-tab");
+          if (tab.getAttribute("aria-selected") === "true") {
+            openComments(sidebar, { page, note, focus: true });
+          } else {
+            commentTarget = { page, note, focus: true };
+            tab.click();
+            commentTarget = null;
+          }
+          tab.focus({ preventScroll: true });
+        },
+      });
+    }).catch((error) => console.warn("[live-paper] PDF actions unavailable", error));
+  }
   await viewer.load();
+  const shareStatus = bindShare(rootEl);
+  openSharedClaim(rootEl, viewer.claims, shareStatus);
 }
 
 /**
@@ -258,6 +317,66 @@ export async function renderTraceSummary(rootEl, apiBase) {
   banner.hidden = false;
 }
 
+function showEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
+}
+
+function hideEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display === "none") return null;
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  sidebar.removeAttribute("data-drawer-open");
+  sidebar.setAttribute("data-document-focused", "");
+  toggle.setAttribute("aria-expanded", "false");
+  return toggle;
+}
+
+function bindManuscriptFormats(rootEl, navigation) {
+  const tabs = rootEl.querySelector(".lp-format-tabs");
+  if (!tabs) return () => {};
+  const pdfTab = tabs.querySelector("#lp-format-pdf");
+  const pdf = rootEl.querySelector("#lp-format-panel-pdf");
+  const html = rootEl.querySelector("#lp-format-panel-html");
+  const frame = html.querySelector("iframe");
+  bindTabs(tabs, (selected) => {
+    const showPdf = selected === pdfTab;
+    rootEl.dataset.manuscriptFormat = showPdf ? "pdf" : "html";
+    pdf.hidden = navigation.hidden = !showPdf;
+    html.hidden = showPdf;
+    if (!showPdf) {
+      hideEvidenceDrawer(rootEl);
+      if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
+    }
+  });
+  window.addEventListener("message", (event) => {
+    if (html.hidden || event.origin !== location.origin || event.source !== frame.contentWindow ||
+        event.data?.type !== "live-paper:html-claim" || typeof event.data.id !== "string") return;
+    rootEl.dispatchEvent(new CustomEvent("live-paper:claim", { detail: { id: event.data.id } }));
+  });
+  return () => { if (pdf.hidden) pdfTab.click(); };
+}
+
+function bindPdfTheme(rootEl) {
+  const picker = rootEl.querySelector(".lp-pdf-theme");
+  const key = "live-paper.pdf-theme";
+  let saved;
+  try {
+    saved = localStorage.getItem(key);
+  } catch { /* Embedded readers can have storage disabled. */ }
+  if (saved === "light" || saved === "dark") picker.value = saved;
+  rootEl.dataset.pdfTheme = picker.value;
+  picker.closest("label").hidden = false;
+  picker.addEventListener("change", () => {
+    rootEl.dataset.pdfTheme = picker.value;
+    try {
+      localStorage.setItem(key, picker.value);
+    } catch { /* The displayed preference still applies for this session. */ }
+  });
+}
+
 function bindReaderLayout(rootEl) {
   const header = rootEl.previousElementSibling;
   const shell = rootEl.closest("#main-content");
@@ -276,6 +395,7 @@ function bindReaderLayout(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
   const sidebar = rootEl.querySelector("#live-paper-claims");
   toggle.addEventListener("click", () => {
+    sidebar.removeAttribute("data-document-focused");
     const open = sidebar.toggleAttribute("data-drawer-open");
     toggle.setAttribute("aria-expanded", String(open));
   });

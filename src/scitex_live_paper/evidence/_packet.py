@@ -76,7 +76,7 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
     state = claim["state"]
     loc = claim.get("location") or {}
     src = claim.get("source") or {}
-    return {
+    entry = {
         "claim_id": claim["claim_id"],
         "location": {
             "file": loc.get("file"),
@@ -106,6 +106,9 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
         "graph_error": claim.get("graph_error"),
         "graph_url": graph_urls.get(claim["claim_id"]),
     }
+    if isinstance(claim.get("evidence_relation"), str):
+        entry["evidence_relation"] = claim["evidence_relation"]
+    return entry
 
 
 def build_review_packet(

@@ -7,10 +7,12 @@ import { pickAnchor } from "./claim-overlays.js";
 import { createBibliographyHighlights } from "./bibliography-highlights.js";
 import { postComment } from "./comments.js";
 import { renderEvidencePreview } from "./claim-details.js";
+import { bindScopedZoom } from "../../../../_renderer/assets/graph-controls.js";
 
 export function toOverlay(claim) {
   const anchor = pickAnchor(claim);
-  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  if (!Number.isInteger(anchor?.page) || anchor.page < 1 ||
+      !Array.isArray(anchor.bbox) || anchor.bbox.length !== 4 || !anchor.bbox.every(Number.isFinite)) return null;
   const figure = claim.claim_type === "figure" || claim.figure_id || claim.extras?.figure_id;
   return { id: claim.claim_id, page: anchor.page, bbox: anchor.bbox,
     appearance: figure ? "region" : "highlight",
@@ -30,7 +32,8 @@ export class PDFViewer {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    const bibliography = createBibliographyHighlights();
+    this.pageSurfaces = new Map();
+    const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
       pdfjs: options.pdfjs,
@@ -43,7 +46,8 @@ export class PDFViewer {
       createPdfViewer: options.createPdfViewer,
       rendererOptions: { pdfjs: this.navigation.runtime, workerSrc: options.workerSrc,
         hooks: {
-          onPageRender: (page, _viewport, surface) => {
+          onPageRender: (page, viewport, surface) => {
+            this.pageSurfaces.set(page, { viewport, surface });
             this.navigation.pageRendered(page, surface);
             bibliography.pageRendered(page, surface);
           },
@@ -61,6 +65,10 @@ export class PDFViewer {
             data: claim,
           })),
           renderEntry: (entry) => options.renderFeedEntry(entry.data),
+          navigate: (overlay) => {
+            options.showPdf?.();
+            this.navigation.goTo(overlay);
+          },
         },
         comments: {
           list: () => this.comments.map(toComment),
@@ -97,16 +105,30 @@ export class PDFViewer {
         } },
       },
     });
+    this.zoomListeners = new AbortController();
+    const { signal } = this.zoomListeners;
+    const manuscript = this.container.closest(".lp-reader-document") || this.container;
+    bindScopedZoom(manuscript, (action, point) => this.zoomAt(action, point), signal);
+    const navigation = options.navigation.container;
+    bindScopedZoom(navigation, (action) => zoomNavigation(navigation, action), signal);
+    options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
+  }
+  goToClaim(overlay) {
+    this.provider.selectOverlay(overlay.id);
+    this.navigation.goTo(overlay);
   }
   setClaims(claims) { this.claims = claims || []; this.provider.setOverlays(this.claims.map(toOverlay).filter(Boolean)); }
   setComments(comments) { this.comments = comments || []; this.provider.setComments(this.comments.map(toComment)); }
   async load(docType = "manuscript") {
+    this.loaded = false;
+    this.pageSurfaces.clear();
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
       this.navigation.finishRender();
+      this.loaded = true;
       this.watchFitWidth();
       return true;
     } catch (error) {
@@ -124,26 +146,89 @@ export class PDFViewer {
       if (next <= 0 || Math.abs(next - width) < 2) return;
       width = next;
       clearTimeout(this.resizeTimer);
-      this.resizeTimer = setTimeout(() => void this.refitVisiblePage(), 180);
+      if (this.manualZoom === undefined) {
+        this.resizeTimer = setTimeout(() => this.queueZoom(null), 180);
+      }
     });
     this.resizeObserver.observe(this.container);
   }
 
-  async refitVisiblePage() {
-    const scroller = readerScroller(this.container);
-    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+  noteTarget(page, point) {
+    const view = this.pageSurfaces.get(page);
+    if (!view?.surface.element.isConnected || !point) return null;
+    const { viewport, surface } = view;
+    const rect = surface.element.getBoundingClientRect();
+    const x = Math.max(0, Math.min(viewport.width - 1, (point.x - rect.left) * viewport.width / rect.width));
+    const y = Math.max(0, Math.min(viewport.height - 1, (point.y - rect.top) * viewport.height / rect.height));
+    const a = surface.viewportToPdfPoint(x, y);
+    const b = surface.viewportToPdfPoint(x + 1, y + 1);
+    return { page, bbox: [
+      Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]),
+    ] };
+  }
+
+  currentPage() {
+    const viewport = readerScroller(this.container).getBoundingClientRect();
     const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
-    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > top);
-    const old = pages[index]?.getBoundingClientRect();
-    const offset = old && old.top < top ? (top - old.top) / old.height : null;
-    try {
-      await this.provider.renderer.fitWidth();
-      if (offset === null) return;
-      const rect = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
-      if (rect) scroller.scrollBy({ top: rect.top + rect.height * offset - top, behavior: "instant" });
-    } catch (error) {
-      console.warn("[pdf-viewer] refit failed:", error);
+    const visible = pages.findIndex((page) => page.getBoundingClientRect().bottom > viewport.top);
+    return visible >= 0 ? visible + 1 : (pages.length ? 1 : null);
+  }
+
+  zoomAt(action, point) {
+    if (!this.loaded) return false;
+    clearTimeout(this.resizeTimer);
+    if (action === "reset") {
+      this.manualZoom = undefined;
+    } else {
+      const current = this.manualZoom ?? this.provider.renderer.getScale();
+      const factor = action === "in" ? 1.2 : 1 / 1.2;
+      // Include the fit-width scale when it already falls outside the usual range.
+      const minimum = Math.min(current, 0.25);
+      const maximum = Math.max(current, 4);
+      this.manualZoom = Math.max(minimum, Math.min(maximum, current * factor));
     }
+    this.queueZoom(this.manualZoom ?? null, point);
+  }
+
+  async queueZoom(scale, point) {
+    this.pendingZoom = { scale, point };
+    if (this.zooming) return;
+    this.zooming = true;
+    try {
+      while (this.pendingZoom && !this.zoomListeners.signal.aborted) {
+        const next = this.pendingZoom;
+        this.pendingZoom = null;
+        const renderer = this.provider.renderer;
+        if (next.scale !== null && next.scale === renderer.getScale()) continue;
+        await this.keepPosition(() => next.scale === null
+          ? renderer.fitWidth() : renderer.setScale(next.scale), next.point);
+      }
+    } catch (error) {
+      console.warn("[pdf-viewer] zoom failed:", error);
+    } finally {
+      this.zooming = false;
+    }
+  }
+
+  async keepPosition(action, point) {
+    const scroller = readerScroller(this.container);
+    const bounds = scroller.getBoundingClientRect();
+    const y = point?.y ?? Math.max(0, bounds.top);
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > y);
+    const before = pages[index]?.getBoundingClientRect();
+    const fractionY = before && Math.max(0, Math.min(1, (y - before.top) / before.height));
+    const fractionX = before && point && point.x >= before.left && point.x <= before.right
+      ? (point.x - before.left) / before.width : null;
+
+    await action();
+    const after = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
+    if (!before || !after) return;
+    scroller.scrollBy({
+      top: after.top - before.top + fractionY * (after.height - before.height),
+      left: fractionX === null ? 0 : after.left + fractionX * after.width - point.x,
+      behavior: "instant",
+    });
   }
 
   clear() { this.container.replaceChildren(); }
@@ -158,7 +243,10 @@ export class PDFViewer {
   destroy() {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
+    this.zoomListeners.abort();
+    this.pageSurfaces.clear();
     this.stopEvidencePane?.();
+    this.stopContextMenu?.();
     this.navigation.destroy();
     this.provider.destroy();
   }
@@ -166,9 +254,18 @@ export class PDFViewer {
 
 function readerScroller(container) {
   for (let node = container.parentElement; node; node = node.parentElement) {
-    if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
   }
   return container.ownerDocument.scrollingElement;
+}
+
+function zoomNavigation(container, action) {
+  if (container.hasAttribute("data-collapsed")) return false;
+  const list = container.querySelector(".rpdf-nav-content > :not([hidden]) > :is(.rpdf-nav-pages, .rpdf-nav-bookmarks)");
+  if (!list) return false;
+  const zoom = Number(list.style.zoom || 1);
+  list.style.zoom = String(action === "reset" ? 1 :
+    Math.max(0.5, Math.min(3, zoom + (action === "in" ? 0.2 : -0.2))));
 }
 
 /** Use the viewer's existing overlay buttons as entry points to the side pane. */
@@ -196,7 +293,7 @@ function bindEvidencePane(container) {
   }, { capture: true, passive: true, signal });
   container.addEventListener("pointerenter", (event) => {
     const anchor = event.target;
-    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    if (!anchor.matches?.(".lp-rich-overlay") || container.closest("[data-pdf-pan]")) return;
     event.stopImmediatePropagation();
     if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
     clearTimeout(hover);

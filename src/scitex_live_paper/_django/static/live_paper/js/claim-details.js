@@ -6,11 +6,10 @@ import { withBundleContext } from "./_utils.js";
 // Row click (not on a button) renders a detail pane under the list:
 // claim id/value/status, provenance (source file/hash/session, anchor),
 // the bundle DAG via `api/dag` rendered with the vendored mermaid
-// UMD bundle (`window.mermaid`), then the anchored-comments section
-// (`api/comments` list + add form). Everything degrades to a message —
-// never an empty pane.
+// UMD bundle (`window.mermaid`).
 
-import { renderCommentSection } from "./comments.js";
+import { renderStatistics } from "./statistics-preview.js";
+import { graphControls } from "../../../../_renderer/assets/graph-controls.js";
 
 let graphSequence = 0;
 const detailRequests = new WeakMap();
@@ -22,7 +21,7 @@ function el(tag, className, text) {
   return node;
 }
 
-export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) {
+export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, goToPdf } = {}) {
   const selection = sidebarEl.querySelector("#lp-selection-panel");
   sidebarEl.querySelector("#lp-selection-tab").click();
   const active = selection.querySelector(".lp-claim-detail");
@@ -43,11 +42,22 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
 
   pane.appendChild(el("p", "lp-claim-detail-value",
     claim.claim_value || claim.file_path || "(no value)"));
+  const relation = claim.extras?.evidence_relation ?? claim.extras?.metadata?.evidence_relation;
+  if (relation === "author_interpretation") {
+    pane.append(el("p", "lp-claim-detail-status", "Author interpretation"));
+  }
 
   const status = el("p", "lp-claim-detail-status",
     "status: " + (claim.status || "registered"));
   status.dataset.status = claim.status || "registered";
   pane.appendChild(status);
+
+  if (goToPdf) {
+    const jump = el("button", "stx-button", "Show in PDF");
+    jump.type = "button";
+    jump.addEventListener("click", goToPdf);
+    pane.append(jump);
+  }
 
   const prov = el("ul", "lp-claim-detail-provenance");
   const rows = [
@@ -75,23 +85,61 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false }
   const controller = new AbortController();
   detailRequests.set(pane, controller);
   pane.ownerDocument.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+    if (event.key === "Escape" && !event.defaultPrevented && !selection.hidden) closeClaimDetail(sidebarEl);
   }, { signal: controller.signal });
   renderEvidenceDetails(pane, claim, apiBase, controller.signal);
-
-  // Anchored comments (provider item 4): list + add form for this
-  // claim. Best-effort — a comments outage must not break the pane.
-  try {
-    const commentsBox = el("div", "lp-claim-comments-slot");
-    pane.appendChild(commentsBox);
-    void renderCommentSection(commentsBox, claim.claim_id, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] comments section failed:", err);
-  }
 
   selection.append(pane);
   sidebarEl.scrollTop = 0;
   return pane;
+}
+
+export function renderCitationDetail(sidebar, key, citation, apiBase, goToReference) {
+  delete sidebar.dataset.pinnedClaim;
+  removeClaimDetail(sidebar);
+  sidebar.querySelector("#lp-selection-tab").click();
+  const pane = el("div", "lp-claim-detail");
+  pane.setAttribute("role", "region");
+  pane.setAttribute("aria-label", "Citation evidence");
+  pane.append(el("h3", "lp-evidence-preview-title", key));
+  const badge = el("p", "lp-citation-status", "Clew status · " + citation.status);
+  badge.dataset.status = citation.status;
+  pane.append(badge);
+  if (citation.reason) pane.append(el("p", "", citation.reason));
+  if (citation.resolver_source) pane.append(el("p", "", "Scholar provider · " + citation.resolver_source));
+  if (citation.provenance) pane.append(el("p", "", citation.provenance));
+  if (citation.doi) pane.append(el("p", "", "DOI · " + citation.doi));
+  if (citation.link) {
+    try {
+      const url = new URL(citation.link);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        const source = el("a", "stx-button", "Open source");
+        source.href = url.href;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        pane.append(source);
+      }
+    } catch { /* The provider did not supply an absolute web URL. */ }
+  }
+  if (goToReference) {
+    const jump = el("button", "stx-button", "Go to bibliography entry");
+    jump.type = "button";
+    jump.addEventListener("click", goToReference);
+    pane.append(jump);
+  }
+  if (citation.claim_id) {
+    const controller = new AbortController();
+    detailRequests.set(pane, controller);
+    renderEvidenceDetails(pane, { claim_id: citation.claim_id }, apiBase, controller.signal, true);
+  } else {
+    pane.append(el("p", "lp-claim-dag-empty", "No Clew retrieval graph is recorded for this citation."));
+  }
+  const close = el("button", "stx-button", "Close");
+  close.type = "button";
+  close.addEventListener("click", () => closeClaimDetail(sidebar));
+  pane.append(close);
+  sidebar.querySelector("#lp-selection-panel").append(pane);
+  sidebar.scrollTop = 0;
 }
 
 function removeClaimDetail(sidebarEl) {
@@ -113,7 +161,7 @@ export function renderEvidencePreview(panel, claim, apiBase, signal) {
   renderEvidenceDetails(panel, claim, apiBase, signal);
 }
 
-function renderEvidenceDetails(panel, claim, apiBase, signal) {
+function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = false) {
   const graph = el("div", "lp-claim-dag");
   graph.append(el("p", "lp-claim-dag-loading", "Loading evidence graph…"));
   panel.append(graph);
@@ -121,49 +169,117 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
   preview.setAttribute("aria-live", "polite");
   preview.hidden = true;
   panel.append(preview);
-  let request = null;
+  const requests = new WeakMap();
+  let references = [];
+  const statistics = claim.claim_type === "statistic" && el("div", "lp-statistics-selection");
+  if (statistics) panel.insertBefore(statistics, graph);
 
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
     selectReference: (reference) => load(reference),
+    onReferences(nodes) {
+      references = nodes || [];
+      if (statistics) {
+        const source = references.find((node) => node.label === claim.source_file);
+        if (source) load(source, { destination: statistics });
+      }
+    },
+    requireClaim,
   });
 
-  function load(reference, { member } = {}) {
-    request?.abort();
-    request = new AbortController();
-    const current = request;
-    preview.hidden = false;
-    preview.replaceChildren(el("p", null, "Loading file preview…"));
+  function previewUrl(reference, member) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
     if (member !== undefined) url.searchParams.set("member", member);
-    fetch(withBundleContext(url.href), {
-      signal: AbortSignal.any([signal, current.signal]),
+    return withBundleContext(url.href);
+  }
+
+  function loadPlot(file, name, target, title, checksum, requestSignal) {
+    if (typeof file !== "string" || !/^[\w.-]+\.(png|jpe?g)$/i.test(name)) return;
+    const path = file.slice(0, file.lastIndexOf("/") + 1) + name;
+    const reference = references.find((item) => item.label === path);
+    if (!reference) return;
+    fetch(previewUrl(reference), { signal: requestSignal }).then(async (response) => {
+      if (!response.ok) return;
+      const image = await response.json();
+      if (image.kind !== "image" || requestSignal.aborted) return;
+      const recorded = image.hash?.replace(/^sha256:/i, "").toLowerCase();
+      if (typeof checksum === "string" && (!recorded || !checksum.startsWith(recorded))) return;
+      renderSourceContent(target, { ...image, file: title || name });
+    }).catch(() => {});
+  }
+
+  function load(reference, { member, destination = preview } = {}) {
+    requests.get(destination)?.abort();
+    const current = new AbortController();
+    requests.set(destination, current);
+    const requestSignal = AbortSignal.any([signal, current.signal]);
+    destination.hidden = false;
+    destination.replaceChildren(el("p", null, "Loading evidence…"));
+    fetch(previewUrl(reference, member), {
+      signal: requestSignal,
       headers: { Accept: "application/json" },
     }).then(async (response) => {
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
       if (current.signal.aborted || signal.aborted) return;
-      preview.replaceChildren(
+      if (!response.ok) {
+        destination.replaceChildren(
+          el("code", null, reference.script_file || reference.label),
+          el("p", null, result.error || "File preview unavailable."),
+        );
+        appendSourceLinks(destination, result.links, { current: true });
+        return;
+      }
+      if (result.kind === "statistics") {
+        destination.replaceChildren();
+        renderStatistics(destination, result.statistics,
+          (name, target, title, checksum) => {
+            if (!result.member) loadPlot(result.file, name, target, title, checksum, requestSignal);
+          });
+        appendSourceLinks(destination, result.links);
+        if (result.member) {
+          destination.append(previewButton("Archive contents", () => load(reference)));
+        }
+        return;
+      }
+      destination.replaceChildren(
         el("code", null, result.file),
         el("span", "lp-source-preview-status", result.truncated
           ? "Matches recorded hash · excerpt" : "Matches recorded hash"),
       );
+      appendSourceLinks(destination, result.links);
       if (result.member) {
         const back = previewButton("Archive contents", () => load(reference));
-        preview.append(el("p", null, result.member), back);
+        destination.append(el("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options));
+      renderSourceContent(destination, result, (options) => load(reference, { ...options, destination }));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el("code", null, reference.script_file || reference.label),
           el("p", null, error.message || "File preview unavailable."),
         );
       }
     });
   }
+}
+
+function appendSourceLinks(preview, links, { current = false } = {}) {
+  const actions = el("div", "lp-source-actions");
+  const choices = [
+    [links?.file, current ? "Open current file" : "Open file"],
+    [links?.folder, "Open containing folder"],
+  ];
+  for (const [url, label] of choices) {
+    if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//") || url.includes("\\")) continue;
+    const action = el("a", "stx-button", label);
+    action.href = url;
+    action.target = "_blank";
+    action.rel = "noopener";
+    actions.append(action);
+  }
+  if (actions.childElementCount) preview.append(actions);
 }
 
 function previewButton(label, action) {
@@ -224,7 +340,7 @@ function cachedLayout(hash, render) {
   return rendered;
 }
 
-export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
+export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim, onReferences } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -236,6 +352,7 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || ("dag request failed: " + res.status));
+    if (requireClaim && body.scope !== "claim") throw new Error("No Clew retrieval graph is recorded for this citation.");
   } catch (err) {
     if (signal?.aborted) return;
     dagBox.replaceChildren(el("p", "lp-claim-dag-empty",
@@ -276,14 +393,22 @@ export async function renderDagPane(dagBox, claimId, apiBase, { signal, selectRe
       status.dataset.state = body.state;
       dagBox.append(status);
     }
-    dagBox.append(wrap);
+    dagBox.append(graphControls(wrap, signal), wrap);
     if (body.scope === "claim") {
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);
       const link = el("a", "lp-claim-graph-link", "Open full evidence graph");
-      link.href = withBundleContext(graphPage.href);
+      function updateGraphLink() {
+        const theme = document.documentElement.dataset.theme;
+        if (theme === "light" || theme === "dark") graphPage.searchParams.set("theme", theme);
+        else graphPage.searchParams.delete("theme");
+        link.href = withBundleContext(graphPage.href);
+      }
+      updateGraphLink();
+      link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
+      onReferences?.(body.references);
     }
   } catch (err) {
     if (signal?.aborted) return;

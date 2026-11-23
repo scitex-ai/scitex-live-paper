@@ -136,9 +136,13 @@ export function createRichPdfViewer(options) {
     preview?.close();
     const overlay = overlays.find((item) => item.id === entry.overlayId);
     selectOverlay(overlay?.id);
-    const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
-      .find((element) => element.dataset.overlayId === entry.overlayId);
-    anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (overlay && ports.feed?.navigate) {
+      ports.feed.navigate(overlay);
+    } else {
+      const anchor = [...(layers.get(overlay?.page)?.children ?? [])]
+        .find((element) => element.dataset.overlayId === entry.overlayId);
+      anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     emit({ type: "feed-select", entry, overlay: overlay ?? null });
   }
 
@@ -155,28 +159,14 @@ export function createRichPdfViewer(options) {
     const close = document.createElement("button"); close.type = "button"; close.textContent = "Close comments";
     close.addEventListener("click", () => { panel.remove(); anchor?.focus(); });
     panel.append(close);
-    for (const comment of comments.filter((item) => sameTarget(item.target, target))) {
-      const row = document.createElement("p"); row.className = "lp-rich-comment";
-      row.textContent = [comment.author, comment.body].filter(Boolean).join(": "); panel.append(row);
-    }
-    if (ports.comments?.create) {
-      const form = document.createElement("form");
-      const input = document.createElement("textarea"); input.setAttribute("aria-label", "New PDF comment"); input.required = true;
-      const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = "Add comment";
-      const status = document.createElement("p"); status.setAttribute("role", "status");
-      if (!allow("comment-create", target)) { input.disabled = true; submit.disabled = true; status.textContent = "Comments are read-only for this target."; }
-      form.append(input, submit, status); panel.append(form);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault(); submit.disabled = true; status.textContent = "Saving comment…";
-        try {
-          await createComment(target, input.value);
-          if (!panel.isConnected) return;
-          status.textContent = "Comment saved."; input.value = "";
-          selectTarget(target, anchor, overlay);
-        } catch (error) { if (panel.isConnected) status.textContent = error.message || "Comment could not be saved."; }
-        finally { if (panel.isConnected) submit.disabled = !allow("comment-create", target); }
-      });
-    }
+    const targetComments = comments.filter((item) => sameTarget(item.target, target));
+    const title = target.overlayId ? "Overlay comments" : `Page ${target.page} comments`;
+    void renderPdfDiscussion(panel, {
+      title,
+      load: () => targetComments,
+      post: ports.comments?.create && allow("comment-create", target)
+        ? (body) => createComment(target, body) : undefined,
+    });
     (options.commentsContainer || container).append(panel);
     popup = panel;
     emit({ type: "comments-open", target });
@@ -244,7 +234,82 @@ export function createRichPdfViewer(options) {
     for (const layer of layers.values()) layer.remove();
     layers.clear(); pages.clear(); renderer.destroy();
   }
-  return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+  return { renderer, load, refresh, setOverlays, setComments,
+    setFeedFilter: (filter) => feed?.setFilter(filter), selectOverlay, selectTarget, createComment, destroy };
+}
+
+/** Mount a reusable discussion with caller-supplied comment access and storage. */
+export async function renderPdfDiscussion(container, { title = "Comments", load, post, targetControl, labelTarget }) {
+  const doc = container.ownerDocument;
+  function element(tag, text, className) {
+    const node = doc.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  const section = element("section", "", "rpdf-discussion");
+  section.setAttribute("aria-label", title);
+  const heading = element("h3", title);
+  const status = element("p", "Loading comments…");
+  status.setAttribute("role", "status");
+  const list = element("ul", "", "rpdf-discussion-list");
+  section.append(heading, status, list);
+  container.append(section);
+
+  function show(comment) {
+    const item = element("li");
+    const info = [labelTarget?.(comment.target), comment.author || "Anonymous"].filter(Boolean);
+    const byline = element("p", info.join(" · "), "rpdf-discussion-byline");
+    if (comment.createdAt) {
+      const time = element("time", " · " + comment.createdAt.replace("T", " ").slice(0, 16) + " UTC");
+      time.dateTime = comment.createdAt;
+      byline.append(time);
+    }
+    item.append(byline, element("p", comment.body, "rpdf-discussion-text"));
+    list.append(item);
+  }
+
+  try {
+    for (const comment of await load()) show(comment);
+    status.textContent = list.childElementCount ? "" : "No comments yet.";
+  } catch {
+    status.textContent = "Comments are unavailable. Reopen the discussion to try again.";
+    return;
+  }
+  if (!post) return;
+
+  const form = element("form");
+  if (targetControl) form.append(targetControl);
+  const label = element("label", "Comment");
+  const input = element("textarea", "", "stx-textarea");
+  input.required = true;
+  input.rows = 3;
+  label.append(input);
+  const submit = element("button", "Post comment", "stx-button stx-button--primary");
+  submit.type = "submit";
+  const feedback = element("p");
+  feedback.setAttribute("role", "status");
+  form.append(label, submit, feedback);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || submit.disabled) return;
+    submit.disabled = true;
+    input.readOnly = true;
+    feedback.textContent = "Posting comment…";
+    try {
+      show(await post(text));
+      status.textContent = "";
+      input.value = "";
+      feedback.textContent = "Comment posted.";
+    } catch {
+      feedback.textContent = "Could not post your comment. Your draft is still here.";
+    } finally {
+      input.readOnly = false;
+      submit.disabled = false;
+    }
+  });
+  section.append(form);
 }
 
 function createOverlayPreview(container, port) {
@@ -379,12 +444,17 @@ function createFeed(container, choose, renderEntry) {
   container.append(list);
   let rows = [];
   let selected = null;
+  let filter = null;
+
+  function updateVisibility() {
+    for (const row of rows) row.element.hidden = filter ? !filter(row.entry) : false;
+  }
 
   function select(row, scroll = false) {
     selected?.button.removeAttribute("aria-current");
     selected = row ?? null;
     selected?.button.setAttribute("aria-current", "true");
-    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (scroll && selected && !selected.element.hidden) selected.element.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   function setEntries(entries) {
@@ -405,12 +475,17 @@ function createFeed(container, choose, renderEntry) {
       if (content) element.append(content);
       return row;
     });
+    updateVisibility();
     list.replaceChildren(...rows.map((row) => row.element));
     select(rows.find((row) => row.entry.id === selectedId));
   }
 
   return {
     setEntries,
+    setFilter(nextFilter) {
+      filter = nextFilter;
+      updateVisibility();
+    },
     selectOverlay(overlayId) {
       if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
     },
@@ -420,13 +495,25 @@ function createFeed(container, choose, renderEntry) {
 }
 
 /** Shared PDF navigation. Wrap the PDF.js runtime passed to the renderer once. */
-export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
+export function createPdfNavigation({ container, toggle: externalToggle, pdfjs, onDocument,
+  initiallyOpen = !externalToggle }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
   content.className = "rpdf-nav-content";
   container.classList.add("rpdf-navigation");
-  container.replaceChildren(controls, content);
+  container.hidden = false;
+  const titlebar = document.createElement("div");
+  titlebar.className = "rpdf-nav-titlebar";
+  const title = document.createElement("span");
+  title.textContent = "Pages & bookmarks";
+  const toggle = control("", () => setOpen(container.hasAttribute("data-collapsed")));
+  toggle.className = "rpdf-nav-toggle";
+  content.id = container.id + "-content";
+  toggle.setAttribute("aria-controls", content.id);
+  titlebar.append(title, toggle);
+  if (externalToggle) container.replaceChildren(controls, content);
+  else container.replaceChildren(titlebar, controls, content);
 
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
@@ -459,19 +546,28 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
   }
 
   function setOpen(open) {
-    container.hidden = !open;
+    if (externalToggle) {
+      container.hidden = !open;
+      externalToggle.setAttribute("aria-expanded", String(open));
+      return;
+    }
+    container.toggleAttribute("data-collapsed", !open);
+    title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
+    toggle.textContent = open ? "‹" : "›";
+    toggle.title = open ? "Minimize PDF navigation" : "Expand PDF navigation";
+    toggle.setAttribute("aria-label", toggle.title);
   }
 
-  toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
+  externalToggle?.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
-    toggle.focus();
+    (externalToggle || toggle).focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(false);
+  setOpen(initiallyOpen);
 
   function choose(target) {
     destination = target;
@@ -482,13 +578,24 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
     if (!destination) return;
     const surface = surfaces.get(destination.page);
     if (!surface?.element.isConnected) return;
-    const scroller = closestScrollContainer(surface.element);
-    if (scroller) {
+    const scrollRoot = surface.element.ownerDocument.scrollingElement;
+    const scroller = closestScrollContainer(surface.element) || scrollRoot;
+    if (destination.bbox && scroller) {
+      const [, y0, , y1] = surface.pdfToViewportRect(destination.bbox);
+      const y = Math.min(y0, y1);
+      // Center a line or small region. Give tall figures a visible top edge.
+      const inset = Math.max(12, (scroller.clientHeight - Math.abs(y1 - y0)) / 2);
+      const scrollerTop = scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top;
+      scroller.scrollTo({
+        top: scroller.scrollTop + surface.element.getBoundingClientRect().top - scrollerTop + y - inset,
+        behavior: "instant",
+      });
+    } else if (scroller) {
       const [, offset] = Number.isFinite(destination.top)
         ? surface.pdfToViewportPoint(destination.left ?? 0, destination.top)
         : [0, 0];
       const top = scroller.scrollTop + surface.element.getBoundingClientRect().top
-        - scroller.getBoundingClientRect().top;
+        - (scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top);
       scroller.scrollTo({ top: top + offset - 12 });
     } else {
       surface.element.scrollIntoView({ block: "start" });
@@ -560,6 +667,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
 
   return {
     runtime,
+    goTo: choose,
     pageRendered(page, surface) {
       surfaces.set(page, surface);
       if (destination?.page === page) jump();
@@ -574,7 +682,7 @@ export function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
       observer?.disconnect();
       surfaces.clear();
       container.replaceChildren();
-      setOpen(false);
+      container.hidden = true;
     },
   };
 }
@@ -627,4 +735,113 @@ async function pdfOutlineTarget(pdf, dest) {
   } catch {
     return null;
   }
+}
+
+/** Attach the configured reading actions using the host's context-menu component. */
+export function bindPdfContextMenu({ ContextMenu, container, scrollContainer = container,
+  canOpen = () => true, items = () => [], pan = true, copy = true, zoom }) {
+  const pdf = container;
+  const reader = scrollContainer;
+  const doc = reader.ownerDocument;
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let opener;
+  let commands;
+  const menu = new ContextMenu({
+    items: () => commands,
+    onOpen() {
+      const element = doc.body.lastElementChild;
+      element.classList.add("rpdf-context-menu");
+      element.setAttribute("aria-label", "PDF page actions");
+      element.querySelector("[role=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
+    },
+    onClose() {
+      if (doc.activeElement === doc.body) opener?.focus({ preventScroll: true });
+    },
+  });
+
+  function open(target, x, y, point) {
+    if (!canOpen() || target.closest("a[href]")) return false;
+    menu.close();
+    const selection = doc.getSelection();
+    const text = selection?.anchorNode && pdf.contains(selection.anchorNode)
+      && pdf.contains(selection.focusNode) ? selection.toString() : "";
+    commands = [];
+    if (copy && text.trim() && doc.defaultView.navigator.clipboard) {
+      commands.push({ label: "Copy text", onSelect: () => {
+        void doc.defaultView.navigator.clipboard.writeText(text).catch(() => doc.execCommand("copy"));
+      } });
+    }
+    commands.push(...items(target, point));
+    if (pan) {
+      if (commands.length) commands.push({ kind: "divider" });
+      const hand = reader.hasAttribute("data-pdf-pan");
+      commands.push(
+        { label: "Hand tool", disabled: hand, onSelect: () => {
+          selection?.removeAllRanges();
+          reader.setAttribute("data-pdf-pan", "");
+        } },
+        { label: "Select text", disabled: !hand, onSelect: () => reader.removeAttribute("data-pdf-pan") },
+      );
+    }
+    if (zoom) {
+      if (commands.length) commands.push({ kind: "divider" });
+      commands.push(
+        { label: "Zoom in", shortcut: "Ctrl + +", onSelect: () => zoom("in", point) },
+        { label: "Zoom out", shortcut: "Ctrl + −", onSelect: () => zoom("out", point) },
+        { label: "Fit width", shortcut: "Ctrl + 0", onSelect: () => zoom("reset", point) },
+      );
+    }
+    if (!commands.length) return false;
+    opener = target.closest("button") || reader;
+    menu.openAt(x, y, target);
+    return true;
+  }
+
+  pdf.addEventListener("contextmenu", (event) => {
+    const point = { x: event.clientX, y: event.clientY };
+    if (event.target.closest(".stx-pdf-page") && open(event.target, point.x, point.y, point)) {
+      event.preventDefault();
+    }
+  }, { signal });
+  reader.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    const { left, bottom } = event.target.getBoundingClientRect();
+    const y = Math.min(bottom, reader.getBoundingClientRect().bottom) - 8;
+    if (open(event.target, left + 8, y)) event.preventDefault();
+  }, { signal });
+
+  let drag;
+  reader.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !reader.hasAttribute("data-pdf-pan")) return;
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY,
+      left: reader.scrollLeft, top: reader.scrollTop };
+    reader.setPointerCapture(event.pointerId);
+    reader.setAttribute("data-pdf-panning", "");
+    event.preventDefault();
+  }, { signal, capture: true });
+  reader.addEventListener("pointermove", (event) => {
+    if (drag?.id !== event.pointerId) return;
+    reader.scrollTo({
+      left: drag.left + drag.x - event.clientX,
+      top: drag.top + drag.y - event.clientY,
+      behavior: "instant",
+    });
+  }, { signal });
+  reader.addEventListener("lostpointercapture", () => {
+    drag = null;
+    reader.removeAttribute("data-pdf-panning");
+  }, { signal });
+  reader.addEventListener("click", (event) => {
+    if (!reader.hasAttribute("data-pdf-pan") || event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { signal, capture: true });
+
+  return () => {
+    listeners.abort();
+    reader.removeAttribute("data-pdf-pan");
+    reader.removeAttribute("data-pdf-panning");
+    menu.destroy();
+  };
 }

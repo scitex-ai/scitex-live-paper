@@ -8,13 +8,18 @@
  */
 
 :root {
-  --lp-bg: #fafbfc;
-  --lp-fg: #111;
-  --lp-muted: #555;
-  --lp-border: #d0d7de;
-  --lp-overlay-bg: rgba(0, 0, 0, 0.04);
-  --lp-overlay-card: #fff;
+  color-scheme: light dark;
+  --lp-bg: light-dark(#fafbfc, #0d1117);
+  --lp-fg: light-dark(#111, #e6edf3);
+  --lp-muted: light-dark(#555, #aab5c2);
+  --lp-border: light-dark(#d0d7de, #30363d);
+  --lp-overlay-bg: light-dark(#0001, #fff1);
+  --lp-overlay-card: light-dark(#fff, #161b22);
+  --lp-dag-link: light-dark(#285876, #79b6ef);
 }
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 
@@ -31,7 +36,7 @@ body.live-paper {
 
 .live-paper-footer {
   padding: 12px 20px;
-  background: #fff;
+  background: var(--lp-overlay-card);
   border-top: 1px solid var(--lp-border);
   font-size: 12px;
   color: var(--lp-muted);
@@ -45,7 +50,7 @@ body.live-paper {
    ([data-stx-app-header-mounted] is set by the SDK mount). The static
    project label stays hidden until the slot helper moves it into the
    SDK project slot. */
-.lp-static-header-fallback { margin: 0; padding: 12px 20px; font-size: 18px; font-weight: 600; background: #fff; border-bottom: 1px solid var(--lp-border); }
+.lp-static-header-fallback { margin: 0; padding: 12px 20px; font-size: 18px; font-weight: 600; background: var(--lp-overlay-card); border-bottom: 1px solid var(--lp-border); }
 [data-stx-app-header-mounted] .lp-static-header-fallback { display: none; }
 [data-stx-app-header] [data-lp-static-project] { display: none; }
 .stx-app-header__slot--project-selector [data-lp-static-project] { display: inline; }
@@ -60,11 +65,91 @@ body.live-paper {
 .mermaid {
   display: flex;
   justify-content: center;
-  background: #fff;
+  background: var(--lp-overlay-card);
   border: 1px solid var(--lp-border);
   border-radius: 8px;
   padding: 16px;
   overflow: auto;
+}
+
+#lp-dag-source[data-graph-interactive] {
+  display: block;
+  max-block-size: 68vh;
+  overscroll-behavior: contain;
+}
+
+#lp-dag-source[data-graph-interactive] > svg {
+  display: block;
+  width: calc(100% * var(--lp-graph-zoom, 1));
+  max-width: none !important;
+  height: auto;
+}
+
+#lp-dag-source[data-can-pan] { cursor: grab; }
+#lp-dag-source[data-panning] { cursor: grabbing; user-select: none; }
+
+.lp-graph-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 6px;
+}
+
+.lp-graph-controls summary { cursor: pointer; }
+
+.lp-graph-controls button {
+  padding: 4px 8px;
+  border: 1px solid var(--lp-border);
+  border-radius: 4px;
+  background: var(--lp-overlay-card);
+  color: var(--lp-fg);
+  font: inherit;
+}
+
+.lp-graph-controls button:disabled { opacity: 0.55; }
+
+.lp-dag-shell a {
+  color: var(--lp-dag-link);
+}
+
+#lp-dag-source .node {
+  --lp-dag-stroke: var(--lp-muted);
+}
+
+#lp-dag-source .node.run { --lp-dag-stroke: var(--lp-dag-link); }
+#lp-dag-source .node.author_source { --lp-dag-stroke: #258773; }
+#lp-dag-source .node.supported { --lp-dag-stroke: #2ea043; }
+#lp-dag-source .node.not_checkable { --lp-dag-stroke: #d29922; }
+#lp-dag-source .node:is(.not_supported, .failing) { --lp-dag-stroke: #f85149; }
+
+#lp-dag-source .node > :is(rect, polygon, path, circle) {
+  fill: color-mix(in srgb, var(--lp-dag-stroke) 12%, var(--lp-overlay-card)) !important;
+  stroke: var(--lp-dag-stroke) !important;
+}
+
+#lp-dag-source svg text {
+  fill: var(--lp-fg) !important;
+}
+
+#lp-dag-source .nodeLabel,
+#lp-dag-source .edgeLabel {
+  color: var(--lp-fg) !important;
+}
+
+#lp-dag-source .edgeLabel,
+#lp-dag-source .edgeLabel .labelBkg {
+  background: var(--lp-overlay-card) !important;
+  fill: var(--lp-overlay-card) !important;
+}
+
+#lp-dag-source .flowchart-link {
+  stroke: var(--lp-muted) !important;
+}
+
+#lp-dag-source svg marker path {
+  stroke: var(--lp-muted) !important;
+  fill: var(--lp-muted) !important;
 }
 
 /* mermaid renders node labels into <g class="node ..."><foreignObject>...

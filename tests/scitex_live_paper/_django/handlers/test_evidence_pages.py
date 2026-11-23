@@ -49,6 +49,7 @@ def make_report():
 @pytest.fixture
 def evidence_host(tmp_path):
     roots, reports, contexts, calls = {}, {}, {}, []
+    navigation = {}
     for name in ("alice", "bob"):
         root = tmp_path / name
         shutil.copytree(FIXTURE, root)
@@ -67,6 +68,7 @@ def evidence_host(tmp_path):
         calls.append((name, request.path))
         if name not in contexts or request.headers.get("Authorization") != "Bearer " + name:
             raise BundleAccessDenied("Project is not accessible")
+        request.live_paper_evidence_links = navigation.get(name)
         return contexts[name]
 
     urlconf = type("EvidenceHostURLConf", (), {
@@ -76,6 +78,7 @@ def evidence_host(tmp_path):
         yield SimpleNamespace(
             client=Client(HTTP_AUTHORIZATION="Bearer alice"), roots=roots,
             reports=reports, contexts=contexts, calls=calls, urlconf=urlconf,
+            navigation=navigation,
         )
 
 
@@ -271,15 +274,58 @@ def test_report_metadata_is_escaped_in_manuscript_and_graph(evidence_host):
     assert observed == [(200, True, True, True)] * 2
 
 
-def test_viewer_links_to_the_bound_manuscript_when_report_exists(evidence_host):
+def test_compiled_html_replaces_latex_and_uses_authoritative_claim_marks(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    artifact = root / "manuscript-html.json"
+    artifact.write_text(json.dumps({
+        "schema": "scitex-live-paper.manuscript-html/v1",
+        "pdf_sha256": hashlib.sha256((root / "manuscript.pdf").read_bytes()).hexdigest(),
+        "html": '<h2 id="results">Results</h2><table><tr><td>'
+        '<a href="#lp-claim-value" onclick="window.attack()">20</a>'
+        '</td></tr></table><script>window.attack()</script>'
+        '<img src="https://example.org/outside.png" onload="window.attack()">',
+    }))
+
+    # Act
+    response = get(evidence_host, "paper.html", inline="1")
+
+    # Assert
+    html = response.content.decode()
+    assert response.status_code == 200
+    assert response["X-Frame-Options"] == "SAMEORIGIN"
+    assert '<h2 id="manuscript-results">Results</h2>' in html
+    assert 'href="#manuscript-results">Results</a>' in html
+    assert '<table><tr><td><mark' in html and 'data-support="not_supported"' in html
+    assert "window.attack" not in html and "outside.png" not in html
+    assert "Show LaTeX source" not in html
+
+
+def test_compiled_html_rejects_an_artifact_for_another_pdf(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    (root / "manuscript-html.json").write_text(json.dumps({
+        "schema": "scitex-live-paper.manuscript-html/v1",
+        "pdf_sha256": "0" * 64,
+        "html": "<p>Earlier manuscript</p>",
+    }))
+
+    # Act
+    response = get(evidence_host, "paper.html", inline="1")
+
+    # Assert
+    assert response.status_code == 409
+
+
+def test_viewer_offers_inline_html_when_report_names_manuscript_text(evidence_host):
     # Arrange
     observed = []
     # Act
     for embed in ("0", "1"):
         response = get(evidence_host, "", embed=embed, working_dir="chosen")
         html = response.content.decode()
-        observed.append((response.status_code, "Read manuscript with evidence" in html,
-                         "paper.html?project=alice&amp;embed=" in html, "working_dir=chosen" in html))
+        observed.append((response.status_code, 'aria-label="Manuscript format"' in html,
+                         "paper.html?project=alice&amp;embed=" in html, "inline=1" in html))
     # Assert
     assert observed == [(200, True, True, True)] * 2
 
@@ -417,6 +463,39 @@ def test_evidence_preview_reads_only_unchanged_nodes_in_the_selected_claim(evide
         unknown.status_code, changed.status_code, symlink.status_code,
     ) == (200, recorded.decode(), "private, no-store", 404, 409, 403)
 
+
+
+def test_navigation_links_require_a_real_file_and_survive_a_hash_mismatch(evidence_host):
+    # Arrange
+    root = evidence_host.roots["alice"]
+    name = "results/run #1.py"
+    path = root / name
+    path.parent.mkdir()
+    path.write_bytes(b"print('recorded')\n")
+    graph = evidence_host.reports["alice"]["claims"][0]["graph"]
+    graph["nodes"].append({
+        "id": "script", "kind": "input", "label": name,
+        "hash": hashlib.sha256(path.read_bytes()).hexdigest(),
+    })
+    links = {"file": "/alice/demo/blob/results/run%20%231.py", "folder": "/alice/demo/results/"}
+    evidence_host.navigation["alice"] = lambda path: links if path.as_posix() == name else None
+
+    # Act
+    ready = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.write_bytes(b"print('changed')\n")
+    changed = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.unlink()
+    missing = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+    path.symlink_to(evidence_host.roots["bob"] / "paper.tex")
+    symlink = get(evidence_host, "preview.json", claim_id="value", node_id="script")
+
+    # Assert
+    assert (
+        ready.status_code, ready.json()["links"],
+        changed.status_code, changed.json()["links"], "text" in changed.json(),
+        missing.status_code, "links" in missing.json(),
+        symlink.status_code, "links" in symlink.json(),
+    ) == (200, links, 409, links, False, 404, False, 403, False)
 
 
 def test_gzip_preview_reports_original_file_metadata(evidence_host):

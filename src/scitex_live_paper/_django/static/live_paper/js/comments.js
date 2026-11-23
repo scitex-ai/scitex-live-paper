@@ -1,4 +1,5 @@
 import { withBundleContext } from "./_utils.js";
+import { renderPdfDiscussion } from "./pdf-provider.js";
 
 // Anchored comments — client half of `api/comments` (prompt-10 item 4).
 //
@@ -18,17 +19,12 @@ function el(tag, className, text) {
 }
 
 export async function fetchComments(apiBase) {
-  try {
-    const res = await fetch(withBundleContext(apiBase + "comments"), {
-      headers: { Accept: "application/json" },
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) return [];
-    return Array.isArray(body.comments) ? body.comments : [];
-  } catch (err) {
-    console.warn("[live-paper] comments fetch failed:", err);
-    return [];
-  }
+  const res = await fetch(withBundleContext(apiBase + "comments"), {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error("Comments unavailable");
+  const body = await res.json();
+  return Array.isArray(body.comments) ? body.comments : [];
 }
 
 export async function postComment(apiBase, { body, target, author, kind }) {
@@ -141,83 +137,44 @@ function toggleMarkerPopup(marker, commentsForPage) {
   marker.parentElement.appendChild(popup);
 }
 
-/**
- * Render the comment section (list + add form) into a claim detail
- * pane. Re-renders after each successful post so the count stays
- * honest. Failures surface as an inline message, never a throw.
- */
-export async function renderCommentSection(containerEl, claimId, apiBase) {
-  containerEl.innerHTML = "";
-  const section = el("div", "lp-comments");
-  section.appendChild(el("p", "lp-comments-loading", "Loading comments…"));
-  containerEl.appendChild(section);
+/** Adapt bundle comments to the shared Rich PDF discussion. */
+export function showComments(panel, { apiBase, page, note, claimId, onComments }) {
+  const targetControl = el("label", null, "Attach to");
+  const select = el("select", "stx-select");
+  if (note) select.add(new Option(`PDF page ${page} · note location`, "note"));
+  if (page) select.add(new Option(`PDF page ${page}`, "page"));
+  if (claimId) select.add(new Option(`Claim · ${claimId}`, "claim"));
+  targetControl.append(select);
   let comments = [];
-  try {
-    comments = (await fetchComments(apiBase)).filter(
-      (c) => c?.target?.claim_id === claimId
-    );
-  } catch (err) {
-    section.innerHTML = "";
-    section.appendChild(el("p", "lp-comments-empty", "Comments unavailable."));
-    return section;
+
+  function toDiscussion(comment) {
+    const { created_at, target, ...rest } = comment;
+    return {
+      ...rest,
+      createdAt: created_at,
+      target: target.claim_id ? { overlayId: target.claim_id } : target,
+    };
   }
-  section.innerHTML = "";
-  section.appendChild(el("h3", "lp-comments-title", `Comments (${comments.length})`));
-  if (comments.length === 0) {
-    section.appendChild(
-      el("p", "lp-comments-empty", "No comments yet — add the first below.")
-    );
-  } else {
-    const list = el("ul", "lp-comments-list");
-    for (const c of comments) {
-      const item = el("li", "lp-comments-item");
-      const head = el("div", "lp-comments-head");
-      head.appendChild(el("span", "lp-comment-author", c.author || "anonymous"));
-      if (c.created_at) head.appendChild(el("span", "lp-comment-ts", String(c.created_at).slice(0, 16).replace("T", " ")));
-      item.appendChild(head);
-      item.appendChild(el("p", "lp-comment-body", c.body || ""));
-      list.appendChild(item);
-    }
-    section.appendChild(list);
-  }
-  const form = el("form", "lp-comments-form");
-  const input = el("textarea", "stx-textarea lp-comments-input");
-  input.rows = 2;
-  input.placeholder = "Add a comment on this claim…";
-  input.setAttribute("aria-label", "New comment");
-  const row = el("div", "lp-comments-form-row");
-  const author = el("input", "stx-input lp-comments-author");
-  author.placeholder = "name (optional)";
-  author.setAttribute("aria-label", "Author name");
-  const submit = el("button", "stx-button stx-button--primary", "Comment");
-  submit.type = "submit";
-  row.appendChild(author);
-  row.appendChild(submit);
-  form.appendChild(input);
-  form.appendChild(row);
-  const error = el("p", "lp-comments-error");
-  error.hidden = true;
-  form.appendChild(error);
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    error.hidden = true;
-    const text = input.value.trim();
-    if (!text) return;
-    submit.disabled = true;
-    try {
-      await postComment(apiBase, {
-        body: text,
-        target: { claim_id: claimId },
-        author: author.value.trim() || undefined,
-      });
-      await renderCommentSection(containerEl, claimId, apiBase);
-    } catch (err) {
-      error.textContent = String((err && err.message) || err);
-      error.hidden = false;
-    } finally {
-      submit.disabled = false;
-    }
+  panel.replaceChildren();
+  return renderPdfDiscussion(panel, {
+    load: async () => {
+      comments = await fetchComments(apiBase);
+      onComments(comments);
+      return comments.map(toDiscussion);
+    },
+    post: select.options.length ? async (body) => {
+      const target = select.value === "claim" ? { claim_id: claimId } :
+        select.value === "note" ? note : { page };
+      const entry = await postComment(apiBase, { body, target });
+      comments.push(entry);
+      onComments(comments);
+      return toDiscussion(entry);
+    } : undefined,
+    targetControl,
+    labelTarget: (target) => {
+      if (target.overlayId) return `Claim · ${target.overlayId}`;
+      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " · note location" : "");
+      return "Quoted passage";
+    },
   });
-  section.appendChild(form);
-  return section;
 }

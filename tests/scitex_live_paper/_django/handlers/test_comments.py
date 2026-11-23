@@ -105,9 +105,9 @@ def test_post_claim_anchored_comment_roundtrip(client, scratch_bundle):
 
 
 @pytest.mark.parametrize(
-    "target", [{"page": 3, "bbox": [1, 2, 3, 4]}, {"quote": "p<0.05"}]
+    "target", [{"page": 3}, {"page": 3, "bbox": [1, 2, 3, 4]}, {"quote": "p<0.05"}]
 )
-def test_post_region_quote_anchor_roundtrip(client, scratch_bundle, target):
+def test_post_page_region_quote_anchor_roundtrip(client, scratch_bundle, target):
     # Arrange
     comment = {"body": "check this", "target": target}
     # Act

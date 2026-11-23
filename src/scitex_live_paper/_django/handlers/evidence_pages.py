@@ -19,7 +19,7 @@ from scitex_live_paper.evidence import find_claim, review_text
 
 from .. import services
 from .._evidence_files import DEFAULT_MAX_TEXT_BYTES, ResourceError, ResourceReader
-from .._evidence_request import request_evidence, resource_url
+from .._evidence_request import read_compiled_manuscript, request_evidence, resource_url
 
 _CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -75,12 +75,7 @@ def _page(request, kind):
             )
         if kind == "review.txt":
             return _response(review_text(packet), content_type="text/plain; charset=utf-8")
-        if kind == "paper.html" and not manuscript_text_entries(packet):
-            bundle = services.get_request_bundle_state(request).bundle
-            if bundle.manuscript_path.suffix.lower() == ".pdf":
-                return _private_response(HttpResponseRedirect(resource_url(request, "")))
-            raise ResourceError("No registered manuscript text is available", 404)
-
+        inline_paper = kind == "paper.html" and request.GET.get("inline") == "1"
         def asset(name):
             return resource_url(request, "assets", name=name)
         paper_url = resource_url(request, "paper.html")
@@ -96,6 +91,12 @@ def _page(request, kind):
             else:
                 limit = getattr(settings, "SCITEX_LIVE_PAPER_MAX_TEXT_BYTES", DEFAULT_MAX_TEXT_BYTES)
                 with ResourceReader(root) as reader:
+                    compiled_html = read_compiled_manuscript(reader, limit)
+                    if compiled_html is None and not manuscript_text_entries(packet):
+                        bundle = services.get_request_bundle_state(request).bundle
+                        if not inline_paper and bundle.manuscript_path.suffix.lower() == ".pdf":
+                            return _private_response(HttpResponseRedirect(resource_url(request, "")))
+                        raise ResourceError("No registered manuscript text is available", 404)
                     remaining = limit
                     def read_text(name):
                         nonlocal remaining
@@ -109,12 +110,16 @@ def _page(request, kind):
                             raise ResourceError("Manuscript text must be UTF-8", 400) from None
                     result = render_paper(
                         packet, temporary, claims_url=paper_url,
-                        read_text=read_text, asset_url=asset,
+                        read_text=read_text, asset_url=asset, inline=inline_paper,
+                        compiled_html=compiled_html,
                     )
                 if result is None:
                     raise ResourceError("No registered manuscript text is available", 404)
                 page = result.paper_html
-            return _response(page.read_bytes())
+            response = _response(page.read_bytes())
+            if inline_paper:
+                response["X-Frame-Options"] = "SAMEORIGIN"
+            return response
     except ResourceError as error:
         return _response(str(error), status=error.status, content_type="text/plain; charset=utf-8")
     except BundleMissingError:
@@ -152,7 +157,7 @@ def handle_evidence_asset(request):
     renderer = Path(__file__).parents[2] / "_renderer" / "assets"
     assets = {"assets/" + name: renderer / name for name in (
         "claims.css", "support.css", "paper.css", "paper-panel.js", "paper.js",
-        "dag.css", "dag.js", "mermaid/mermaid.min.js", "sdk-header-slot.js",
+        "dag.css", "dag.js", "graph-controls.js", "mermaid/mermaid.min.js", "sdk-header-slot.js",
     )}
     assets.update({
         "assets/sdk-app-header.css": get_static_dir() / "css/app/app-header.css",

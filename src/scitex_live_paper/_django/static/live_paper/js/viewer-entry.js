@@ -43,38 +43,10 @@ function hideLoading(rootEl) {
 function setStatus(payload) {
   hideLoading();
   const header = document.getElementById("live-paper-bundle-header");
-  const diagnostics = document.getElementById(
-    "live-paper-bundle-diagnostics"
-  );
-  const pre = document.getElementById("live-paper-bundle-info");
-  if (pre) {
-    pre.textContent = JSON.stringify(payload, null, 2);
-  }
-  if (diagnostics) diagnostics.hidden = false;
-  if (!header) return;
+  if (!header || !payload?.error) return;
   header.hidden = false;
-  header.textContent = "";
-  if (payload && payload.error) {
-    header.className = "lp-bundle-header lp-bundle-error";
-    header.textContent = "Couldn't load bundle info: " + payload.error;
-    return;
-  }
-  header.className = "lp-bundle-header";
-  const ps = payload && payload.paper_state || {};
-  const title = document.createElement("strong");
-  title.className = "lp-bundle-title";
-  title.textContent = ps.header_label || ps.stage || "Live paper";
-  header.appendChild(title);
-  const meta = document.createElement("span");
-  meta.className = "lp-bundle-meta";
-  const parts = [];
-  if (ps.journal) parts.push(ps.journal);
-  if (ps.doi) parts.push(ps.doi);
-  if (payload && payload.manuscript) parts.push(payload.manuscript);
-  if (payload && payload.claim_count != null)
-    parts.push(payload.claim_count + " claims");
-  meta.textContent = parts.join(" \xB7 ");
-  header.appendChild(meta);
+  header.className = "lp-bundle-header lp-bundle-error";
+  header.textContent = "Couldn't load manuscript information: " + payload.error;
 }
 function ensurePdfContainer(rootEl) {
   let host = document.getElementById("live-paper-pdf");
@@ -108,6 +80,58 @@ function cssEscape(value) {
     return CSS.escape(value);
   }
   return String(value).replace(/(["\\])/g, "\\$1");
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/share.js
+function bindShare(root2) {
+  const share = root2.querySelector(".lp-share");
+  const page = new URL(location.href);
+  const project = root2.dataset.viewProject || page.searchParams.get("project");
+  if (page.searchParams.has("working_dir") && !root2.dataset.viewProject) return;
+  const button = share.querySelector("button");
+  const status = share.querySelector('[role="status"]');
+  const input = share.querySelector("input");
+  share.hidden = false;
+  button.addEventListener("click", async () => {
+    const link = new URL(page.pathname, page.origin);
+    if (project) link.searchParams.set("project", project);
+    link.searchParams.set("shared", "1");
+    const panel = root2.querySelector("#lp-selection-panel:not([hidden])");
+    const claim = panel?.closest("#live-paper-claims").dataset.pinnedClaim;
+    if (claim) link.searchParams.set("claim", claim);
+    input.hidden = true;
+    try {
+      await navigator.clipboard.writeText(link.href);
+      status.textContent = claim ? "Claim link copied." : "Paper link copied.";
+    } catch {
+      input.value = link.href;
+      input.hidden = false;
+      input.focus();
+      input.select();
+      status.textContent = "Copy the selected link.";
+    }
+  });
+  return status;
+}
+function openSharedClaim(root2, claims, status) {
+  const params = new URL(location.href).searchParams;
+  const claim = params.get("claim");
+  if (params.get("shared") !== "1" || !claim) return;
+  if (!claims.some((entry) => entry.claim_id === claim)) {
+    if (status) status.textContent = "This claim is unavailable in the current paper.";
+    return;
+  }
+  const anchor = root2.querySelector('[data-overlay-id="' + CSS.escape(claim) + '"]');
+  if (anchor) {
+    anchor.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    anchor.click();
+  } else {
+    root2.dispatchEvent(new CustomEvent("live-paper:claim", { bubbles: true, detail: { id: claim } }));
+  }
+  const toggle = root2.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/pdf-provider.js
@@ -172,9 +196,9 @@ function createRichPdfViewer(options) {
   function repaint() {
     for (const page of pages.keys()) paint(page);
   }
-  function rectStyle(element, surface, bbox) {
+  function rectStyle(element2, surface, bbox) {
     const [x0, y0, x1, y1] = surface.pdfToViewportRect(bbox);
-    Object.assign(element.style, { position: "absolute", left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`, width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`, pointerEvents: "auto" });
+    Object.assign(element2.style, { position: "absolute", left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`, width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`, pointerEvents: "auto" });
   }
   function paint(page) {
     const surface = pages.get(page);
@@ -245,11 +269,11 @@ function createRichPdfViewer(options) {
   function selectOverlay(overlayId) {
     selectedOverlayId = overlayId ?? null;
     for (const layer of layers.values()) {
-      for (const element of layer.querySelectorAll("[data-overlay-id]")) {
-        if (element.dataset.overlayId === selectedOverlayId) {
-          element.setAttribute("aria-current", "true");
+      for (const element2 of layer.querySelectorAll("[data-overlay-id]")) {
+        if (element2.dataset.overlayId === selectedOverlayId) {
+          element2.setAttribute("aria-current", "true");
         } else {
-          element.removeAttribute("aria-current");
+          element2.removeAttribute("aria-current");
         }
       }
     }
@@ -258,8 +282,12 @@ function createRichPdfViewer(options) {
     preview?.close();
     const overlay = overlays.find((item) => item.id === entry.overlayId);
     selectOverlay(overlay?.id);
-    const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element) => element.dataset.overlayId === entry.overlayId);
-    anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (overlay && ports.feed?.navigate) {
+      ports.feed.navigate(overlay);
+    } else {
+      const anchor = [...layers.get(overlay?.page)?.children ?? []].find((element2) => element2.dataset.overlayId === entry.overlayId);
+      anchor?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     emit({ type: "feed-select", entry, overlay: overlay ?? null });
   }
   function selectTarget(target, anchor, overlay = null) {
@@ -281,46 +309,13 @@ function createRichPdfViewer(options) {
       anchor?.focus();
     });
     panel.append(close);
-    for (const comment of comments.filter((item) => sameTarget(item.target, target))) {
-      const row = document.createElement("p");
-      row.className = "lp-rich-comment";
-      row.textContent = [comment.author, comment.body].filter(Boolean).join(": ");
-      panel.append(row);
-    }
-    if (ports.comments?.create) {
-      const form = document.createElement("form");
-      const input = document.createElement("textarea");
-      input.setAttribute("aria-label", "New PDF comment");
-      input.required = true;
-      const submit = document.createElement("button");
-      submit.type = "submit";
-      submit.textContent = "Add comment";
-      const status = document.createElement("p");
-      status.setAttribute("role", "status");
-      if (!allow("comment-create", target)) {
-        input.disabled = true;
-        submit.disabled = true;
-        status.textContent = "Comments are read-only for this target.";
-      }
-      form.append(input, submit, status);
-      panel.append(form);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        submit.disabled = true;
-        status.textContent = "Saving comment\u2026";
-        try {
-          await createComment(target, input.value);
-          if (!panel.isConnected) return;
-          status.textContent = "Comment saved.";
-          input.value = "";
-          selectTarget(target, anchor, overlay);
-        } catch (error) {
-          if (panel.isConnected) status.textContent = error.message || "Comment could not be saved.";
-        } finally {
-          if (panel.isConnected) submit.disabled = !allow("comment-create", target);
-        }
-      });
-    }
+    const targetComments = comments.filter((item) => sameTarget(item.target, target));
+    const title = target.overlayId ? "Overlay comments" : `Page ${target.page} comments`;
+    void renderPdfDiscussion(panel, {
+      title,
+      load: () => targetComments,
+      post: ports.comments?.create && allow("comment-create", target) ? (body) => createComment(target, body) : void 0
+    });
     (options.commentsContainer || container).append(panel);
     popup = panel;
     emit({ type: "comments-open", target });
@@ -404,7 +399,87 @@ function createRichPdfViewer(options) {
     pages.clear();
     renderer.destroy();
   }
-  return { renderer, load, refresh, setOverlays, setComments, selectTarget, createComment, destroy };
+  return {
+    renderer,
+    load,
+    refresh,
+    setOverlays,
+    setComments,
+    setFeedFilter: (filter) => feed?.setFilter(filter),
+    selectOverlay,
+    selectTarget,
+    createComment,
+    destroy
+  };
+}
+async function renderPdfDiscussion(container, { title = "Comments", load, post, targetControl, labelTarget }) {
+  const doc = container.ownerDocument;
+  function element2(tag, text, className) {
+    const node = doc.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  const section = element2("section", "", "rpdf-discussion");
+  section.setAttribute("aria-label", title);
+  const heading = element2("h3", title);
+  const status = element2("p", "Loading comments\u2026");
+  status.setAttribute("role", "status");
+  const list = element2("ul", "", "rpdf-discussion-list");
+  section.append(heading, status, list);
+  container.append(section);
+  function show(comment) {
+    const item = element2("li");
+    const info = [labelTarget?.(comment.target), comment.author || "Anonymous"].filter(Boolean);
+    const byline = element2("p", info.join(" \xB7 "), "rpdf-discussion-byline");
+    if (comment.createdAt) {
+      const time = element2("time", " \xB7 " + comment.createdAt.replace("T", " ").slice(0, 16) + " UTC");
+      time.dateTime = comment.createdAt;
+      byline.append(time);
+    }
+    item.append(byline, element2("p", comment.body, "rpdf-discussion-text"));
+    list.append(item);
+  }
+  try {
+    for (const comment of await load()) show(comment);
+    status.textContent = list.childElementCount ? "" : "No comments yet.";
+  } catch {
+    status.textContent = "Comments are unavailable. Reopen the discussion to try again.";
+    return;
+  }
+  if (!post) return;
+  const form = element2("form");
+  if (targetControl) form.append(targetControl);
+  const label = element2("label", "Comment");
+  const input = element2("textarea", "", "stx-textarea");
+  input.required = true;
+  input.rows = 3;
+  label.append(input);
+  const submit = element2("button", "Post comment", "stx-button stx-button--primary");
+  submit.type = "submit";
+  const feedback = element2("p");
+  feedback.setAttribute("role", "status");
+  form.append(label, submit, feedback);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || submit.disabled) return;
+    submit.disabled = true;
+    input.readOnly = true;
+    feedback.textContent = "Posting comment\u2026";
+    try {
+      show(await post(text));
+      status.textContent = "";
+      input.value = "";
+      feedback.textContent = "Comment posted.";
+    } catch {
+      feedback.textContent = "Could not post your comment. Your draft is still here.";
+    } finally {
+      input.readOnly = false;
+      submit.disabled = false;
+    }
+  });
+  section.append(form);
 }
 function createOverlayPreview(container, port) {
   let active = null;
@@ -500,7 +575,7 @@ function createOverlayPreview(container, port) {
     if (!active || !previousLayer?.contains(active.anchor)) return;
     const { anchor } = active;
     const replacement = [...newLayer.children].find(
-      (element) => element.dataset.overlayId === anchor.dataset.overlayId
+      (element2) => element2.dataset.overlayId === anchor.dataset.overlayId
     );
     if (!replacement) {
       close();
@@ -527,35 +602,44 @@ function createFeed(container, choose, renderEntry) {
   container.append(list);
   let rows = [];
   let selected = null;
+  let filter = null;
+  function updateVisibility() {
+    for (const row of rows) row.element.hidden = filter ? !filter(row.entry) : false;
+  }
   function select(row, scroll = false) {
     selected?.button.removeAttribute("aria-current");
     selected = row ?? null;
     selected?.button.setAttribute("aria-current", "true");
-    if (scroll) selected?.element.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (scroll && selected && !selected.element.hidden) selected.element.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   function setEntries(entries) {
     const selectedId = selected?.entry.id;
     select(null);
     rows = entries.map((entry) => {
-      const element = list.ownerDocument.createElement("li");
+      const element2 = list.ownerDocument.createElement("li");
       const button = list.ownerDocument.createElement("button");
       button.type = "button";
       button.textContent = entry.label;
-      const row = { entry, element, button };
+      const row = { entry, element: element2, button };
       button.addEventListener("click", () => {
         select(row);
         choose(entry);
       });
-      element.append(button);
+      element2.append(button);
       const content = renderEntry?.(entry);
-      if (content) element.append(content);
+      if (content) element2.append(content);
       return row;
     });
+    updateVisibility();
     list.replaceChildren(...rows.map((row) => row.element));
     select(rows.find((row) => row.entry.id === selectedId));
   }
   return {
     setEntries,
+    setFilter(nextFilter) {
+      filter = nextFilter;
+      updateVisibility();
+    },
     selectOverlay(overlayId) {
       if (overlayId != null) select(rows.find((row) => row.entry.overlayId === overlayId), true);
     },
@@ -567,13 +651,30 @@ function createFeed(container, choose, renderEntry) {
     }
   };
 }
-function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
+function createPdfNavigation({
+  container,
+  toggle: externalToggle,
+  pdfjs,
+  onDocument,
+  initiallyOpen = !externalToggle
+}) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
   content.className = "rpdf-nav-content";
   container.classList.add("rpdf-navigation");
-  container.replaceChildren(controls, content);
+  container.hidden = false;
+  const titlebar = document.createElement("div");
+  titlebar.className = "rpdf-nav-titlebar";
+  const title = document.createElement("span");
+  title.textContent = "Pages & bookmarks";
+  const toggle = control("", () => setOpen(container.hasAttribute("data-collapsed")));
+  toggle.className = "rpdf-nav-toggle";
+  content.id = container.id + "-content";
+  toggle.setAttribute("aria-controls", content.id);
+  titlebar.append(title, toggle);
+  if (externalToggle) container.replaceChildren(controls, content);
+  else container.replaceChildren(titlebar, controls, content);
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
   content.append(pagePanel, bookmarkPanel);
@@ -602,18 +703,27 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
     content.scrollTop = 0;
   }
   function setOpen(open) {
-    container.hidden = !open;
+    if (externalToggle) {
+      container.hidden = !open;
+      externalToggle.setAttribute("aria-expanded", String(open));
+      return;
+    }
+    container.toggleAttribute("data-collapsed", !open);
+    title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
+    toggle.textContent = open ? "\u2039" : "\u203A";
+    toggle.title = open ? "Minimize PDF navigation" : "Expand PDF navigation";
+    toggle.setAttribute("aria-label", toggle.title);
   }
-  toggle.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
+  externalToggle?.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
-    toggle.focus();
+    (externalToggle || toggle).focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(false);
+  setOpen(initiallyOpen);
   function choose(target) {
     destination = target;
     jump();
@@ -622,10 +732,20 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
     if (!destination) return;
     const surface = surfaces.get(destination.page);
     if (!surface?.element.isConnected) return;
-    const scroller = closestScrollContainer(surface.element);
-    if (scroller) {
+    const scrollRoot = surface.element.ownerDocument.scrollingElement;
+    const scroller = closestScrollContainer(surface.element) || scrollRoot;
+    if (destination.bbox && scroller) {
+      const [, y0, , y1] = surface.pdfToViewportRect(destination.bbox);
+      const y = Math.min(y0, y1);
+      const inset = Math.max(12, (scroller.clientHeight - Math.abs(y1 - y0)) / 2);
+      const scrollerTop = scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top;
+      scroller.scrollTo({
+        top: scroller.scrollTop + surface.element.getBoundingClientRect().top - scrollerTop + y - inset,
+        behavior: "instant"
+      });
+    } else if (scroller) {
       const [, offset] = Number.isFinite(destination.top) ? surface.pdfToViewportPoint(destination.left ?? 0, destination.top) : [0, 0];
-      const top = scroller.scrollTop + surface.element.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      const top = scroller.scrollTop + surface.element.getBoundingClientRect().top - (scroller === scrollRoot ? 0 : scroller.getBoundingClientRect().top);
       scroller.scrollTo({ top: top + offset - 12 });
     } else {
       surface.element.scrollIntoView({ block: "start" });
@@ -694,6 +814,7 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
   };
   return {
     runtime,
+    goTo: choose,
     pageRendered(page, surface) {
       surfaces.set(page, surface);
       if (destination?.page === page) jump();
@@ -708,18 +829,18 @@ function createPdfNavigation({ container, toggle, pdfjs, onDocument }) {
       observer?.disconnect();
       surfaces.clear();
       container.replaceChildren();
-      setOpen(false);
+      container.hidden = true;
     }
   };
 }
-function closestScrollContainer(element) {
-  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+function closestScrollContainer(element2) {
+  for (let parent = element2.parentElement; parent; parent = parent.parentElement) {
     if (["auto", "scroll"].includes(getComputedStyle(parent).overflowY)) return parent;
   }
   return null;
 }
-async function renderThumbnail(pdf, number, canvas, isCurrent) {
-  const page = await pdf.getPage(number);
+async function renderThumbnail(pdf, number2, canvas, isCurrent) {
+  const page = await pdf.getPage(number2);
   if (!isCurrent() || !canvas.isConnected) return;
   const view = page.getViewport({ scale: 1 });
   const viewport = page.getViewport({ scale: Math.min(112 / view.width, 146 / view.height) });
@@ -761,6 +882,121 @@ async function pdfOutlineTarget(pdf, dest) {
     return null;
   }
 }
+function bindPdfContextMenu({
+  ContextMenu,
+  container,
+  scrollContainer = container,
+  canOpen = () => true,
+  items = () => [],
+  pan = true,
+  copy = true,
+  zoom
+}) {
+  const pdf = container;
+  const reader = scrollContainer;
+  const doc = reader.ownerDocument;
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  let opener;
+  let commands;
+  const menu = new ContextMenu({
+    items: () => commands,
+    onOpen() {
+      const element2 = doc.body.lastElementChild;
+      element2.classList.add("rpdf-context-menu");
+      element2.setAttribute("aria-label", "PDF page actions");
+      element2.querySelector("[role=menuitem]:not(:disabled)")?.focus({ preventScroll: true });
+    },
+    onClose() {
+      if (doc.activeElement === doc.body) opener?.focus({ preventScroll: true });
+    }
+  });
+  function open(target, x, y, point) {
+    if (!canOpen() || target.closest("a[href]")) return false;
+    menu.close();
+    const selection = doc.getSelection();
+    const text = selection?.anchorNode && pdf.contains(selection.anchorNode) && pdf.contains(selection.focusNode) ? selection.toString() : "";
+    commands = [];
+    if (copy && text.trim() && doc.defaultView.navigator.clipboard) {
+      commands.push({ label: "Copy text", onSelect: () => {
+        void doc.defaultView.navigator.clipboard.writeText(text).catch(() => doc.execCommand("copy"));
+      } });
+    }
+    commands.push(...items(target, point));
+    if (pan) {
+      if (commands.length) commands.push({ kind: "divider" });
+      const hand = reader.hasAttribute("data-pdf-pan");
+      commands.push(
+        { label: "Hand tool", disabled: hand, onSelect: () => {
+          selection?.removeAllRanges();
+          reader.setAttribute("data-pdf-pan", "");
+        } },
+        { label: "Select text", disabled: !hand, onSelect: () => reader.removeAttribute("data-pdf-pan") }
+      );
+    }
+    if (zoom) {
+      if (commands.length) commands.push({ kind: "divider" });
+      commands.push(
+        { label: "Zoom in", shortcut: "Ctrl + +", onSelect: () => zoom("in", point) },
+        { label: "Zoom out", shortcut: "Ctrl + \u2212", onSelect: () => zoom("out", point) },
+        { label: "Fit width", shortcut: "Ctrl + 0", onSelect: () => zoom("reset", point) }
+      );
+    }
+    if (!commands.length) return false;
+    opener = target.closest("button") || reader;
+    menu.openAt(x, y, target);
+    return true;
+  }
+  pdf.addEventListener("contextmenu", (event) => {
+    const point = { x: event.clientX, y: event.clientY };
+    if (event.target.closest(".stx-pdf-page") && open(event.target, point.x, point.y, point)) {
+      event.preventDefault();
+    }
+  }, { signal });
+  reader.addEventListener("keydown", (event) => {
+    if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+    const { left, bottom } = event.target.getBoundingClientRect();
+    const y = Math.min(bottom, reader.getBoundingClientRect().bottom) - 8;
+    if (open(event.target, left + 8, y)) event.preventDefault();
+  }, { signal });
+  let drag;
+  reader.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !reader.hasAttribute("data-pdf-pan")) return;
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: reader.scrollLeft,
+      top: reader.scrollTop
+    };
+    reader.setPointerCapture(event.pointerId);
+    reader.setAttribute("data-pdf-panning", "");
+    event.preventDefault();
+  }, { signal, capture: true });
+  reader.addEventListener("pointermove", (event) => {
+    if (drag?.id !== event.pointerId) return;
+    reader.scrollTo({
+      left: drag.left + drag.x - event.clientX,
+      top: drag.top + drag.y - event.clientY,
+      behavior: "instant"
+    });
+  }, { signal });
+  reader.addEventListener("lostpointercapture", () => {
+    drag = null;
+    reader.removeAttribute("data-pdf-panning");
+  }, { signal });
+  reader.addEventListener("click", (event) => {
+    if (!reader.hasAttribute("data-pdf-pan") || event.detail === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, { signal, capture: true });
+  return () => {
+    listeners.abort();
+    reader.removeAttribute("data-pdf-pan");
+    reader.removeAttribute("data-pdf-panning");
+    menu.destroy();
+  };
+}
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-overlays.js
 function pickAnchor(claim) {
@@ -768,10 +1004,18 @@ function pickAnchor(claim) {
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/bibliography-highlights.js
-function createBibliographyHighlights() {
+function createBibliographyHighlights(citations = {}, onSelect) {
   const pages = /* @__PURE__ */ new Map();
   let references = /* @__PURE__ */ new Map();
   let activeDocument;
+  function select(key, goToReference) {
+    onSelect?.(key, Object.hasOwn(citations, key) ? citations[key] : { status: "unknown" }, goToReference);
+  }
+  function mark(node, key) {
+    node.dataset.citationKey = key;
+    node.dataset.status = Object.hasOwn(citations, key) ? citations[key].status : "unknown";
+    node.title = key + " \xB7 " + node.dataset.status;
+  }
   return {
     documentLoaded(pdf) {
       activeDocument = pdf;
@@ -786,21 +1030,28 @@ function createBibliographyHighlights() {
           const index = Number.isInteger(ref) ? ref : await pdf.getPageIndex(ref).catch(() => -1);
           if (index < 0 || index >= pdf.numPages) continue;
           const page = resolved.get(index + 1) ?? [];
-          page.push({ left, top });
+          page.push({ left, top, key: name.slice(5) });
           resolved.set(index + 1, page);
         }
         if (pdf !== activeDocument) return;
         references = resolved;
-        for (const [page, surface] of pages) markReferences(surface, references.get(page));
+        for (const [page, surface] of pages) markReferences(surface, references.get(page), mark, select);
       }).catch((error) => console.warn("[pdf-viewer] bibliography destinations unavailable", error));
     },
     pageRendered(page, surface) {
       pages.set(page, surface);
-      markReferences(surface, references.get(page));
+      markReferences(surface, references.get(page), mark, select);
+      const pdf = activeDocument;
+      if (!surface.element.querySelector('[data-stx-pdf-layer="links"]') || !pdf) return;
+      void pdf.getPage(page).then((proxy) => proxy.getAnnotations({ intent: "display" })).then((annotations) => {
+        if (pdf === activeDocument && pages.get(page) === surface) {
+          markCitationLinks(surface, annotations, mark, select);
+        }
+      }).catch((error) => console.warn("[pdf-viewer] citation links unavailable", error));
     }
   };
 }
-function markReferences(surface, references) {
+function markReferences(surface, references, mark, select) {
   if (!references?.length) return;
   const origin = surface.element.getBoundingClientRect();
   const spans = [...surface.element.querySelectorAll('[data-stx-pdf-layer="text"] span')].filter((span) => !span.childElementCount && span.textContent.trim()).map((span) => ({ span, bounds: span.getBoundingClientRect() }));
@@ -813,8 +1064,46 @@ function markReferences(surface, references) {
     for (const { span, bounds } of spans) {
       if (bounds.left >= start.bounds.left - 1 && Math.abs(bounds.top - start.bounds.top) < start.bounds.height * 0.45) {
         span.classList.add("lp-bibliography-highlight");
+        mark(span, reference.key);
+        if (span === start.span) {
+          span.setAttribute("role", "button");
+          span.setAttribute("aria-label", "Inspect reference " + reference.key + " (" + span.dataset.status + ")");
+          span.tabIndex = 0;
+          span.onkeydown = (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            select(reference.key);
+          };
+        }
+        span.onclick = () => {
+          if (window.getSelection()?.isCollapsed !== false) select(reference.key);
+        };
       }
     }
+  }
+}
+function markCitationLinks(surface, annotations, mark, select) {
+  const links = [...surface.element.querySelectorAll('[data-stx-pdf-layer="links"] > a')];
+  for (const annotation of annotations) {
+    let inspect = function(event) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      select(key, () => {
+        link.removeEventListener("click", inspect, true);
+        link.click();
+        link.addEventListener("click", inspect, true);
+      });
+    };
+    if (annotation.subtype !== "Link" || typeof annotation.dest !== "string" || !annotation.dest.startsWith("cite.") || !Array.isArray(annotation.rect)) continue;
+    const [x0, y0, x1, y1] = surface.pdfToViewportRect(annotation.rect);
+    const rect = [Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0)];
+    const link = links.find((item) => !item.dataset.citationKey && ["left", "top", "width", "height"].every((prop, index) => Math.abs(parseFloat(item.style[prop]) - rect[index]) < 0.5));
+    if (!link) continue;
+    const key = annotation.dest.slice(5);
+    mark(link, key);
+    link.setAttribute("aria-label", "Inspect citation " + key + " (" + link.dataset.status + ")");
+    link.addEventListener("click", inspect, true);
   }
 }
 
@@ -826,17 +1115,12 @@ function el(tag, className, text) {
   return node;
 }
 async function fetchComments(apiBase) {
-  try {
-    const res = await fetch(withBundleContext(apiBase + "comments"), {
-      headers: { Accept: "application/json" }
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) return [];
-    return Array.isArray(body.comments) ? body.comments : [];
-  } catch (err) {
-    console.warn("[live-paper] comments fetch failed:", err);
-    return [];
-  }
+  const res = await fetch(withBundleContext(apiBase + "comments"), {
+    headers: { Accept: "application/json" }
+  });
+  if (!res.ok) throw new Error("Comments unavailable");
+  const body = await res.json();
+  return Array.isArray(body.comments) ? body.comments : [];
 }
 async function postComment(apiBase, { body, target, author, kind }) {
   const comment = { body, target };
@@ -856,80 +1140,405 @@ async function postComment(apiBase, { body, target, author, kind }) {
   }
   return payload.comment;
 }
-async function renderCommentSection(containerEl, claimId, apiBase) {
-  containerEl.innerHTML = "";
-  const section = el("div", "lp-comments");
-  section.appendChild(el("p", "lp-comments-loading", "Loading comments\u2026"));
-  containerEl.appendChild(section);
+function showComments(panel, { apiBase, page, note, claimId, onComments }) {
+  const targetControl = el("label", null, "Attach to");
+  const select = el("select", "stx-select");
+  if (note) select.add(new Option(`PDF page ${page} \xB7 note location`, "note"));
+  if (page) select.add(new Option(`PDF page ${page}`, "page"));
+  if (claimId) select.add(new Option(`Claim \xB7 ${claimId}`, "claim"));
+  targetControl.append(select);
   let comments = [];
-  try {
-    comments = (await fetchComments(apiBase)).filter(
-      (c) => c?.target?.claim_id === claimId
-    );
-  } catch (err) {
-    section.innerHTML = "";
-    section.appendChild(el("p", "lp-comments-empty", "Comments unavailable."));
-    return section;
+  function toDiscussion(comment) {
+    const { created_at, target, ...rest } = comment;
+    return {
+      ...rest,
+      createdAt: created_at,
+      target: target.claim_id ? { overlayId: target.claim_id } : target
+    };
   }
-  section.innerHTML = "";
-  section.appendChild(el("h3", "lp-comments-title", `Comments (${comments.length})`));
-  if (comments.length === 0) {
-    section.appendChild(
-      el("p", "lp-comments-empty", "No comments yet \u2014 add the first below.")
-    );
-  } else {
-    const list = el("ul", "lp-comments-list");
-    for (const c of comments) {
-      const item = el("li", "lp-comments-item");
-      const head = el("div", "lp-comments-head");
-      head.appendChild(el("span", "lp-comment-author", c.author || "anonymous"));
-      if (c.created_at) head.appendChild(el("span", "lp-comment-ts", String(c.created_at).slice(0, 16).replace("T", " ")));
-      item.appendChild(head);
-      item.appendChild(el("p", "lp-comment-body", c.body || ""));
-      list.appendChild(item);
-    }
-    section.appendChild(list);
-  }
-  const form = el("form", "lp-comments-form");
-  const input = el("textarea", "stx-textarea lp-comments-input");
-  input.rows = 2;
-  input.placeholder = "Add a comment on this claim\u2026";
-  input.setAttribute("aria-label", "New comment");
-  const row = el("div", "lp-comments-form-row");
-  const author = el("input", "stx-input lp-comments-author");
-  author.placeholder = "name (optional)";
-  author.setAttribute("aria-label", "Author name");
-  const submit = el("button", "stx-button stx-button--primary", "Comment");
-  submit.type = "submit";
-  row.appendChild(author);
-  row.appendChild(submit);
-  form.appendChild(input);
-  form.appendChild(row);
-  const error = el("p", "lp-comments-error");
-  error.hidden = true;
-  form.appendChild(error);
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    error.hidden = true;
-    const text = input.value.trim();
-    if (!text) return;
-    submit.disabled = true;
-    try {
-      await postComment(apiBase, {
-        body: text,
-        target: { claim_id: claimId },
-        author: author.value.trim() || void 0
-      });
-      await renderCommentSection(containerEl, claimId, apiBase);
-    } catch (err) {
-      error.textContent = String(err && err.message || err);
-      error.hidden = false;
-    } finally {
-      submit.disabled = false;
+  panel.replaceChildren();
+  return renderPdfDiscussion(panel, {
+    load: async () => {
+      comments = await fetchComments(apiBase);
+      onComments(comments);
+      return comments.map(toDiscussion);
+    },
+    post: select.options.length ? async (body) => {
+      const target = select.value === "claim" ? { claim_id: claimId } : select.value === "note" ? note : { page };
+      const entry = await postComment(apiBase, { body, target });
+      comments.push(entry);
+      onComments(comments);
+      return toDiscussion(entry);
+    } : void 0,
+    targetControl,
+    labelTarget: (target) => {
+      if (target.overlayId) return `Claim \xB7 ${target.overlayId}`;
+      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " \xB7 note location" : "");
+      return "Quoted passage";
     }
   });
-  section.appendChild(form);
-  return section;
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/statistics-preview.js
+var MISSING = "\u2014";
+function element(tag, text) {
+  const node = document.createElement(tag);
+  if (text !== void 0) node.textContent = text;
+  return node;
+}
+function number(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return MISSING;
+  return value !== 0 && Math.abs(value) < 1e-3 ? value.toExponential(3) : Number(value.toPrecision(5)).toString();
+}
+function effect(row) {
+  if (typeof row.effect_size !== "number") return MISSING;
+  const result = [row.effect_size_metric, number(row.effect_size)].filter(Boolean).join(" ");
+  const interval = Array.isArray(row.effect_ci) ? row.effect_ci.map(number).join(" \u2013 ") : "";
+  return interval ? result + " [" + interval + "]" : result;
+}
+function resultTable(rows) {
+  const wrap = element("div");
+  wrap.className = "lp-stats-table-scroll";
+  const table = element("table");
+  const header = table.createTHead().insertRow();
+  const hasInterval = rows.some((row) => Array.isArray(row?.ci));
+  const headers = ["Test", "Role", "Statistic", "df", "p", "Effect size"];
+  if (hasInterval) headers.push("Confidence interval");
+  for (const label of headers) {
+    const heading = element("th", label);
+    heading.scope = "col";
+    header.append(heading);
+  }
+  const body = table.createTBody();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const values = [
+      row.method || row.label || row.test_method || row.test || MISSING,
+      typeof row.role === "string" && row.role ? row.role[0].toUpperCase() + row.role.slice(1) : MISSING,
+      number(row.statistic),
+      Array.isArray(row.df) ? row.df.map(number).join(", ") : number(row.df),
+      number(row.p_value ?? row.pvalue),
+      effect(row)
+    ];
+    if (hasInterval) values.push(Array.isArray(row.ci) ? row.ci.map(number).join(" \u2013 ") : MISSING);
+    const tr = body.insertRow();
+    for (const value of values) tr.insertCell().textContent = value;
+  }
+  wrap.append(table);
+  return wrap;
+}
+function appendApa(node, segments, plain) {
+  if (!Array.isArray(segments) || !segments.length) {
+    node.textContent = plain;
+    return;
+  }
+  for (const segment of segments) {
+    if (typeof segment?.text !== "string") continue;
+    const tag = { sym: "i", sup: "sup", sub: "sub" }[segment.kind];
+    node.append(tag ? element(tag, segment.text) : segment.text);
+  }
+}
+function detailedResult(row, open) {
+  const rows = row.apa_table ?? row.apa?.table;
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const detail = element("details");
+  detail.open = open;
+  detail.append(element("summary", row.method || row.label || row.test_method || row.test));
+  const table = element("table");
+  const body = table.createTBody();
+  for (const row2 of rows) {
+    if (typeof row2?.label_plain !== "string" || typeof row2.value_plain !== "string") continue;
+    const tr = body.insertRow();
+    const label = element("th");
+    label.scope = "row";
+    const value = element("td");
+    appendApa(label, row2.label, row2.label_plain);
+    appendApa(value, row2.value, row2.value_plain);
+    tr.append(label, value);
+  }
+  detail.append(table);
+  return detail;
+}
+function renderStatistics(panel, data, loadPlot) {
+  if (!data || typeof data !== "object") return;
+  const card = element("section");
+  card.className = "lp-stats-card";
+  card.setAttribute("aria-label", "SciTeX Stats");
+  card.append(element("h3", "SciTeX Stats"));
+  if (data.missing_effect_sizes?.length) {
+    const incomplete = element("p", "Incomplete report \xB7 effect size required for " + data.missing_effect_sizes.join(", "));
+    incomplete.setAttribute("role", "status");
+    card.append(incomplete);
+  }
+  const comparisons = Object.values(data.comparisons || {});
+  for (const study of comparisons) {
+    if (!study || !Array.isArray(study.results) || !study.results.length) continue;
+    const group = element("section");
+    if (study.title) group.append(element("h4", study.title));
+    if (study.note) group.append(element("p", study.note));
+    const first = study.results[0] || {};
+    const alpha = study.alpha ?? first.alpha;
+    const power = study.power ?? first.power;
+    const beta = study.beta ?? first.beta;
+    const thresholds = ["\u03B1 " + number(alpha), "\u03B2 " + (Number.isFinite(beta) ? number(beta) : "not estimated")];
+    if (Number.isFinite(power)) thresholds.push("Power " + number(power));
+    group.append(element("p", thresholds.join(" \xB7 ")), resultTable(study.results));
+    for (const row of study.results) {
+      const line = row?.apa_plain ?? row?.apa?.plain;
+      if (typeof line === "string" && line) {
+        const report = element("p");
+        appendApa(report, row.apa_segments ?? row.apa?.segments, line);
+        report.className = "lp-stats-reported-line";
+        group.append(report);
+      }
+    }
+    for (const [index, row] of study.results.entries()) {
+      if (!row || typeof row !== "object") continue;
+      const details = detailedResult(row, index === 0);
+      if (details) group.append(details);
+    }
+    const check = study.assumptions;
+    if (Number.isFinite(check?.min_expected)) {
+      group.append(element(
+        "p",
+        "Expected counts \xB7 minimum " + number(check.min_expected) + " \xB7 " + check.cells_below + " of " + check.cells + " below " + number(check.threshold)
+      ));
+    } else if (Number.isFinite(first.expected_min)) {
+      group.append(element("p", "Minimum expected count \xB7 " + number(first.expected_min)));
+    }
+    const checks = study.checks;
+    if (Array.isArray(checks?.normality?.samples)) {
+      for (const sample of checks.normality.samples) {
+        if (!sample || !Number.isFinite(sample.p)) continue;
+        group.append(element(
+          "p",
+          "Shapiro\u2013Wilk \xB7 " + sample.sample + " \xB7 W " + number(sample.W) + " \xB7 p " + number(sample.p)
+        ));
+      }
+    }
+    const variance = checks?.equal_variance?.brown_forsythe;
+    if (Number.isFinite(variance?.p)) {
+      group.append(element("p", "Brown\u2013Forsythe \xB7 F " + number(variance.statistic) + " \xB7 p " + number(variance.p)));
+    }
+    if (study.agreement) group.append(element("p", study.agreement));
+    if (typeof study.visual === "string" && loadPlot) {
+      const plot = element("figure");
+      loadPlot(study.visual, plot, study.title, study.visual_sha256);
+      group.append(plot);
+    }
+    card.append(group);
+  }
+  panel.append(card);
+}
+
+// src/scitex_live_paper/_renderer/assets/graph-controls.js
+var zoomScopes = /* @__PURE__ */ new WeakMap();
+var zoomKeys = { __proto__: null, "+": "in", "=": "in", "-": "out", "0": "reset" };
+function bindScopedZoom(surface, zoom, signal) {
+  if (!surface || signal?.aborted) return;
+  const doc = surface.ownerDocument;
+  let scope = zoomScopes.get(doc);
+  if (!scope) {
+    const listeners = new AbortController();
+    scope = { handlers: /* @__PURE__ */ new WeakMap(), count: 0, listeners };
+    zoomScopes.set(doc, scope);
+    let pointer;
+    const listenerOptions = { capture: true, signal: listeners.signal };
+    const track = (event) => {
+      pointer = { x: event.clientX, y: event.clientY };
+    };
+    doc.addEventListener("pointermove", track, listenerOptions);
+    doc.addEventListener("pointerdown", track, listenerOptions);
+    doc.addEventListener("pointerout", (event) => {
+      if (event.relatedTarget === null) pointer = null;
+    }, listenerOptions);
+    doc.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey || event.isComposing) return;
+      const action = zoomKeys[event.key];
+      if (!action) return;
+      let target = pointer === void 0 ? doc.activeElement : pointer && doc.elementFromPoint(pointer.x, pointer.y);
+      for (; target; target = target.parentElement) {
+        const handler = scope.handlers.get(target);
+        if (!handler) continue;
+        if (handler(action, pointer) !== false) event.preventDefault();
+        return;
+      }
+    }, listenerOptions);
+  }
+  scope.handlers.set(surface, zoom);
+  scope.count += 1;
+  signal?.addEventListener("abort", () => {
+    scope.handlers.delete(surface);
+    scope.count -= 1;
+    if (scope.count === 0) {
+      scope.listeners.abort();
+      zoomScopes.delete(doc);
+    }
+  }, { once: true });
+}
+function graphControls(viewport, signal) {
+  const controls = document.createElement("div");
+  controls.className = "lp-graph-controls";
+  controls.setAttribute("role", "group");
+  controls.setAttribute("aria-label", "Evidence graph controls");
+  viewport.tabIndex = 0;
+  viewport.setAttribute("role", "region");
+  viewport.setAttribute("aria-label", "Evidence graph viewport");
+  let zoom = 1;
+  const step = 0.25;
+  const minimum = 0.5;
+  const maximum = 4;
+  function button(label, text, action) {
+    const control = document.createElement("button");
+    control.type = "button";
+    control.className = "stx-button";
+    control.setAttribute("aria-label", label);
+    control.title = label;
+    control.textContent = text;
+    control.addEventListener("click", action);
+    return control;
+  }
+  const out = button("Zoom out of evidence graph", "\u2212", () => resize(zoom - step));
+  const inside = button("Zoom in on evidence graph", "+", () => resize(zoom + step));
+  const reset = button("Reset evidence graph zoom", "Reset zoom", () => resize(1, true));
+  const percent = document.createElement("output");
+  controls.append(out, inside, reset, percent, downloadMenu(viewport));
+  function updatePan() {
+    viewport.toggleAttribute(
+      "data-can-pan",
+      viewport.scrollWidth > viewport.clientWidth || viewport.scrollHeight > viewport.clientHeight
+    );
+  }
+  function resize(next, resetPosition = false, point) {
+    const previous = zoom;
+    zoom = Math.max(minimum, Math.min(maximum, next));
+    const bounds = point && viewport.getBoundingClientRect();
+    const centerX = bounds ? point.x - bounds.left : viewport.clientWidth / 2;
+    const centerY = bounds ? point.y - bounds.top : viewport.clientHeight / 2;
+    const x = (viewport.scrollLeft + centerX) * zoom / previous - centerX;
+    const y = (viewport.scrollTop + centerY) * zoom / previous - centerY;
+    viewport.style.setProperty("--lp-graph-zoom", String(zoom));
+    viewport.scrollTo({
+      left: resetPosition ? 0 : x,
+      top: resetPosition ? 0 : y,
+      behavior: "instant"
+    });
+    out.disabled = zoom <= minimum;
+    inside.disabled = zoom >= maximum;
+    percent.textContent = Math.round(zoom * 100) + "%";
+    updatePan();
+  }
+  function shortcut(action, point) {
+    if (action === "reset") resize(1, true);
+    else resize(zoom + (action === "in" ? step : -step), false, point);
+  }
+  bindScopedZoom(viewport, shortcut, signal);
+  bindScopedZoom(controls, (action) => shortcut(action), signal);
+  resize(1);
+  const observer = new ResizeObserver(updatePan);
+  observer.observe(viewport);
+  signal?.addEventListener("abort", () => observer.disconnect(), { once: true });
+  let drag;
+  viewport.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "mouse" || event.button !== 0 || !viewport.hasAttribute("data-can-pan") || event.target.closest('[role="button"], a')) return;
+    drag = {
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      left: viewport.scrollLeft,
+      top: viewport.scrollTop
+    };
+    viewport.focus({ preventScroll: true });
+    viewport.setPointerCapture(event.pointerId);
+    viewport.setAttribute("data-panning", "");
+    event.preventDefault();
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== drag?.id) return;
+    viewport.scrollTo({
+      left: drag.left + drag.x - event.clientX,
+      top: drag.top + drag.y - event.clientY,
+      behavior: "instant"
+    });
+  });
+  viewport.addEventListener("lostpointercapture", () => {
+    drag = null;
+    viewport.removeAttribute("data-panning");
+  });
+  return controls;
+}
+function downloadMenu(viewport) {
+  const menu = document.createElement("details");
+  const title = document.createElement("summary");
+  title.textContent = "Download graph";
+  const status = document.createElement("span");
+  status.setAttribute("role", "status");
+  menu.append(title);
+  for (const format of ["svg", "png"]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "stx-button";
+    button.textContent = format.toUpperCase();
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      status.textContent = "";
+      try {
+        const svg = viewport.querySelector("svg");
+        let blob;
+        if (format === "svg") {
+          blob = new Blob([graphSvg(svg)], { type: "image/svg+xml;charset=utf-8" });
+        } else {
+          const canvas = await graphCanvas(svg);
+          blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        }
+        if (!blob) throw new Error("Empty graph image");
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "evidence-graph." + format;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3e4);
+        menu.open = false;
+        title.focus({ preventScroll: true });
+      } catch {
+        status.textContent = "Graph download failed. Try again.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+    menu.append(button);
+  }
+  menu.append(status);
+  return menu;
+}
+function graphSize(svg) {
+  const view = svg?.viewBox.baseVal;
+  if (!view?.width || !view.height) throw new Error("Evidence graph is not ready.");
+  return view;
+}
+function graphSvg(svg, scale = 1) {
+  const view = graphSize(svg);
+  const copy = svg.cloneNode(true);
+  copy.removeAttribute("style");
+  copy.setAttribute("width", Math.max(1, Math.ceil(view.width * scale)));
+  copy.setAttribute("height", Math.max(1, Math.ceil(view.height * scale)));
+  return new XMLSerializer().serializeToString(copy);
+}
+async function graphCanvas(svg) {
+  const view = graphSize(svg);
+  const scale = Math.min(2, 3800 / Math.max(view.width, view.height));
+  const image = new Image();
+  image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(graphSvg(svg, scale));
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to render the evidence graph.");
+  context.fillStyle = "#fff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0);
+  return canvas;
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/claim-details.js
@@ -941,7 +1550,7 @@ function el2(tag, className, text) {
   if (text !== void 0 && text !== null) node.textContent = text;
   return node;
 }
-function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) {
+function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, goToPdf } = {}) {
   const selection = sidebarEl.querySelector("#lp-selection-panel");
   sidebarEl.querySelector("#lp-selection-tab").click();
   const active = selection.querySelector(".lp-claim-detail");
@@ -963,6 +1572,10 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) 
     "lp-claim-detail-value",
     claim.claim_value || claim.file_path || "(no value)"
   ));
+  const relation = claim.extras?.evidence_relation ?? claim.extras?.metadata?.evidence_relation;
+  if (relation === "author_interpretation") {
+    pane.append(el2("p", "lp-claim-detail-status", "Author interpretation"));
+  }
   const status = el2(
     "p",
     "lp-claim-detail-status",
@@ -970,6 +1583,12 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) 
   );
   status.dataset.status = claim.status || "registered";
   pane.appendChild(status);
+  if (goToPdf) {
+    const jump = el2("button", "stx-button", "Show in PDF");
+    jump.type = "button";
+    jump.addEventListener("click", goToPdf);
+    pane.append(jump);
+  }
   const prov = el2("ul", "lp-claim-detail-provenance");
   const rows = [
     ["source", claim.source_file],
@@ -994,19 +1613,60 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false } = {}) 
   const controller = new AbortController();
   detailRequests.set(pane, controller);
   pane.ownerDocument.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+    if (event.key === "Escape" && !event.defaultPrevented && !selection.hidden) closeClaimDetail(sidebarEl);
   }, { signal: controller.signal });
   renderEvidenceDetails(pane, claim, apiBase, controller.signal);
-  try {
-    const commentsBox = el2("div", "lp-claim-comments-slot");
-    pane.appendChild(commentsBox);
-    void renderCommentSection(commentsBox, claim.claim_id, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] comments section failed:", err);
-  }
   selection.append(pane);
   sidebarEl.scrollTop = 0;
   return pane;
+}
+function renderCitationDetail(sidebar, key, citation, apiBase, goToReference) {
+  delete sidebar.dataset.pinnedClaim;
+  removeClaimDetail(sidebar);
+  sidebar.querySelector("#lp-selection-tab").click();
+  const pane = el2("div", "lp-claim-detail");
+  pane.setAttribute("role", "region");
+  pane.setAttribute("aria-label", "Citation evidence");
+  pane.append(el2("h3", "lp-evidence-preview-title", key));
+  const badge = el2("p", "lp-citation-status", "Clew status \xB7 " + citation.status);
+  badge.dataset.status = citation.status;
+  pane.append(badge);
+  if (citation.reason) pane.append(el2("p", "", citation.reason));
+  if (citation.resolver_source) pane.append(el2("p", "", "Scholar provider \xB7 " + citation.resolver_source));
+  if (citation.provenance) pane.append(el2("p", "", citation.provenance));
+  if (citation.doi) pane.append(el2("p", "", "DOI \xB7 " + citation.doi));
+  if (citation.link) {
+    try {
+      const url = new URL(citation.link);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        const source = el2("a", "stx-button", "Open source");
+        source.href = url.href;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        pane.append(source);
+      }
+    } catch {
+    }
+  }
+  if (goToReference) {
+    const jump = el2("button", "stx-button", "Go to bibliography entry");
+    jump.type = "button";
+    jump.addEventListener("click", goToReference);
+    pane.append(jump);
+  }
+  if (citation.claim_id) {
+    const controller = new AbortController();
+    detailRequests.set(pane, controller);
+    renderEvidenceDetails(pane, { claim_id: citation.claim_id }, apiBase, controller.signal, true);
+  } else {
+    pane.append(el2("p", "lp-claim-dag-empty", "No Clew retrieval graph is recorded for this citation."));
+  }
+  const close = el2("button", "stx-button", "Close");
+  close.type = "button";
+  close.addEventListener("click", () => closeClaimDetail(sidebar));
+  pane.append(close);
+  sidebar.querySelector("#lp-selection-panel").append(pane);
+  sidebar.scrollTop = 0;
 }
 function removeClaimDetail(sidebarEl) {
   const open = sidebarEl.querySelector("#lp-selection-panel > .lp-claim-detail");
@@ -1024,7 +1684,7 @@ function renderEvidencePreview(panel, claim, apiBase, signal) {
   panel.append(el2("h2", "lp-evidence-preview-title", claim.claim_value ?? claim.claim_id));
   renderEvidenceDetails(panel, claim, apiBase, signal);
 }
-function renderEvidenceDetails(panel, claim, apiBase, signal) {
+function renderEvidenceDetails(panel, claim, apiBase, signal, requireClaim = false) {
   const graph = el2("div", "lp-claim-dag");
   graph.append(el2("p", "lp-claim-dag-loading", "Loading evidence graph\u2026"));
   panel.append(graph);
@@ -1032,46 +1692,115 @@ function renderEvidenceDetails(panel, claim, apiBase, signal) {
   preview.setAttribute("aria-live", "polite");
   preview.hidden = true;
   panel.append(preview);
-  let request = null;
+  const requests = /* @__PURE__ */ new WeakMap();
+  let references = [];
+  const statistics = claim.claim_type === "statistic" && el2("div", "lp-statistics-selection");
+  if (statistics) panel.insertBefore(statistics, graph);
   renderDagPane(graph, claim.claim_id, apiBase, {
     signal,
-    selectReference: (reference) => load(reference)
+    selectReference: (reference) => load(reference),
+    onReferences(nodes) {
+      references = nodes || [];
+      if (statistics) {
+        const source = references.find((node) => node.label === claim.source_file);
+        if (source) load(source, { destination: statistics });
+      }
+    },
+    requireClaim
   });
-  function load(reference, { member } = {}) {
-    request?.abort();
-    request = new AbortController();
-    const current = request;
-    preview.hidden = false;
-    preview.replaceChildren(el2("p", null, "Loading file preview\u2026"));
+  function previewUrl(reference, member) {
     const url = new URL("../preview.json", new URL(apiBase, location.href));
     url.searchParams.set("claim_id", claim.claim_id);
     url.searchParams.set("node_id", reference.node_id);
     if (member !== void 0) url.searchParams.set("member", member);
-    fetch(withBundleContext(url.href), {
-      signal: AbortSignal.any([signal, current.signal]),
+    return withBundleContext(url.href);
+  }
+  function loadPlot(file, name, target, title, checksum, requestSignal) {
+    if (typeof file !== "string" || !/^[\w.-]+\.(png|jpe?g)$/i.test(name)) return;
+    const path = file.slice(0, file.lastIndexOf("/") + 1) + name;
+    const reference = references.find((item) => item.label === path);
+    if (!reference) return;
+    fetch(previewUrl(reference), { signal: requestSignal }).then(async (response) => {
+      if (!response.ok) return;
+      const image = await response.json();
+      if (image.kind !== "image" || requestSignal.aborted) return;
+      const recorded = image.hash?.replace(/^sha256:/i, "").toLowerCase();
+      if (typeof checksum === "string" && (!recorded || !checksum.startsWith(recorded))) return;
+      renderSourceContent(target, { ...image, file: title || name });
+    }).catch(() => {
+    });
+  }
+  function load(reference, { member, destination = preview } = {}) {
+    requests.get(destination)?.abort();
+    const current = new AbortController();
+    requests.set(destination, current);
+    const requestSignal = AbortSignal.any([signal, current.signal]);
+    destination.hidden = false;
+    destination.replaceChildren(el2("p", null, "Loading evidence\u2026"));
+    fetch(previewUrl(reference, member), {
+      signal: requestSignal,
       headers: { Accept: "application/json" }
     }).then(async (response) => {
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
       if (current.signal.aborted || signal.aborted) return;
-      preview.replaceChildren(
+      if (!response.ok) {
+        destination.replaceChildren(
+          el2("code", null, reference.script_file || reference.label),
+          el2("p", null, result.error || "File preview unavailable.")
+        );
+        appendSourceLinks(destination, result.links, { current: true });
+        return;
+      }
+      if (result.kind === "statistics") {
+        destination.replaceChildren();
+        renderStatistics(
+          destination,
+          result.statistics,
+          (name, target, title, checksum) => {
+            if (!result.member) loadPlot(result.file, name, target, title, checksum, requestSignal);
+          }
+        );
+        appendSourceLinks(destination, result.links);
+        if (result.member) {
+          destination.append(previewButton("Archive contents", () => load(reference)));
+        }
+        return;
+      }
+      destination.replaceChildren(
         el2("code", null, result.file),
         el2("span", "lp-source-preview-status", result.truncated ? "Matches recorded hash \xB7 excerpt" : "Matches recorded hash")
       );
+      appendSourceLinks(destination, result.links);
       if (result.member) {
         const back = previewButton("Archive contents", () => load(reference));
-        preview.append(el2("p", null, result.member), back);
+        destination.append(el2("p", null, result.member), back);
       }
-      renderSourceContent(preview, result, (options) => load(reference, options));
+      renderSourceContent(destination, result, (options) => load(reference, { ...options, destination }));
     }).catch((error) => {
       if (!current.signal.aborted && !signal.aborted) {
-        preview.replaceChildren(
+        destination.replaceChildren(
           el2("code", null, reference.script_file || reference.label),
           el2("p", null, error.message || "File preview unavailable.")
         );
       }
     });
   }
+}
+function appendSourceLinks(preview, links, { current = false } = {}) {
+  const actions = el2("div", "lp-source-actions");
+  const choices = [
+    [links?.file, current ? "Open current file" : "Open file"],
+    [links?.folder, "Open containing folder"]
+  ];
+  for (const [url, label] of choices) {
+    if (typeof url !== "string" || !url.startsWith("/") || url.startsWith("//") || url.includes("\\")) continue;
+    const action = el2("a", "stx-button", label);
+    action.href = url;
+    action.target = "_blank";
+    action.rel = "noopener";
+    actions.append(action);
+  }
+  if (actions.childElementCount) preview.append(actions);
 }
 function previewButton(label, action) {
   const button = el2("button", null, label);
@@ -1126,7 +1855,7 @@ function cachedLayout(hash, render) {
   if (graphLayouts.size > maxLayouts) graphLayouts.delete(graphLayouts.keys().next().value);
   return rendered;
 }
-async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference } = {}) {
+async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference, requireClaim, onReferences } = {}) {
   let body;
   try {
     const selector = new URLSearchParams({ claim_id: claimId });
@@ -1138,6 +1867,7 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
     });
     body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || "dag request failed: " + res.status);
+    if (requireClaim && body.scope !== "claim") throw new Error("No Clew retrieval graph is recorded for this citation.");
   } catch (err) {
     if (signal?.aborted) return;
     dagBox.replaceChildren(el2(
@@ -1178,14 +1908,22 @@ async function renderDagPane(dagBox, claimId, apiBase, { signal, selectReference
       status.dataset.state = body.state;
       dagBox.append(status);
     }
-    dagBox.append(wrap);
+    dagBox.append(graphControls(wrap, signal), wrap);
     if (body.scope === "claim") {
+      let updateGraphLink = function() {
+        const theme = document.documentElement.dataset.theme;
+        if (theme === "light" || theme === "dark") graphPage.searchParams.set("theme", theme);
+        else graphPage.searchParams.delete("theme");
+        link.href = withBundleContext(graphPage.href);
+      };
       const graphPage = new URL("../graph.html", new URL(apiBase, location.href));
       graphPage.searchParams.set("claim_id", claimId);
       const link = el2("a", "lp-claim-graph-link", "Open full evidence graph");
-      link.href = withBundleContext(graphPage.href);
+      updateGraphLink();
+      link.addEventListener("click", updateGraphLink);
       dagBox.append(link);
       bindReferences(dagBox, wrap, body.references, selectReference);
+      onReferences?.(body.references);
     }
   } catch (err) {
     if (signal?.aborted) return;
@@ -1202,7 +1940,7 @@ function bindReferences(dagBox, graph, references, selectReference) {
   const nodes = [...graph.querySelectorAll("g.node")];
   const entries = references.map((reference) => ({
     reference,
-    node: nodes.find((element) => element.id.startsWith("flowchart-" + reference.id + "-"))
+    node: nodes.find((element2) => element2.id.startsWith("flowchart-" + reference.id + "-"))
   }));
   let activeReference;
   let pinnedReference = false;
@@ -1271,7 +2009,7 @@ function bindReferences(dagBox, graph, references, selectReference) {
 // src/scitex_live_paper/_django/static/live_paper/js/pdf-viewer.js
 function toOverlay(claim) {
   const anchor = pickAnchor(claim);
-  if (!anchor || !Number.isInteger(anchor.page) || !Array.isArray(anchor.bbox)) return null;
+  if (!Number.isInteger(anchor?.page) || anchor.page < 1 || !Array.isArray(anchor.bbox) || anchor.bbox.length !== 4 || !anchor.bbox.every(Number.isFinite)) return null;
   const figure = claim.claim_type === "figure" || claim.figure_id || claim.extras?.figure_id;
   return {
     id: claim.claim_id,
@@ -1299,7 +2037,8 @@ var PDFViewer = class {
     this.apiBase = options.apiBase;
     this.claims = [];
     this.comments = [];
-    const bibliography = createBibliographyHighlights();
+    this.pageSurfaces = /* @__PURE__ */ new Map();
+    const bibliography = createBibliographyHighlights(options.citationVerification, options.onCitationSelect);
     this.navigation = createPdfNavigation({
       ...options.navigation,
       pdfjs: options.pdfjs,
@@ -1314,7 +2053,8 @@ var PDFViewer = class {
         pdfjs: this.navigation.runtime,
         workerSrc: options.workerSrc,
         hooks: {
-          onPageRender: (page, _viewport, surface) => {
+          onPageRender: (page, viewport, surface) => {
+            this.pageSurfaces.set(page, { viewport, surface });
             this.navigation.pageRendered(page, surface);
             bibliography.pageRendered(page, surface);
           }
@@ -1335,7 +2075,11 @@ var PDFViewer = class {
             overlayId: toOverlay(claim)?.id,
             data: claim
           })),
-          renderEntry: (entry) => options.renderFeedEntry(entry.data)
+          renderEntry: (entry) => options.renderFeedEntry(entry.data),
+          navigate: (overlay) => {
+            options.showPdf?.();
+            this.navigation.goTo(overlay);
+          }
         },
         comments: {
           list: () => this.comments.map(toComment),
@@ -1346,9 +2090,9 @@ var PDFViewer = class {
             return toComment(comment);
           }
         },
-        preview: options.inlineEvidence && { render: (panel, overlay, signal) => {
+        preview: options.inlineEvidence && { render: (panel, overlay, signal2) => {
           const claim = this.claims.find((claim2) => claim2.claim_id === overlay.id);
-          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal);
+          if (claim) renderEvidencePreview(panel, claim, this.apiBase, signal2);
         } },
         events: { emit: (event) => {
           const fromFeed = event.type === "feed-select";
@@ -1372,8 +2116,19 @@ var PDFViewer = class {
         } }
       }
     });
+    this.zoomListeners = new AbortController();
+    const { signal } = this.zoomListeners;
+    const manuscript = this.container.closest(".lp-reader-document") || this.container;
+    bindScopedZoom(manuscript, (action, point) => this.zoomAt(action, point), signal);
+    const navigation = options.navigation.container;
+    bindScopedZoom(navigation, (action) => zoomNavigation(navigation, action), signal);
+    options.bindClaimFilters?.(this.provider.setFeedFilter);
     this.provider.renderer.setInteractive(false);
     if (options.evidencePane) this.stopEvidencePane = bindEvidencePane(this.container);
+  }
+  goToClaim(overlay) {
+    this.provider.selectOverlay(overlay.id);
+    this.navigation.goTo(overlay);
   }
   setClaims(claims) {
     this.claims = claims || [];
@@ -1384,10 +2139,13 @@ var PDFViewer = class {
     this.provider.setComments(this.comments.map(toComment));
   }
   async load(docType = "manuscript") {
+    this.loaded = false;
+    this.pageSurfaces.clear();
     try {
       await this.provider.load(docType);
       await this.provider.renderer.fitWidth();
       this.navigation.finishRender();
+      this.loaded = true;
       this.watchFitWidth();
       return true;
     } catch (error) {
@@ -1404,25 +2162,83 @@ var PDFViewer = class {
       if (next <= 0 || Math.abs(next - width) < 2) return;
       width = next;
       clearTimeout(this.resizeTimer);
-      this.resizeTimer = setTimeout(() => void this.refitVisiblePage(), 180);
+      if (this.manualZoom === void 0) {
+        this.resizeTimer = setTimeout(() => this.queueZoom(null), 180);
+      }
     });
     this.resizeObserver.observe(this.container);
   }
-  async refitVisiblePage() {
-    const scroller = readerScroller(this.container);
-    const top = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+  noteTarget(page, point) {
+    const view = this.pageSurfaces.get(page);
+    if (!view?.surface.element.isConnected || !point) return null;
+    const { viewport, surface } = view;
+    const rect = surface.element.getBoundingClientRect();
+    const x = Math.max(0, Math.min(viewport.width - 1, (point.x - rect.left) * viewport.width / rect.width));
+    const y = Math.max(0, Math.min(viewport.height - 1, (point.y - rect.top) * viewport.height / rect.height));
+    const a = surface.viewportToPdfPoint(x, y);
+    const b = surface.viewportToPdfPoint(x + 1, y + 1);
+    return { page, bbox: [
+      Math.min(a[0], b[0]),
+      Math.min(a[1], b[1]),
+      Math.max(a[0], b[0]),
+      Math.max(a[1], b[1])
+    ] };
+  }
+  currentPage() {
+    const viewport = readerScroller(this.container).getBoundingClientRect();
     const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
-    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > top);
-    const old = pages[index]?.getBoundingClientRect();
-    const offset = old && old.top < top ? (top - old.top) / old.height : null;
-    try {
-      await this.provider.renderer.fitWidth();
-      if (offset === null) return;
-      const rect = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
-      if (rect) scroller.scrollBy({ top: rect.top + rect.height * offset - top, behavior: "instant" });
-    } catch (error) {
-      console.warn("[pdf-viewer] refit failed:", error);
+    const visible = pages.findIndex((page) => page.getBoundingClientRect().bottom > viewport.top);
+    return visible >= 0 ? visible + 1 : pages.length ? 1 : null;
+  }
+  zoomAt(action, point) {
+    if (!this.loaded) return false;
+    clearTimeout(this.resizeTimer);
+    if (action === "reset") {
+      this.manualZoom = void 0;
+    } else {
+      const current = this.manualZoom ?? this.provider.renderer.getScale();
+      const factor = action === "in" ? 1.2 : 1 / 1.2;
+      const minimum = Math.min(current, 0.25);
+      const maximum = Math.max(current, 4);
+      this.manualZoom = Math.max(minimum, Math.min(maximum, current * factor));
     }
+    this.queueZoom(this.manualZoom ?? null, point);
+  }
+  async queueZoom(scale, point) {
+    this.pendingZoom = { scale, point };
+    if (this.zooming) return;
+    this.zooming = true;
+    try {
+      while (this.pendingZoom && !this.zoomListeners.signal.aborted) {
+        const next = this.pendingZoom;
+        this.pendingZoom = null;
+        const renderer = this.provider.renderer;
+        if (next.scale !== null && next.scale === renderer.getScale()) continue;
+        await this.keepPosition(() => next.scale === null ? renderer.fitWidth() : renderer.setScale(next.scale), next.point);
+      }
+    } catch (error) {
+      console.warn("[pdf-viewer] zoom failed:", error);
+    } finally {
+      this.zooming = false;
+    }
+  }
+  async keepPosition(action, point) {
+    const scroller = readerScroller(this.container);
+    const bounds = scroller.getBoundingClientRect();
+    const y = point?.y ?? Math.max(0, bounds.top);
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const index = pages.findIndex((page) => page.getBoundingClientRect().bottom > y);
+    const before = pages[index]?.getBoundingClientRect();
+    const fractionY = before && Math.max(0, Math.min(1, (y - before.top) / before.height));
+    const fractionX = before && point && point.x >= before.left && point.x <= before.right ? (point.x - before.left) / before.width : null;
+    await action();
+    const after = this.container.querySelectorAll(".stx-pdf-page")[index]?.getBoundingClientRect();
+    if (!before || !after) return;
+    scroller.scrollBy({
+      top: after.top - before.top + fractionY * (after.height - before.height),
+      left: fractionX === null ? 0 : after.left + fractionX * after.width - point.x,
+      behavior: "instant"
+    });
   }
   clear() {
     this.container.replaceChildren();
@@ -1449,16 +2265,26 @@ var PDFViewer = class {
   destroy() {
     clearTimeout(this.resizeTimer);
     this.resizeObserver?.disconnect();
+    this.zoomListeners.abort();
+    this.pageSurfaces.clear();
     this.stopEvidencePane?.();
+    this.stopContextMenu?.();
     this.navigation.destroy();
     this.provider.destroy();
   }
 };
 function readerScroller(container) {
   for (let node = container.parentElement; node; node = node.parentElement) {
-    if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    if (/auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
   }
   return container.ownerDocument.scrollingElement;
+}
+function zoomNavigation(container, action) {
+  if (container.hasAttribute("data-collapsed")) return false;
+  const list = container.querySelector(".rpdf-nav-content > :not([hidden]) > :is(.rpdf-nav-pages, .rpdf-nav-bookmarks)");
+  if (!list) return false;
+  const zoom = Number(list.style.zoom || 1);
+  list.style.zoom = String(action === "reset" ? 1 : Math.max(0.5, Math.min(3, zoom + (action === "in" ? 0.2 : -0.2))));
 }
 function bindEvidencePane(container) {
   const listeners = new AbortController();
@@ -1484,7 +2310,7 @@ function bindEvidencePane(container) {
   }, { capture: true, passive: true, signal });
   container.addEventListener("pointerenter", (event) => {
     const anchor = event.target;
-    if (!anchor.matches?.(".lp-rich-overlay")) return;
+    if (!anchor.matches?.(".lp-rich-overlay") || container.closest("[data-pdf-pan]")) return;
     event.stopImmediatePropagation();
     if (event.pointerType === "touch" || performance.now() - lastScroll < 120) return;
     clearTimeout(hover);
@@ -1516,6 +2342,7 @@ function bindPdfDownloads(root2, claims, original) {
   const options = root2.querySelector(".lp-pdf-download");
   if (!options) return;
   const status = options.querySelector("[role='status']");
+  const menu = options.querySelector("details");
   const buttons = [...options.querySelectorAll("button")];
   function graphSelection() {
     const detail = root2.querySelector(".lp-claim-detail");
@@ -1555,6 +2382,7 @@ function bindPdfDownloads(root2, claims, original) {
         link.href = url;
         link.download = graph ? "manuscript-with-evidence-graph.pdf" : "manuscript-highlighted.pdf";
         link.click();
+        menu.open = false;
         setTimeout(() => URL.revokeObjectURL(url), 3e4);
         status.textContent = "";
       } catch (error) {
@@ -1577,6 +2405,35 @@ function pdfColor(style, status) {
   const hex = style.getPropertyValue("--lp-status-" + token).trim();
   const digits = /^#[\da-f]{6}$/i.test(hex) ? hex.slice(1) : "6e7681";
   return digits.match(/../g).map((value) => parseInt(value, 16) / 255);
+}
+
+// src/scitex_live_paper/_django/static/live_paper/js/pdf-context-menu.js
+function bindPdfContextMenu2(ContextMenu, viewer, { commentOnPage, revealSidebar }) {
+  const pdf = viewer.container;
+  return bindPdfContextMenu({
+    ContextMenu,
+    container: pdf,
+    scrollContainer: pdf.closest(".lp-reader-document") || pdf,
+    canOpen: () => viewer.loaded,
+    zoom: (action, point) => viewer.zoomAt(action, point),
+    items(target, point) {
+      const index = [...pdf.querySelectorAll(".stx-pdf-page")].indexOf(target.closest(".stx-pdf-page"));
+      const page = index >= 0 ? index + 1 : viewer.currentPage();
+      if (!page) return [];
+      const note = index >= 0 && viewer.noteTarget(page, point);
+      const overlay = target.closest(".lp-rich-overlay");
+      const entries = [];
+      if (overlay) entries.push({ label: "View claim evidence", onSelect: () => {
+        revealSidebar();
+        overlay.click();
+      } });
+      entries.push({
+        label: note ? "Add note here" : "Comment on this page",
+        onSelect: () => commentOnPage(page, note)
+      });
+      return entries;
+    }
+  });
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/reverify-all.js
@@ -1698,25 +2555,82 @@ function renderClaimsSidebar(rootEl, claimsPayload, apiBase) {
   }
   const container = document.createElement("div");
   container.className = "lp-claims-list";
-  allClaims.append(container);
+  allClaims.querySelector("#lp-claim-type-results").append(container);
   return {
     feedContainer: container,
+    bindClaimFilters: (setFilter) => bindClaimFilters(allClaims, claimsPayload.claims, setFilter),
     renderFeedEntry: (claim) => renderClaimRow(claim, apiBase, reVerifyEnabled, pinnedCommit)
   };
 }
+var claimTypes = /* @__PURE__ */ new Set(["sentence", "value", "statistic", "table", "figure"]);
+function normalize(text) {
+  return String(text ?? "").normalize("NFKC").toLowerCase().trim();
+}
+function filterType(claim) {
+  const type = normalize(claim.claim_type);
+  if (type === "text") return "sentence";
+  return claimTypes.has(type) ? type : "other";
+}
+function bindClaimFilters(panel, claims, setFilter) {
+  if (!claims.length) return;
+  const controls = panel.querySelector(".lp-claim-filters");
+  const search = controls.querySelector("input");
+  const tabList = controls.querySelector(".lp-claim-type-tabs");
+  const results = panel.querySelector("#lp-claim-type-results");
+  const status = results.querySelector(".lp-claim-filter-status");
+  const index = claims.map((claim) => ({
+    id: claim.claim_id,
+    type: filterType(claim),
+    text: normalize([claim.claim_id, claim.claim_value, claim.source_file, claim.file_path].join(" "))
+  }));
+  tabList.querySelector('[data-claim-type="other"]').hidden = !index.some((entry) => entry.type === "other");
+  let type = "all";
+  bindTabs(tabList, (tab) => {
+    type = tab.dataset.claimType;
+    results.setAttribute("aria-labelledby", tab.id);
+    update();
+  });
+  function update() {
+    const terms = normalize(search.value).split(/\s+/).filter(Boolean);
+    if (type === "all" && !terms.length) {
+      setFilter(null);
+      status.textContent = "";
+      return;
+    }
+    const matched = new Set(index.filter(
+      (entry) => (type === "all" || type === entry.type) && terms.every((term) => entry.text.includes(term))
+    ).map((entry) => entry.id));
+    setFilter((entry) => matched.has(entry.id));
+    status.textContent = matched.size ? `${matched.size} of ${claims.length} claims` : "No claims match these filters.";
+  }
+  search.addEventListener("input", update);
+  controls.hidden = false;
+  update();
+}
 function bindClaimTabs(sidebar) {
-  const tabs = [...sidebar.querySelectorAll("[role='tab']")];
-  function select(tab, refresh = false) {
+  bindTabs(sidebar.querySelector(".lp-claims-tabs"), (selected, refresh) => {
+    const commentsWasHidden = sidebar.querySelector("#lp-comments-panel").hidden;
+    for (const tab of sidebar.querySelectorAll(".lp-claims-tabs > [role='tab']")) {
+      sidebar.querySelector("#" + tab.getAttribute("aria-controls")).hidden = tab !== selected;
+    }
+    sidebar.scrollTop = 0;
+    if (commentsWasHidden && selected.id === "lp-comments-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:comments-tab", { bubbles: true }));
+    }
+    if (refresh && selected.id === "lp-selection-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
+    }
+  });
+}
+function bindTabs(tabList, onSelect) {
+  const tabs = [...tabList.querySelectorAll(":scope > [role='tab']:not([hidden])")];
+  function select(tab, refresh) {
     for (const button of tabs) {
       const active = button === tab;
       button.setAttribute("aria-selected", String(active));
       button.tabIndex = active ? 0 : -1;
-      sidebar.querySelector("#" + button.getAttribute("aria-controls")).hidden = !active;
     }
-    sidebar.scrollTop = 0;
-    if (refresh && tab.id === "lp-selection-tab") {
-      sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
-    }
+    onSelect(tab, refresh);
   }
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", (event) => select(tab, event.isTrusted));
@@ -1975,45 +2889,6 @@ function recordEvent(log, kind, payload) {
   log.push(entry);
   return entry;
 }
-function exportSidecar(log, meta) {
-  return {
-    schema: "scitex-live-paper.event-log/v1",
-    exported_at: (/* @__PURE__ */ new Date()).toISOString(),
-    bundle: meta && meta.bundle || null,
-    events: Array.isArray(log) ? log.slice() : []
-  };
-}
-function downloadSidecar(log, meta, filename) {
-  const sidecar = exportSidecar(log, meta);
-  const blob = new Blob([JSON.stringify(sidecar, null, 2)], {
-    type: "application/json"
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename || "live-paper-events.json";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1e3);
-  return sidecar;
-}
-async function persistSidecar(log, meta, options) {
-  const apiBase = options && options.apiBase || "/api/";
-  const sidecar = exportSidecar(log, meta);
-  const response = await fetch(withBundleContext(apiBase + "event-log"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(sidecar)
-  });
-  if (!response.ok) {
-    throw new Error(
-      "persistSidecar failed: HTTP " + response.status
-    );
-  }
-  const receipt = await response.json();
-  return { sidecar, receipt };
-}
 function bindEventLog(rootEl, log, meta) {
   const kinds = [
     "live-paper:claim",
@@ -2031,51 +2906,6 @@ function bindEventLog(rootEl, log, meta) {
       rootEl.removeEventListener(kind, handler);
     }
   };
-}
-
-// src/scitex_live_paper/_django/static/live_paper/js/archive.js
-function renderArchiveButton(rootEl, apiBase) {
-  const host = rootEl.querySelector(".lp-reader-actions, .live-paper-header") || rootEl;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "lp-archive-button";
-  btn.textContent = "Archive event log";
-  btn.addEventListener("click", () => {
-    void archiveEventLog(btn, rootEl, apiBase);
-  });
-  const status = document.createElement("span");
-  status.className = "lp-archive-status";
-  status.setAttribute("aria-live", "polite");
-  host.appendChild(btn);
-  host.appendChild(status);
-  return btn;
-}
-async function archiveEventLog(btn, rootEl, apiBase) {
-  const status = rootEl.querySelector(".lp-archive-status") || btn.parentElement.querySelector(".lp-archive-status");
-  const log = rootEl._livePaperEventLog || [];
-  const meta = { bundle: rootEl._livePaperBundle || null };
-  const count = Array.isArray(log) ? log.length : 0;
-  btn.disabled = true;
-  try {
-    const { receipt } = await persistSidecar(log, meta, { apiBase });
-    if (status) {
-      status.textContent = "Archived " + count + " events (server: " + receipt.filename + ")";
-    }
-  } catch (err) {
-    try {
-      downloadSidecar(log, meta);
-    } catch (dlErr) {
-      if (status) {
-        status.textContent = "Archive failed: " + String(err);
-      }
-      btn.disabled = false;
-      return;
-    }
-    if (status) {
-      status.textContent = "Saved " + count + " events (download \u2014 server persist failed: " + String(err) + ")";
-    }
-  }
-  btn.disabled = false;
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/empty-state.js
@@ -2125,15 +2955,11 @@ async function boot(rootEl) {
     return;
   }
   bindReaderLayout(rootEl);
+  bindPdfTheme(rootEl);
   bindPortEvents(rootEl, apiBase);
   const eventLog = createEventLog();
   bindEventLog(rootEl, eventLog);
   rootEl._livePaperEventLog = eventLog;
-  try {
-    renderArchiveButton(rootEl, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] archive button render failed", err);
-  }
   let pdfjs;
   let createPdfViewer;
   try {
@@ -2163,6 +2989,7 @@ async function boot(rootEl) {
       claimsPayload = await fetchJson(apiBase + "claims");
     }
     setStatus(bundleInfo);
+    rootEl.dataset.paperStage = bundleInfo.paper_state?.stage || "";
     void renderTraceSummary(rootEl, apiBase);
     renderReReviewBadge(rootEl, bundleInfo);
     rootEl._livePaperBundle = bundleInfo;
@@ -2187,11 +3014,22 @@ async function boot(rootEl) {
     invalidateEvidenceGraphs();
     closeClaimDetail(ensureClaimsSidebar(rootEl));
   });
+  function showClaim(sidebar, claim, refresh) {
+    const overlay = toOverlay(claim);
+    renderClaimDetail(sidebar, claim, apiBase, {
+      refresh,
+      goToPdf: overlay && (() => {
+        showPdf();
+        hideEvidenceDrawer(rootEl)?.focus({ preventScroll: true });
+        viewer.goToClaim(overlay);
+      })
+    });
+  }
   rootEl.addEventListener("live-paper:selection-tab", (event) => {
     const sidebar = event.target;
     const id = sidebar.querySelector(".lp-claim-detail")?.dataset.claimId;
     const claim = claimsPayload?.claims?.find((entry) => entry.claim_id === id);
-    if (claim) renderClaimDetail(sidebar, claim, apiBase, { refresh: true });
+    if (claim) showClaim(sidebar, claim, true);
   });
   rootEl.addEventListener("live-paper:claim", (event) => {
     const id = event && event.detail ? event.detail.id : null;
@@ -2200,20 +3038,31 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
-      if (!event.detail?.preview) sidebar.dataset.pinnedClaim = id;
-      renderClaimDetail(sidebar, claim, apiBase, { refresh: !event.detail?.preview });
+      if (event.detail?.preview && (sidebar.dataset.pinnedClaim || !sidebar.querySelector("#lp-comments-panel").hidden)) return;
+      if (!event.detail?.preview) {
+        sidebar.removeAttribute("data-document-focused");
+        sidebar.dataset.pinnedClaim = id;
+      }
+      showClaim(sidebar, claim, !event.detail?.preview);
     } catch (err) {
       console.warn("[live-paper] anchor detail render failed", err);
     }
   });
   const pdfContainer = ensurePdfContainer(rootEl);
+  const navigation = rootEl.querySelector("#live-paper-navigation");
+  const showPdf = bindManuscriptFormats(rootEl, navigation);
   const viewer = new PDFViewer({
     ...sidebarOptions,
+    showPdf,
     evidencePane: true,
+    citationVerification: claimsPayload?.citation_verification,
+    onCitationSelect(key, citation, goToReference) {
+      const sidebar = ensureClaimsSidebar(rootEl);
+      showEvidenceDrawer(rootEl);
+      renderCitationDetail(sidebar, key, citation, apiBase, goToReference);
+    },
     navigation: {
-      container: rootEl.querySelector("#live-paper-navigation"),
-      toggle: rootEl.querySelector(".lp-pdf-navigation-toggle")
+      container: navigation
     },
     container: pdfContainer,
     pdfjs,
@@ -2229,12 +3078,52 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
+  let commentTarget;
+  function openComments(sidebar, { page, note, focus }) {
+    const panel = sidebar.querySelector("#lp-comments-panel");
+    const ready = showComments(panel, {
+      apiBase,
+      page,
+      note,
+      claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
+      onComments: (comments) => viewer.setComments(comments)
+    });
+    if (focus) void ready.then(() => {
+      if (!panel.hidden) panel.querySelector("textarea")?.focus();
+    });
+  }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    openComments(event.target, commentTarget ?? { page: viewer.currentPage() });
+  });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
     bindPdfDownloads(rootEl, viewer.claims, download.href);
   }
+  const menuUrl = rootEl.dataset.pdfContextMenu;
+  if (menuUrl) {
+    import(menuUrl).then(({ ContextMenu }) => {
+      viewer.stopContextMenu = bindPdfContextMenu2(ContextMenu, viewer, {
+        revealSidebar: () => showEvidenceDrawer(rootEl),
+        commentOnPage(page, note) {
+          const sidebar = ensureClaimsSidebar(rootEl);
+          showEvidenceDrawer(rootEl);
+          const tab = sidebar.querySelector("#lp-comments-tab");
+          if (tab.getAttribute("aria-selected") === "true") {
+            openComments(sidebar, { page, note, focus: true });
+          } else {
+            commentTarget = { page, note, focus: true };
+            tab.click();
+            commentTarget = null;
+          }
+          tab.focus({ preventScroll: true });
+        }
+      });
+    }).catch((error) => console.warn("[live-paper] PDF actions unavailable", error));
+  }
   await viewer.load();
+  const shareStatus = bindShare(rootEl);
+  openSharedClaim(rootEl, viewer.claims, shareStatus);
 }
 async function renderTraceSummary(rootEl, apiBase) {
   const url = new URL("../review.json", new URL(apiBase, location.href));
@@ -2260,6 +3149,66 @@ async function renderTraceSummary(rootEl, apiBase) {
   banner.replaceChildren(summary);
   banner.hidden = false;
 }
+function showEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display !== "none" && toggle.getAttribute("aria-expanded") === "false") {
+    toggle.click();
+  }
+}
+function hideEvidenceDrawer(rootEl) {
+  const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
+  if (getComputedStyle(toggle).display === "none") return null;
+  const sidebar = rootEl.querySelector("#live-paper-claims");
+  sidebar.removeAttribute("data-drawer-open");
+  sidebar.setAttribute("data-document-focused", "");
+  toggle.setAttribute("aria-expanded", "false");
+  return toggle;
+}
+function bindManuscriptFormats(rootEl, navigation) {
+  const tabs = rootEl.querySelector(".lp-format-tabs");
+  if (!tabs) return () => {
+  };
+  const pdfTab = tabs.querySelector("#lp-format-pdf");
+  const pdf = rootEl.querySelector("#lp-format-panel-pdf");
+  const html = rootEl.querySelector("#lp-format-panel-html");
+  const frame = html.querySelector("iframe");
+  bindTabs(tabs, (selected) => {
+    const showPdf = selected === pdfTab;
+    rootEl.dataset.manuscriptFormat = showPdf ? "pdf" : "html";
+    pdf.hidden = navigation.hidden = !showPdf;
+    html.hidden = showPdf;
+    if (!showPdf) {
+      hideEvidenceDrawer(rootEl);
+      if (!frame.hasAttribute("src")) frame.src = frame.dataset.src;
+    }
+  });
+  window.addEventListener("message", (event) => {
+    if (html.hidden || event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== "live-paper:html-claim" || typeof event.data.id !== "string") return;
+    rootEl.dispatchEvent(new CustomEvent("live-paper:claim", { detail: { id: event.data.id } }));
+  });
+  return () => {
+    if (pdf.hidden) pdfTab.click();
+  };
+}
+function bindPdfTheme(rootEl) {
+  const picker = rootEl.querySelector(".lp-pdf-theme");
+  const key = "live-paper.pdf-theme";
+  let saved;
+  try {
+    saved = localStorage.getItem(key);
+  } catch {
+  }
+  if (saved === "light" || saved === "dark") picker.value = saved;
+  rootEl.dataset.pdfTheme = picker.value;
+  picker.closest("label").hidden = false;
+  picker.addEventListener("change", () => {
+    rootEl.dataset.pdfTheme = picker.value;
+    try {
+      localStorage.setItem(key, picker.value);
+    } catch {
+    }
+  });
+}
 function bindReaderLayout(rootEl) {
   const header = rootEl.previousElementSibling;
   const shell = rootEl.closest("#main-content");
@@ -2277,6 +3226,7 @@ function bindReaderLayout(rootEl) {
   const toggle = rootEl.querySelector(".lp-reader-evidence-toggle");
   const sidebar = rootEl.querySelector("#live-paper-claims");
   toggle.addEventListener("click", () => {
+    sidebar.removeAttribute("data-document-focused");
     const open = sidebar.toggleAttribute("data-drawer-open");
     toggle.setAttribute("aria-expanded", String(open));
   });

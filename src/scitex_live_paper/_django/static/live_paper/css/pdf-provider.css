@@ -26,7 +26,19 @@
 .lp-rich-comments textarea { box-sizing: border-box; width: 100%; min-height: 72px; color: inherit; background: var(--bg-primary, Canvas); border: 1px solid var(--border-color, currentColor); }
 .lp-rich-comments button { color: inherit; background: var(--bg-tertiary, Canvas); border: 1px solid var(--border-color, currentColor); padding: 4px 8px; cursor: pointer; }
 .lp-rich-comments button:disabled { opacity: 0.6; cursor: default; }
-@media print { .lp-rich-overlays, .lp-rich-comments { display: none !important; } }
+.rpdf-discussion { display: grid; gap: 8px; }
+.rpdf-discussion h3 { margin: 0; font-size: 1rem; }
+.rpdf-discussion p { margin: 0; }
+.rpdf-discussion [role="status"]:empty { display: none; }
+.rpdf-discussion-list { list-style: none; margin: 0; padding: 0; }
+.rpdf-discussion-list li { padding-block: 8px; border-bottom: 1px solid var(--border-color, currentColor); }
+.rpdf-discussion-byline { font-size: 0.85em; color: var(--text-secondary, currentColor); }
+.rpdf-discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.rpdf-discussion form, .rpdf-discussion label { display: grid; gap: 6px; }
+.rpdf-discussion form { justify-items: start; }
+.rpdf-discussion label { width: 100%; }
+.rpdf-discussion :is(textarea, select) { box-sizing: border-box; max-width: 100%; }
+@media print { .lp-rich-overlays, .lp-rich-comments, .rpdf-discussion { display: none !important; } }
 
 .scitex-rich-pdf-feed {
   list-style: none;
@@ -113,8 +125,28 @@
   color: var(--rpdf-nav-text, #202733);
 }
 
+.rpdf-nav-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px;
+  color: var(--rpdf-nav-text, #202733);
+  font-size: 0.75rem;
+}
+
+.rpdf-nav-toggle {
+  font-size: 1.1rem !important;
+}
+
+.rpdf-nav-controls[hidden],
+.rpdf-nav-content[hidden] {
+  display: none;
+}
+
 .rpdf-nav-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 6px;
   border-block-end: 1px solid var(--rpdf-nav-border, #d6dce1);
@@ -170,4 +202,15 @@
 
 .rpdf-nav-bookmarks .rpdf-nav-bookmarks {
   padding-inline-start: 12px;
+}
+
+[data-pdf-pan],
+[data-pdf-pan] .stx-pdf-page * {
+  cursor: grab;
+  user-select: none;
+}
+
+[data-pdf-panning],
+[data-pdf-panning] .stx-pdf-page * {
+  cursor: grabbing;
 }

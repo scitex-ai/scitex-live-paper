@@ -4,6 +4,7 @@ export function bindPdfDownloads(root, claims, original) {
   const options = root.querySelector(".lp-pdf-download");
   if (!options) return;
   const status = options.querySelector("[role='status']");
+  const menu = options.querySelector("details");
   const buttons = [...options.querySelectorAll("button")];
   function graphSelection() {
     const detail = root.querySelector(".lp-claim-detail");
@@ -41,6 +42,7 @@ export function bindPdfDownloads(root, claims, original) {
         link.href = url;
         link.download = graph ? "manuscript-with-evidence-graph.pdf" : "manuscript-highlighted.pdf";
         link.click();
+        menu.open = false;
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = "";
       } catch (error) {

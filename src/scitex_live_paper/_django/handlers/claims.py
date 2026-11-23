@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from ..services import get_request_bundle_state
+from ._citation_verification import read_citation_verification
 from ._pdf_anchors import read_pdf_anchors
 
 __all__ = ["handle_claims"]
@@ -63,6 +64,7 @@ def handle_claims(request) -> Mapping[str, Any]:
 
     return {
         "claim_count": len(bundle.claims),
+        "citation_verification": read_citation_verification(bundle),
         "re_verify_enabled": bundle.paper_state.re_verify_enabled,
         "pinned_commit": bundle.paper_state.pinned_commit,
         "claims": [

@@ -16,6 +16,11 @@
  *                     provenance map.
  */
 
+const graphTheme = new URLSearchParams(window.location.search).get("theme");
+if (graphTheme === "light" || graphTheme === "dark") {
+  document.documentElement.dataset.theme = graphTheme;
+}
+
 const PROVENANCE = (() => {
   const el = document.getElementById('lp-provenance-map');
   if (!el) return {};
@@ -39,7 +44,7 @@ const FAILURE_MARK = '⚠';
 
 function kindFromLabel(label) {
   if (!label) return null;
-  const head = label.split(/<br\/?>|\n/, 1)[0].trim().toLowerCase();
+  const head = label.split(/<br\/?>|\n| · /, 1)[0].trim().toLowerCase();
   for (const [kind, prefix] of KIND_PREFIXES) {
     if (head === prefix.toLowerCase()) return kind;
   }
@@ -174,7 +179,7 @@ async function bootstrap() {
   if (!shell) return;
 
   if (typeof mermaid !== 'undefined' && mermaid?.initialize) {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false });
     try {
       await mermaid.run({ querySelector: 'pre.mermaid' });
     } catch (err) {
@@ -183,6 +188,17 @@ async function bootstrap() {
   }
 
   decorateNodes(shell);
+
+  const graph = shell.querySelector("#lp-dag-source");
+  if (graph?.querySelector("svg") && shell.dataset.graphControlsUrl) {
+    try {
+      const { graphControls } = await import(new URL(shell.dataset.graphControlsUrl, document.baseURI));
+      graph.before(graphControls(graph));
+      graph.setAttribute("data-graph-interactive", "");
+    } catch (error) {
+      console.warn("Evidence graph controls unavailable:", error);
+    }
+  }
 
   const closeBtn = document.querySelector('.lp-dag-overlay-close');
   if (closeBtn) closeBtn.addEventListener('click', closeOverlay);

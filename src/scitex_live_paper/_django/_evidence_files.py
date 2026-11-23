@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import os
 import stat
+from contextlib import contextmanager
 from pathlib import Path
 
 DEFAULT_MAX_REPORT_BYTES = 16 * 1024 * 1024
@@ -61,7 +62,7 @@ class ResourceReader:
             os.close(self._fd)
             self._fd = None
 
-    def _open(self, name: str):
+    def _open(self, name: str | Path):
         path = Path(name)
         if path.is_absolute():
             try:
@@ -89,6 +90,22 @@ class ResourceReader:
             raise ResourceError("Paper resource path is invalid", 400) from None
         finally:
             os.close(cursor)
+
+    @contextmanager
+    def open_regular_file(self, name: str | Path):
+        """Open a regular file beneath the root for a bounded caller operation."""
+        try:
+            with os.fdopen(self._open(name), "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise ResourceError("Paper resource must be a regular file", 403)
+                yield stream
+        except OSError as error:
+            raise _filesystem_error(error) from None
+
+    def check_regular_file(self, name: str) -> None:
+        """Check that a source can be opened beneath the root without reading it."""
+        with self.open_regular_file(name):
+            pass
 
     def read(self, name: str, *, limit: int) -> bytes:
         if type(limit) is not int or limit <= 0:
