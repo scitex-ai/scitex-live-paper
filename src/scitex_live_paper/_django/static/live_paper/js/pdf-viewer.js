@@ -150,6 +150,13 @@ export class PDFViewer {
     this.resizeObserver.observe(this.container);
   }
 
+  currentPage() {
+    const viewport = readerScroller(this.container).getBoundingClientRect();
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const visible = pages.findIndex((page) => page.getBoundingClientRect().bottom > viewport.top);
+    return visible >= 0 ? visible + 1 : (pages.length ? 1 : null);
+  }
+
   zoomAt(action, point) {
     if (!this.loaded) return false;
     clearTimeout(this.resizeTimer);

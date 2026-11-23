@@ -21,7 +21,7 @@ Endpoints
     ``target`` takes exactly one anchor shape:
 
     - ``{"claim_id": "<id>"}``
-    - ``{"page": <1-based int>, "bbox": [x0, y0, x1, y1]}``
+    - ``{"page": <1-based int>}`` or a page with ``"bbox": [x0, y0, x1, y1]``
     - ``{"quote": "<passage>"}``
 
     ``author`` / ``kind`` are optional strings. The server stamps
@@ -104,14 +104,14 @@ def validate_comment(candidate: Any) -> tuple[Mapping[str, Any] | None, str | No
         isinstance(page, int)
         and not isinstance(page, bool)
         and page >= 1
-        and _is_bbox(bbox),
+        and ("bbox" not in target or _is_bbox(bbox)),
         isinstance(quote, str) and bool(quote.strip()),
     ]
     if sum(bool(s) for s in shapes) != 1:
         return (
             None,
             "'comment.target' needs exactly one anchor: "
-            "{claim_id} | {page, bbox} | {quote}",
+            "{claim_id} | {page, optional bbox} | {quote}",
         )
     for key in ("author", "kind"):
         if key in candidate and not isinstance(candidate[key], str):
@@ -176,6 +176,9 @@ def handle_comments(request) -> HttpResponse:
     if error is not None:
         return JsonResponse({"error": error}, status=400)
     assert stored is not None
+    user = getattr(request, "user", None)
+    if "author" not in stored and getattr(user, "is_authenticated", False):
+        stored = {**stored, "author": user.get_username()}
     comment = {
         "id": f"c_{uuid.uuid4().hex[:8]}",
         "created_at": _utcnow(),

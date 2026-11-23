@@ -95,10 +95,14 @@ function bindClaimFilters(panel, claims, setFilter) {
 
 function bindClaimTabs(sidebar) {
   bindTabs(sidebar.querySelector(".lp-claims-tabs"), (selected, refresh) => {
+    const commentsWasHidden = sidebar.querySelector("#lp-comments-panel").hidden;
     for (const tab of sidebar.querySelectorAll(".lp-claims-tabs > [role='tab']")) {
       sidebar.querySelector("#" + tab.getAttribute("aria-controls")).hidden = tab !== selected;
     }
     sidebar.scrollTop = 0;
+    if (commentsWasHidden && selected.id === "lp-comments-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:comments-tab", { bubbles: true }));
+    }
     if (refresh && selected.id === "lp-selection-tab") {
       sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
     }

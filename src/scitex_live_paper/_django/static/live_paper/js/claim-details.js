@@ -6,11 +6,8 @@ import { withBundleContext } from "./_utils.js";
 // Row click (not on a button) renders a detail pane under the list:
 // claim id/value/status, provenance (source file/hash/session, anchor),
 // the bundle DAG via `api/dag` rendered with the vendored mermaid
-// UMD bundle (`window.mermaid`), then the anchored-comments section
-// (`api/comments` list + add form). Everything degrades to a message —
-// never an empty pane.
+// UMD bundle (`window.mermaid`).
 
-import { renderCommentSection } from "./comments.js";
 import { renderStatistics } from "./statistics-preview.js";
 import { graphControls } from "../../../../_renderer/assets/graph-controls.js";
 
@@ -88,19 +85,9 @@ export function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, 
   const controller = new AbortController();
   detailRequests.set(pane, controller);
   pane.ownerDocument.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+    if (event.key === "Escape" && !event.defaultPrevented && !selection.hidden) closeClaimDetail(sidebarEl);
   }, { signal: controller.signal });
   renderEvidenceDetails(pane, claim, apiBase, controller.signal);
-
-  // Anchored comments (provider item 4): list + add form for this
-  // claim. Best-effort — a comments outage must not break the pane.
-  try {
-    const commentsBox = el("div", "lp-claim-comments-slot");
-    pane.appendChild(commentsBox);
-    void renderCommentSection(commentsBox, claim.claim_id, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] comments section failed:", err);
-  }
 
   selection.append(pane);
   sidebarEl.scrollTop = 0;

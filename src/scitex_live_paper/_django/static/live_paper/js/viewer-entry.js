@@ -309,46 +309,13 @@ function createRichPdfViewer(options) {
       anchor?.focus();
     });
     panel.append(close);
-    for (const comment of comments.filter((item) => sameTarget(item.target, target))) {
-      const row = document.createElement("p");
-      row.className = "lp-rich-comment";
-      row.textContent = [comment.author, comment.body].filter(Boolean).join(": ");
-      panel.append(row);
-    }
-    if (ports.comments?.create) {
-      const form = document.createElement("form");
-      const input = document.createElement("textarea");
-      input.setAttribute("aria-label", "New PDF comment");
-      input.required = true;
-      const submit = document.createElement("button");
-      submit.type = "submit";
-      submit.textContent = "Add comment";
-      const status = document.createElement("p");
-      status.setAttribute("role", "status");
-      if (!allow("comment-create", target)) {
-        input.disabled = true;
-        submit.disabled = true;
-        status.textContent = "Comments are read-only for this target.";
-      }
-      form.append(input, submit, status);
-      panel.append(form);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        submit.disabled = true;
-        status.textContent = "Saving comment\u2026";
-        try {
-          await createComment(target, input.value);
-          if (!panel.isConnected) return;
-          status.textContent = "Comment saved.";
-          input.value = "";
-          selectTarget(target, anchor, overlay);
-        } catch (error) {
-          if (panel.isConnected) status.textContent = error.message || "Comment could not be saved.";
-        } finally {
-          if (panel.isConnected) submit.disabled = !allow("comment-create", target);
-        }
-      });
-    }
+    const targetComments = comments.filter((item) => sameTarget(item.target, target));
+    const title = target.overlayId ? "Overlay comments" : `Page ${target.page} comments`;
+    void renderPdfDiscussion(panel, {
+      title,
+      load: () => targetComments,
+      post: ports.comments?.create && allow("comment-create", target) ? (body) => createComment(target, body) : void 0
+    });
     (options.commentsContainer || container).append(panel);
     popup = panel;
     emit({ type: "comments-open", target });
@@ -444,6 +411,75 @@ function createRichPdfViewer(options) {
     createComment,
     destroy
   };
+}
+async function renderPdfDiscussion(container, { title = "Comments", load, post, targetControl, labelTarget }) {
+  const doc = container.ownerDocument;
+  function element2(tag, text, className) {
+    const node = doc.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  const section = element2("section", "", "rpdf-discussion");
+  section.setAttribute("aria-label", title);
+  const heading = element2("h3", title);
+  const status = element2("p", "Loading comments\u2026");
+  status.setAttribute("role", "status");
+  const list = element2("ul", "", "rpdf-discussion-list");
+  section.append(heading, status, list);
+  container.append(section);
+  function show(comment) {
+    const item = element2("li");
+    const info = [labelTarget?.(comment.target), comment.author || "Anonymous"].filter(Boolean);
+    const byline = element2("p", info.join(" \xB7 "), "rpdf-discussion-byline");
+    if (comment.createdAt) {
+      const time = element2("time", " \xB7 " + comment.createdAt.replace("T", " ").slice(0, 16) + " UTC");
+      time.dateTime = comment.createdAt;
+      byline.append(time);
+    }
+    item.append(byline, element2("p", comment.body, "rpdf-discussion-text"));
+    list.append(item);
+  }
+  try {
+    for (const comment of await load()) show(comment);
+    status.textContent = list.childElementCount ? "" : "No comments yet.";
+  } catch {
+    status.textContent = "Comments are unavailable. Reopen the discussion to try again.";
+    return;
+  }
+  if (!post) return;
+  const form = element2("form");
+  if (targetControl) form.append(targetControl);
+  const label = element2("label", "Comment");
+  const input = element2("textarea", "", "stx-textarea");
+  input.required = true;
+  input.rows = 3;
+  label.append(input);
+  const submit = element2("button", "Post comment", "stx-button stx-button--primary");
+  submit.type = "submit";
+  const feedback = element2("p");
+  feedback.setAttribute("role", "status");
+  form.append(label, submit, feedback);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || submit.disabled) return;
+    submit.disabled = true;
+    input.readOnly = true;
+    feedback.textContent = "Posting comment\u2026";
+    try {
+      show(await post(text));
+      status.textContent = "";
+      input.value = "";
+      feedback.textContent = "Comment posted.";
+    } catch {
+      feedback.textContent = "Could not post your comment. Your draft is still here.";
+    } finally {
+      input.readOnly = false;
+      submit.disabled = false;
+    }
+  });
+  section.append(form);
 }
 function createOverlayPreview(container, port) {
   let active = null;
@@ -615,7 +651,13 @@ function createFeed(container, choose, renderEntry) {
     }
   };
 }
-function createPdfNavigation({ container, pdfjs, onDocument }) {
+function createPdfNavigation({
+  container,
+  toggle: externalToggle,
+  pdfjs,
+  onDocument,
+  initiallyOpen = !externalToggle
+}) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
@@ -631,7 +673,8 @@ function createPdfNavigation({ container, pdfjs, onDocument }) {
   content.id = container.id + "-content";
   toggle.setAttribute("aria-controls", content.id);
   titlebar.append(title, toggle);
-  container.replaceChildren(titlebar, controls, content);
+  if (externalToggle) container.replaceChildren(controls, content);
+  else container.replaceChildren(titlebar, controls, content);
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
   content.append(pagePanel, bookmarkPanel);
@@ -660,6 +703,11 @@ function createPdfNavigation({ container, pdfjs, onDocument }) {
     content.scrollTop = 0;
   }
   function setOpen(open) {
+    if (externalToggle) {
+      container.hidden = !open;
+      externalToggle.setAttribute("aria-expanded", String(open));
+      return;
+    }
     container.toggleAttribute("data-collapsed", !open);
     title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
@@ -667,14 +715,15 @@ function createPdfNavigation({ container, pdfjs, onDocument }) {
     toggle.title = open ? "Minimize PDF navigation" : "Expand PDF navigation";
     toggle.setAttribute("aria-label", toggle.title);
   }
+  externalToggle?.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
-    toggle.focus();
+    (externalToggle || toggle).focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(true);
+  setOpen(initiallyOpen);
   function choose(target) {
     destination = target;
     jump();
@@ -951,17 +1000,12 @@ function el(tag, className, text) {
   return node;
 }
 async function fetchComments(apiBase) {
-  try {
-    const res = await fetch(withBundleContext(apiBase + "comments"), {
-      headers: { Accept: "application/json" }
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) return [];
-    return Array.isArray(body.comments) ? body.comments : [];
-  } catch (err) {
-    console.warn("[live-paper] comments fetch failed:", err);
-    return [];
-  }
+  const res = await fetch(withBundleContext(apiBase + "comments"), {
+    headers: { Accept: "application/json" }
+  });
+  if (!res.ok) throw new Error("Comments unavailable");
+  const body = await res.json();
+  return Array.isArray(body.comments) ? body.comments : [];
 }
 async function postComment(apiBase, { body, target, author, kind }) {
   const comment = { body, target };
@@ -981,80 +1025,42 @@ async function postComment(apiBase, { body, target, author, kind }) {
   }
   return payload.comment;
 }
-async function renderCommentSection(containerEl, claimId, apiBase) {
-  containerEl.innerHTML = "";
-  const section = el("div", "lp-comments");
-  section.appendChild(el("p", "lp-comments-loading", "Loading comments\u2026"));
-  containerEl.appendChild(section);
+function showComments(panel, { apiBase, page, claimId, onComments }) {
+  const targetControl = el("label", null, "Attach to");
+  const select = el("select", "stx-select");
+  if (page) select.add(new Option(`PDF page ${page}`, "page"));
+  if (claimId) select.add(new Option(`Claim \xB7 ${claimId}`, "claim"));
+  targetControl.append(select);
   let comments = [];
-  try {
-    comments = (await fetchComments(apiBase)).filter(
-      (c) => c?.target?.claim_id === claimId
-    );
-  } catch (err) {
-    section.innerHTML = "";
-    section.appendChild(el("p", "lp-comments-empty", "Comments unavailable."));
-    return section;
+  function toDiscussion(comment) {
+    const { created_at, target, ...rest } = comment;
+    return {
+      ...rest,
+      createdAt: created_at,
+      target: target.claim_id ? { overlayId: target.claim_id } : target
+    };
   }
-  section.innerHTML = "";
-  section.appendChild(el("h3", "lp-comments-title", `Comments (${comments.length})`));
-  if (comments.length === 0) {
-    section.appendChild(
-      el("p", "lp-comments-empty", "No comments yet \u2014 add the first below.")
-    );
-  } else {
-    const list = el("ul", "lp-comments-list");
-    for (const c of comments) {
-      const item = el("li", "lp-comments-item");
-      const head = el("div", "lp-comments-head");
-      head.appendChild(el("span", "lp-comment-author", c.author || "anonymous"));
-      if (c.created_at) head.appendChild(el("span", "lp-comment-ts", String(c.created_at).slice(0, 16).replace("T", " ")));
-      item.appendChild(head);
-      item.appendChild(el("p", "lp-comment-body", c.body || ""));
-      list.appendChild(item);
-    }
-    section.appendChild(list);
-  }
-  const form = el("form", "lp-comments-form");
-  const input = el("textarea", "stx-textarea lp-comments-input");
-  input.rows = 2;
-  input.placeholder = "Add a comment on this claim\u2026";
-  input.setAttribute("aria-label", "New comment");
-  const row = el("div", "lp-comments-form-row");
-  const author = el("input", "stx-input lp-comments-author");
-  author.placeholder = "name (optional)";
-  author.setAttribute("aria-label", "Author name");
-  const submit = el("button", "stx-button stx-button--primary", "Comment");
-  submit.type = "submit";
-  row.appendChild(author);
-  row.appendChild(submit);
-  form.appendChild(input);
-  form.appendChild(row);
-  const error = el("p", "lp-comments-error");
-  error.hidden = true;
-  form.appendChild(error);
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    error.hidden = true;
-    const text = input.value.trim();
-    if (!text) return;
-    submit.disabled = true;
-    try {
-      await postComment(apiBase, {
-        body: text,
-        target: { claim_id: claimId },
-        author: author.value.trim() || void 0
-      });
-      await renderCommentSection(containerEl, claimId, apiBase);
-    } catch (err) {
-      error.textContent = String(err && err.message || err);
-      error.hidden = false;
-    } finally {
-      submit.disabled = false;
+  panel.replaceChildren();
+  return renderPdfDiscussion(panel, {
+    load: async () => {
+      comments = await fetchComments(apiBase);
+      onComments(comments);
+      return comments.map(toDiscussion);
+    },
+    post: select.options.length ? async (body) => {
+      const target = select.value === "claim" ? { claim_id: claimId } : { page };
+      const entry = await postComment(apiBase, { body, target });
+      comments.push(entry);
+      onComments(comments);
+      return toDiscussion(entry);
+    } : void 0,
+    targetControl,
+    labelTarget: (target) => {
+      if (target.overlayId) return `Claim \xB7 ${target.overlayId}`;
+      if (target.page) return `PDF page ${target.page}` + (target.bbox ? " \xB7 region" : "");
+      return "Quoted passage";
     }
   });
-  section.appendChild(form);
-  return section;
 }
 
 // src/scitex_live_paper/_django/static/live_paper/js/statistics-preview.js
@@ -1491,16 +1497,9 @@ function renderClaimDetail(sidebarEl, claim, apiBase, { refresh = false, goToPdf
   const controller = new AbortController();
   detailRequests.set(pane, controller);
   pane.ownerDocument.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !event.defaultPrevented) closeClaimDetail(sidebarEl);
+    if (event.key === "Escape" && !event.defaultPrevented && !selection.hidden) closeClaimDetail(sidebarEl);
   }, { signal: controller.signal });
   renderEvidenceDetails(pane, claim, apiBase, controller.signal);
-  try {
-    const commentsBox = el2("div", "lp-claim-comments-slot");
-    pane.appendChild(commentsBox);
-    void renderCommentSection(commentsBox, claim.claim_id, apiBase);
-  } catch (err) {
-    console.warn("[live-paper] comments section failed:", err);
-  }
   selection.append(pane);
   sidebarEl.scrollTop = 0;
   return pane;
@@ -2050,6 +2049,12 @@ var PDFViewer = class {
     });
     this.resizeObserver.observe(this.container);
   }
+  currentPage() {
+    const viewport = readerScroller(this.container).getBoundingClientRect();
+    const pages = [...this.container.querySelectorAll(".stx-pdf-page")];
+    const visible = pages.findIndex((page) => page.getBoundingClientRect().bottom > viewport.top);
+    return visible >= 0 ? visible + 1 : pages.length ? 1 : null;
+  }
   zoomAt(action, point) {
     if (!this.loaded) return false;
     clearTimeout(this.resizeTimer);
@@ -2438,10 +2443,14 @@ function bindClaimFilters(panel, claims, setFilter) {
 }
 function bindClaimTabs(sidebar) {
   bindTabs(sidebar.querySelector(".lp-claims-tabs"), (selected, refresh) => {
+    const commentsWasHidden = sidebar.querySelector("#lp-comments-panel").hidden;
     for (const tab of sidebar.querySelectorAll(".lp-claims-tabs > [role='tab']")) {
       sidebar.querySelector("#" + tab.getAttribute("aria-controls")).hidden = tab !== selected;
     }
     sidebar.scrollTop = 0;
+    if (commentsWasHidden && selected.id === "lp-comments-tab") {
+      sidebar.dispatchEvent(new CustomEvent("live-paper:comments-tab", { bubbles: true }));
+    }
     if (refresh && selected.id === "lp-selection-tab") {
       sidebar.dispatchEvent(new CustomEvent("live-paper:selection-tab", { bubbles: true }));
     }
@@ -2863,7 +2872,7 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
+      if (event.detail?.preview && (sidebar.dataset.pinnedClaim || !sidebar.querySelector("#lp-comments-panel").hidden)) return;
       if (!event.detail?.preview) {
         sidebar.removeAttribute("data-document-focused");
         sidebar.dataset.pinnedClaim = id;
@@ -2906,6 +2915,16 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    const sidebar = event.target;
+    const panel = sidebar.querySelector("#lp-comments-panel");
+    void showComments(panel, {
+      apiBase,
+      page: viewer.currentPage(),
+      claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
+      onComments: (comments) => viewer.setComments(comments)
+    });
+  });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");

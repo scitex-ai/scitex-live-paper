@@ -3,7 +3,7 @@ export interface PdfDocument { id: string; src: PdfSource; revision?: string; re
 /** All geometry uses 1-based pages and bottom-left PDF units. */
 export interface PdfTarget { overlayId?: string; page?: number; bbox?: number[]; readonly?: boolean; }
 export interface PdfOverlay { id: string; page: number; bbox: number[]; label?: string; status?: string; appearance?: "highlight" | "region"; readonly?: boolean; target?: unknown; }
-export interface PdfComment { id: string; body: string; author?: string; target: PdfTarget; }
+export interface PdfComment { id: string; body: string; author?: string; createdAt?: string; target: PdfTarget; }
 export interface PdfEvent { type: string; documentId: string | null; [key: string]: unknown; }
 export interface PdfFeedEntry {
   id: string;
@@ -45,13 +45,22 @@ export interface RichPdfApi {
 }
 export function createRichPdfViewer(options: RichPdfOptions): RichPdfApi;
 
+export interface PdfDiscussionOptions {
+  title?: string;
+  load(): PdfComment[] | Promise<PdfComment[]>;
+  post?(body: string): Promise<PdfComment>;
+  targetControl?: HTMLElement;
+  labelTarget?(target: PdfTarget): string;
+}
+export function renderPdfDiscussion(container: HTMLElement, options: PdfDiscussionOptions): Promise<void>;
+
 type PdfRuntime = NonNullable<PdfViewerOptions["pdfjs"]>;
 type LoadedPdf = Awaited<ReturnType<PdfRuntime["getDocument"]>["promise"]>;
 
 export interface PdfNavigationOptions {
   /** Empty mount beside the scrollable PDF viewport. */
   container: HTMLElement;
-  toggle: HTMLButtonElement;
+  toggle?: HTMLButtonElement;
   pdfjs: PdfRuntime;
   initiallyOpen?: boolean;
   onDocument?(document: LoadedPdf): void;
@@ -61,6 +70,7 @@ export interface PdfNavigationApi {
   readonly runtime: PdfRuntime;
   pageRendered(page: number, surface: import('@scitex/sdk/ui/pdf-viewer').PdfPageSurface): void;
   finishRender(): void;
+  goTo(target: {page: number; bbox?: number[]; left?: number; top?: number}): void;
   destroy(): void;
 }
 

@@ -159,28 +159,14 @@ export function createRichPdfViewer(options) {
     const close = document.createElement("button"); close.type = "button"; close.textContent = "Close comments";
     close.addEventListener("click", () => { panel.remove(); anchor?.focus(); });
     panel.append(close);
-    for (const comment of comments.filter((item) => sameTarget(item.target, target))) {
-      const row = document.createElement("p"); row.className = "lp-rich-comment";
-      row.textContent = [comment.author, comment.body].filter(Boolean).join(": "); panel.append(row);
-    }
-    if (ports.comments?.create) {
-      const form = document.createElement("form");
-      const input = document.createElement("textarea"); input.setAttribute("aria-label", "New PDF comment"); input.required = true;
-      const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = "Add comment";
-      const status = document.createElement("p"); status.setAttribute("role", "status");
-      if (!allow("comment-create", target)) { input.disabled = true; submit.disabled = true; status.textContent = "Comments are read-only for this target."; }
-      form.append(input, submit, status); panel.append(form);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault(); submit.disabled = true; status.textContent = "Saving comment…";
-        try {
-          await createComment(target, input.value);
-          if (!panel.isConnected) return;
-          status.textContent = "Comment saved."; input.value = "";
-          selectTarget(target, anchor, overlay);
-        } catch (error) { if (panel.isConnected) status.textContent = error.message || "Comment could not be saved."; }
-        finally { if (panel.isConnected) submit.disabled = !allow("comment-create", target); }
-      });
-    }
+    const targetComments = comments.filter((item) => sameTarget(item.target, target));
+    const title = target.overlayId ? "Overlay comments" : `Page ${target.page} comments`;
+    void renderPdfDiscussion(panel, {
+      title,
+      load: () => targetComments,
+      post: ports.comments?.create && allow("comment-create", target)
+        ? (body) => createComment(target, body) : undefined,
+    });
     (options.commentsContainer || container).append(panel);
     popup = panel;
     emit({ type: "comments-open", target });
@@ -250,6 +236,80 @@ export function createRichPdfViewer(options) {
   }
   return { renderer, load, refresh, setOverlays, setComments,
     setFeedFilter: (filter) => feed?.setFilter(filter), selectOverlay, selectTarget, createComment, destroy };
+}
+
+/** Mount a reusable discussion with caller-supplied comment access and storage. */
+export async function renderPdfDiscussion(container, { title = "Comments", load, post, targetControl, labelTarget }) {
+  const doc = container.ownerDocument;
+  function element(tag, text, className) {
+    const node = doc.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  const section = element("section", "", "rpdf-discussion");
+  section.setAttribute("aria-label", title);
+  const heading = element("h3", title);
+  const status = element("p", "Loading comments…");
+  status.setAttribute("role", "status");
+  const list = element("ul", "", "rpdf-discussion-list");
+  section.append(heading, status, list);
+  container.append(section);
+
+  function show(comment) {
+    const item = element("li");
+    const info = [labelTarget?.(comment.target), comment.author || "Anonymous"].filter(Boolean);
+    const byline = element("p", info.join(" · "), "rpdf-discussion-byline");
+    if (comment.createdAt) {
+      const time = element("time", " · " + comment.createdAt.replace("T", " ").slice(0, 16) + " UTC");
+      time.dateTime = comment.createdAt;
+      byline.append(time);
+    }
+    item.append(byline, element("p", comment.body, "rpdf-discussion-text"));
+    list.append(item);
+  }
+
+  try {
+    for (const comment of await load()) show(comment);
+    status.textContent = list.childElementCount ? "" : "No comments yet.";
+  } catch {
+    status.textContent = "Comments are unavailable. Reopen the discussion to try again.";
+    return;
+  }
+  if (!post) return;
+
+  const form = element("form");
+  if (targetControl) form.append(targetControl);
+  const label = element("label", "Comment");
+  const input = element("textarea", "", "stx-textarea");
+  input.required = true;
+  input.rows = 3;
+  label.append(input);
+  const submit = element("button", "Post comment", "stx-button stx-button--primary");
+  submit.type = "submit";
+  const feedback = element("p");
+  feedback.setAttribute("role", "status");
+  form.append(label, submit, feedback);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text || submit.disabled) return;
+    submit.disabled = true;
+    input.readOnly = true;
+    feedback.textContent = "Posting comment…";
+    try {
+      show(await post(text));
+      status.textContent = "";
+      input.value = "";
+      feedback.textContent = "Comment posted.";
+    } catch {
+      feedback.textContent = "Could not post your comment. Your draft is still here.";
+    } finally {
+      input.readOnly = false;
+      submit.disabled = false;
+    }
+  });
+  section.append(form);
 }
 
 function createOverlayPreview(container, port) {
@@ -435,7 +495,8 @@ function createFeed(container, choose, renderEntry) {
 }
 
 /** Shared PDF navigation. Wrap the PDF.js runtime passed to the renderer once. */
-export function createPdfNavigation({ container, pdfjs, onDocument }) {
+export function createPdfNavigation({ container, toggle: externalToggle, pdfjs, onDocument,
+  initiallyOpen = !externalToggle }) {
   const controls = document.createElement("div");
   controls.className = "rpdf-nav-controls";
   const content = document.createElement("div");
@@ -451,7 +512,8 @@ export function createPdfNavigation({ container, pdfjs, onDocument }) {
   content.id = container.id + "-content";
   toggle.setAttribute("aria-controls", content.id);
   titlebar.append(title, toggle);
-  container.replaceChildren(titlebar, controls, content);
+  if (externalToggle) container.replaceChildren(controls, content);
+  else container.replaceChildren(titlebar, controls, content);
 
   const pagePanel = document.createElement("div");
   const bookmarkPanel = document.createElement("div");
@@ -484,6 +546,11 @@ export function createPdfNavigation({ container, pdfjs, onDocument }) {
   }
 
   function setOpen(open) {
+    if (externalToggle) {
+      container.hidden = !open;
+      externalToggle.setAttribute("aria-expanded", String(open));
+      return;
+    }
     container.toggleAttribute("data-collapsed", !open);
     title.hidden = controls.hidden = content.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
@@ -492,14 +559,15 @@ export function createPdfNavigation({ container, pdfjs, onDocument }) {
     toggle.setAttribute("aria-label", toggle.title);
   }
 
+  externalToggle?.addEventListener("click", () => setOpen(container.hidden), { signal: events.signal });
   container.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || container.hasAttribute("data-collapsed")) return;
     setOpen(false);
-    toggle.focus();
+    (externalToggle || toggle).focus();
     event.stopPropagation();
   }, { signal: events.signal });
   select("pages");
-  setOpen(true);
+  setOpen(initiallyOpen);
 
   function choose(target) {
     destination = target;

@@ -360,9 +360,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
         assert "invert" in raster.evaluate("node => getComputedStyle(node).filter")
         assert page.evaluate("localStorage.getItem('live-paper.pdf-theme')") == "dark"
         pdf_theme.select_option("auto")
-        comment_height = preview.get_by_role("button", name="Comment", exact=True).evaluate(
-            "node => node.getBoundingClientRect().height"
-        )
         source_lists = preview.get_by_text("Browse sources", exact=True).count()
         source_link_is_claim_bound = "claim_id=value" in preview.get_by_role(
             "link", name="Open full evidence graph"
@@ -578,8 +575,30 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
             source_selected, source_link_is_claim_bound, marked, focus_restored,
             guessed_images, mark_status, status_color, language, source_lists,
             snapped, hover_during_scroll, pinned_source, archive_round_trip,
-            page.locator(".lp-rich-preview").count(), source_action_urls, code_colors, comment_height >= 30, bookmarks_work, fresh_graph, exports,
+            page.locator(".lp-rich-preview").count(), source_action_urls, code_colors, bookmarks_work, fresh_graph, exports,
         )
+        comments_tab = inspector.get_by_role("tab", name="Comments", exact=True)
+        assert preview.get_by_role("textbox", name="Comment", exact=True).count() == 0
+        comments_tab.click()
+        discussion = inspector.get_by_role("region", name="Comments", exact=True)
+        attach_to = discussion.get_by_role("combobox", name="Attach to")
+        assert attach_to.input_value() == "page"
+        post = discussion.get_by_role("button", name="Post comment", exact=True)
+        assert post.evaluate("node => node.getBoundingClientRect().height") >= 30
+        box = discussion.get_by_role("textbox", name="Comment", exact=True)
+        box.fill("Check the units on this page.")
+        with page.expect_response(lambda r: "/api/comments" in r.url and r.request.method == "POST") as posted:
+            post.click()
+        assert posted.value.ok, posted.value.text()
+        discussion.get_by_text("Check the units on this page.", exact=True).wait_for()
+        attach_to.select_option("claim")
+        box.fill("Where did this value come from?")
+        post.click()
+        discussion.get_by_text("Where did this value come from?", exact=True).wait_for()
+        inspector.get_by_role("tab", name="Selected claim", exact=True).click()
+        comments_tab.click()
+        discussion.get_by_text("Check the units on this page.", exact=True).wait_for()
+        assert discussion.get_by_role("listitem").get_by_text("Claim · value", exact=False).count() == 1
         screenshots = os.environ.get("LP_SCREENSHOT_DIR")
         if screenshots:
             Path(screenshots).mkdir(parents=True, exist_ok=True)
@@ -594,6 +613,6 @@ def test_reader_layout_keeps_pdf_and_claim_evidence_connected(
     assert observed == (
         200, True, True, True, "true", True, True, True, "manuscript.pdf", True, "true", True, True, True, 0, "verified", True, "language-python", 0, True, False, True, True, 0,
         ("/alice/demo/blob/analysis.py", "/alice/demo/", "_blank"),
-        ["rgb(36, 41, 47)", "rgb(230, 237, 243)"], True, True, True,
+        ["rgb(36, 41, 47)", "rgb(230, 237, 243)"], True, True,
         [("manuscript-highlighted.pdf", page_count, True), ("manuscript-with-evidence-graph.pdf", page_count + 1, True)],
     )

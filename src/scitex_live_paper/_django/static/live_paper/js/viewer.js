@@ -35,7 +35,7 @@ import { bindTabs, renderClaimsSidebar } from "./claims-sidebar.js";
 import { renderReReviewBadge } from "./re-review-badge.js";
 import { bindPortEvents } from "./port-events.js";
 import { createEventLog, bindEventLog } from "./event-log.js";
-import { fetchComments } from "./comments.js";
+import { fetchComments, showComments } from "./comments.js";
 import { isMissingPaper, renderEmptyState } from "./empty-state.js";
 import { hideLoading } from "./_utils.js";
 
@@ -189,7 +189,8 @@ async function boot(rootEl) {
     if (!claim) return;
     try {
       const sidebar = ensureClaimsSidebar(rootEl);
-      if (event.detail?.preview && sidebar.dataset.pinnedClaim) return;
+      if (event.detail?.preview &&
+          (sidebar.dataset.pinnedClaim || !sidebar.querySelector("#lp-comments-panel").hidden)) return;
       if (!event.detail?.preview) {
         sidebar.removeAttribute("data-document-focused");
         sidebar.dataset.pinnedClaim = id;
@@ -237,6 +238,16 @@ async function boot(rootEl) {
   } catch (err) {
     console.warn("[live-paper] comments boot fetch failed", err);
   }
+  rootEl.addEventListener("live-paper:comments-tab", (event) => {
+    const sidebar = event.target;
+    const panel = sidebar.querySelector("#lp-comments-panel");
+    void showComments(panel, {
+      apiBase,
+      page: viewer.currentPage(),
+      claimId: sidebar.querySelector("#lp-selection-panel .lp-claim-detail")?.dataset.claimId,
+      onComments: (comments) => viewer.setComments(comments),
+    });
+  });
   const download = rootEl.querySelector("#live-paper-download-pdf");
   if (bundleInfo && download) {
     download.href = withBundleContext(apiBase + "pdf?download=1");
