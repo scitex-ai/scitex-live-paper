@@ -16,7 +16,7 @@ no graph connects it, so there is nothing to say about it.
 | Artifact | id | version | file |
 |---|---|---|---|
 | Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.2.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
-| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.2.0` | `src/scitex_live_paper/evidence/review-packet.schema.json` (shipped in the wheel; produced by `export-review`, documented below) |
+| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.3.0` | `src/scitex_live_paper/evidence/review-packet.schema.json` (shipped in the wheel; produced by `export-review`, documented below) |
 
 Both carry `schema` + `schema_version` (semver). A **minor** bump only adds
 optional fields, so a consumer of `1.x` keeps working. A **major** bump changes
@@ -186,17 +186,20 @@ one review packet, so they cannot disagree. A test enforces this.
 
 ## Review packet (what a reviewer reads)
 
-`scitex-live-paper.review-packet` 1.2.0 is the evidence report re-ordered for
+`scitex-live-paper.review-packet` 1.3.0 is the evidence report re-ordered for
 review: `needs_inspection` (ordered as above) and `supported`. Each entry adds
 `label`, `symbol`, `needs_inspection`, `graph_url` (the claim's page in the
 rendered site), and (1.1.0) `failing_nodes`: one
 `{id, kind, label, failure, failure_label, detail}` per marked graph node,
 in graph order (empty when none is marked). Each entry's `source` carries
 (1.2.0) `value` and `value_reported` (whether the report gave a value). The packet also includes `scope`, `states` (state to label),
-`counts`, and `provider`.
+`counts`, and `provider`. Packet 1.3.0 adds top-level `self_proof`: the bundle's
+optional reproduction receipt (`self-proof.json`) as
+`{schema, verdict, finished_at, date, source: {commit, ref}, claims: {ok, committed, verified}, failures}`,
+or `null` when the bundle has none (the evidence report itself is unchanged).
 
 The packet's JSON Schema (draft 2020-12, `$id`
-`https://scitex.ai/schemas/scitex-live-paper/review-packet/1.2.0`) is
+`https://scitex.ai/schemas/scitex-live-paper/review-packet/1.3.0`) is
 self-contained (no external `$ref`), so a consumer can vendor a copy pinned by
 commit and validate packets offline. The test suite validates packets built
 from the reference provider against it.

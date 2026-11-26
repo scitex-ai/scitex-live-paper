@@ -241,8 +241,35 @@ export async function renderTraceSummary(rootEl, apiBase) {
   inspect.textContent = packet.needs_inspection.length + " to inspect";
   summary.dataset.needsInspection = String(packet.needs_inspection.length > 0);
   summary.append(label, " · ", verified, " · ", inspect);
-  banner.replaceChildren(summary);
+  const receipt = selfProofElement(packet.self_proof);
+  banner.replaceChildren(...(receipt ? [summary, receipt] : [summary]));
   banner.hidden = false;
+}
+
+/**
+ * The bundle's optional reproduction receipt (`self-proof.json`, packet
+ * `self_proof`) as one line, or null when the bundle has none. Worded like
+ * `self_proof_line` in evidence/_packet.py, which the evidence view uses.
+ */
+export function selfProofElement(receipt) {
+  if (!receipt?.claims || !receipt.date) return null;
+  const line = document.createElement("span");
+  line.className = "lp-trace-self-proof";
+  line.dataset.verdict = receipt.verdict;
+  if (receipt.verdict === "FAIL") {
+    const first = receipt.failures?.[0] ?? "no failure detail recorded";
+    line.textContent = `self-proof FAILED on ${receipt.date}: ${first}`;
+  } else {
+    const { ok, committed } = receipt.claims;
+    line.textContent =
+      `self-proof: ${ok}/${committed} claims re-derived from a fresh checkout on ${receipt.date}`;
+  }
+  const commit = receipt.source?.commit;
+  if (commit) {
+    const ref = receipt.source.ref ? ` (${receipt.source.ref})` : "";
+    line.title = `commit ${commit.slice(0, 7)}${ref}`;
+  }
+  return line;
 }
 
 function bindReaderLayout(rootEl) {

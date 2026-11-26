@@ -30,12 +30,14 @@ __all__ = [
     "find_claim",
     "iter_entries",
     "review_text",
+    "self_proof_line",
 ]
 
 PACKET_SCHEMA = "scitex-live-paper.review-packet"
 #: 1.1.0 adds ``failing_nodes`` per entry (from report node ``failure``).
 #: 1.2.0 adds ``source.value`` + ``source.value_reported`` (report 1.2.0).
-PACKET_SCHEMA_VERSION = "1.2.0"
+#: 1.3.0 adds top-level ``self_proof`` (the bundle's reproduction receipt or null).
+PACKET_SCHEMA_VERSION = "1.3.0"
 
 SCOPE = (
     "Registered claims only. Text that is not a registered claim is not "
@@ -109,9 +111,17 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
 
 
 def build_review_packet(
-    report: Mapping[str, Any], graph_urls: Mapping[str, str] | None = None
+    report: Mapping[str, Any],
+    graph_urls: Mapping[str, str] | None = None,
+    *,
+    self_proof: Any = None,
 ) -> dict[str, Any]:
-    """Order *report*'s claims for review: needs inspection first, then supported."""
+    """Order *report*'s claims for review: needs inspection first, then supported.
+
+    *self_proof* is the bundle's optional reproduction receipt
+    (:class:`scitex_live_paper.bundle.SelfProof`); the packet carries its
+    ``to_dict()`` form under ``self_proof``, or ``None`` when there is none.
+    """
     validate_report(report)
     urls = graph_urls or {}
     rank = {s: i for i, s in enumerate(INSPECTION_ORDER)}
@@ -136,7 +146,26 @@ def build_review_packet(
         "counts": counts,
         "needs_inspection": needs,
         "supported": supported,
+        "self_proof": self_proof.to_dict() if self_proof is not None else None,
     }
+
+
+def self_proof_line(receipt: Mapping[str, Any] | None) -> str | None:
+    """The one reader line for a packet's ``self_proof`` (``None`` when absent).
+
+    The PDF reader (viewer.js) words the line identically.
+    """
+    if not receipt:
+        return None
+    if receipt["verdict"] == "FAIL":
+        failures = receipt.get("failures") or []
+        first = failures[0] if failures else "no failure detail recorded"
+        return f"self-proof FAILED on {receipt['date']}: {first}"
+    claims = receipt["claims"]
+    return (
+        f"self-proof: {claims['ok']}/{claims['committed']} claims re-derived "
+        f"from a fresh checkout on {receipt['date']}"
+    )
 
 
 def iter_entries(packet: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
@@ -169,8 +198,11 @@ def review_text(packet: Mapping[str, Any]) -> str:
         f"schema {packet['schema']} v{packet['schema_version']}",
         packet["scope"],
         f"Counts: {counts}",
-        "",
     ]
+    receipt = self_proof_line(packet.get("self_proof"))
+    if receipt:
+        out.append(receipt)
+    out.append("")
     for title, key in (
         ("NEEDS INSPECTION", "needs_inspection"),
         ("SUPPORTED", "supported"),

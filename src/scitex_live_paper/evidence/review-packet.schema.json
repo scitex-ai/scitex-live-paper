@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://scitex.ai/schemas/scitex-live-paper/review-packet/1.2.0",
+  "$id": "https://scitex.ai/schemas/scitex-live-paper/review-packet/1.3.0",
   "title": "scitex-live-paper review packet",
   "description": "What scitex-live-paper hands a human or AI reviewer (review.json, export-review, MCP live_paper_evidence_review): the evidence report re-ordered for review, needs_inspection first (not_supported, not_checkable, no_evidence_graph; then by file, line, claim_id), then supported (by file, line, claim_id). Only registered claims appear. Versioned by schema_version (semver): a MINOR bump only adds fields; a MAJOR bump changes or removes fields. Self-contained (no external $ref). See docs/evidence-provider-contract.md.",
   "type": "object",
@@ -75,6 +75,43 @@
           }
         ]
       }
+    },
+    "self_proof": {
+      "description": "Added in 1.3.0. The bundle's optional reproduction receipt (self-proof.json, written by a paper project's `make self-proof`: every claim re-derived from a fresh clone), or null when the bundle has none or it is malformed. Absent in packets older than 1.3.0.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["schema", "verdict", "finished_at", "date", "source", "claims", "failures"],
+          "additionalProperties": false,
+          "properties": {
+            "schema": {"type": "string", "pattern": "/self-proof/v1$"},
+            "verdict": {"enum": ["PASS", "FAIL"]},
+            "finished_at": {"type": "string", "description": "ISO-8601 UTC, verbatim from the receipt."},
+            "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "UTC date of finished_at, as the reader shows it."},
+            "source": {
+              "type": "object",
+              "required": ["commit", "ref"],
+              "additionalProperties": false,
+              "properties": {
+                "commit": {"type": "string", "minLength": 1},
+                "ref": {"type": ["string", "null"]}
+              }
+            },
+            "claims": {
+              "type": "object",
+              "required": ["ok", "committed", "verified"],
+              "additionalProperties": false,
+              "properties": {
+                "ok": {"$ref": "#/$defs/count"},
+                "committed": {"$ref": "#/$defs/count"},
+                "verified": {"$ref": "#/$defs/count"}
+              }
+            },
+            "failures": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      ]
     }
   },
   "$defs": {

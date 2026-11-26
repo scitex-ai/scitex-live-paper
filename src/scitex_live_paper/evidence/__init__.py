@@ -33,6 +33,7 @@ from ._packet import (
     find_claim,
     iter_entries,
     review_text,
+    self_proof_line,
 )
 from ._provider import (
     ProviderNotFound,
@@ -85,5 +86,6 @@ __all__ = [
     "load_report",
     "review_text",
     "schema_path",
+    "self_proof_line",
     "validate_report",
 ]

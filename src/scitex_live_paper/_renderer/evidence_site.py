@@ -100,7 +100,9 @@ def render_evidence_pages(
     urls = {
         c["claim_id"]: claim_graph_filename(c["claim_id"]) for c in report["claims"]
     }
-    packet = build_review_packet(report, urls)
+    packet = build_review_packet(
+        report, urls, self_proof=bundle.self_proof if bundle else None
+    )
 
     text_root = packet.get("project_root") or (str(bundle.root) if bundle else None)
     paper = render_paper(packet, out, text_root=text_root, project_label=project_label)
