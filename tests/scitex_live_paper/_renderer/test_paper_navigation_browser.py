@@ -351,3 +351,144 @@ def test_latex_reader_source_toggle_preserves_one_claim_and_evidence_panel(
         context.close()
     # Assert
     assert (r"\documentclass" not in reader, r"\section" not in reader, title, reader_marks, verdict, r"\documentclass{article}" in source, r"\section*{Results}" in source, source_marks, r"\documentclass" not in restored, errors) == (True, True, "A readable manuscript", 1, "not_supported", True, True, 1, True, [])
+
+
+def _render_variant(ref_site, tmp_path, edit):
+    """Render the paper page from a copy of the reference packet after *edit*."""
+    from copy import deepcopy
+
+    from scitex_live_paper._renderer.paper import render_paper
+
+    _out, _result, packet = ref_site
+    review = deepcopy(packet)
+    edit(review)
+    return render_paper(review, tmp_path / "variant").paper_html.as_uri()
+
+
+def _entry(review, claim_id):
+    from scitex_live_paper.evidence import iter_entries
+
+    return next(e for e in iter_entries(review) if e["claim_id"] == claim_id)
+
+
+def test_supported_claim_with_a_numeric_string_source_shows_equal(
+    browser, ref_site, tmp_path
+):
+    # Arrange: a two-value claim whose source holds the same numbers as strings
+    def edit(review):
+        entry = _entry(review, "auc")
+        entry["stated_text"] = "0.91"
+        entry["stated_value"] = {"correct": 476, "judged": 476}
+        entry["source"].update(
+            value={"correct": "476", "judged": "476"}, value_reported=True
+        )
+
+    url = _render_variant(ref_site, tmp_path, edit)
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    pg = ctx.new_page()
+    # Act
+    pg.goto(url)
+    pg.wait_for_selector("html[data-lp-paper-ready]", state="attached")
+    pg.click("mark#claim-auc a")
+    values = _panel(pg).locator(".lp-claim-values").inner_text()
+    relation = (
+        _panel(pg).locator("[data-value-relation]").get_attribute("data-value-relation")
+    )
+    ctx.close()
+    # Assert
+    assert (
+        relation,
+        "= matches the stated value" in values,
+        "differs" in values,
+        "correct = 476, judged = 476" in values,
+    ) == ("equal", True, False, True)
+
+
+def test_wide_minimal_graph_is_not_squashed_in_the_panel(browser, ref_site, tmp_path):
+    # Arrange: one run reading 33 files, the shape that drew as a thin strip
+    def edit(review):
+        entry = _entry(review, "auc")
+        nodes = [{"id": "p", "kind": "process", "label": "scripts/run.py"}]
+        edges = []
+        for i in range(33):
+            nodes.append(
+                {
+                    "id": f"i{i}",
+                    "kind": "input",
+                    "label": f"data/file_{i:02d}.csv",
+                    "hash": "0" * 8,
+                }
+            )
+            edges.append({"source": f"i{i}", "target": "p", "kind": "input"})
+        nodes += [
+            {"id": "o", "kind": "output", "label": "results/out.json", "hash": "1" * 8},
+            {"id": "c", "kind": "claim", "label": "auc"},
+        ]
+        edges += [
+            {"source": "p", "target": "o", "kind": "output"},
+            {"source": "o", "target": "c", "kind": "supports"},
+        ]
+        entry["graph"] = {"nodes": nodes, "edges": edges, "summary": "1 run, 34 files"}
+
+    url = _render_variant(ref_site, tmp_path, edit)
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    pg = ctx.new_page()
+    # Act
+    pg.goto(url)
+    pg.wait_for_selector("html[data-lp-paper-ready]", state="attached")
+    pg.click("mark#claim-auc a")
+    _graph_drawn(pg)
+    _shot(pg, "popover-wide-graph")
+    box = pg.locator("#lp-claim-panel .lp-claim-graph svg").bounding_box()
+    nodes = pg.locator("#lp-claim-panel g.node[data-lp-node-kind]").count()
+    ctx.close()
+    # Assert: drawn at a readable aspect, every node present
+    assert (box["width"] / box["height"] <= 2.5, box["height"] >= 150, nodes) == (
+        True,
+        True,
+        36,
+    )
+
+
+def test_latex_reader_renders_common_inline_latex(browser, ref_site, tmp_path):
+    # Arrange
+    from copy import deepcopy
+
+    from scitex_live_paper._renderer.paper import render_paper
+    from scitex_live_paper.evidence import iter_entries
+
+    _out, _result, packet = ref_site
+    review = deepcopy(packet)
+    lines = [
+        r"\section{Results}\label{sec:results}",
+        r"\begin{abstract} \pdfbookmark[1]{Abstract}{abstract}",
+        r"input $\rightarrow$ output, \emph{slices}, 10\,\% in 0.7--0.8~s (Section~\ref{sec:results}).",
+        r"\end{abstract}",
+    ]
+    for entry in iter_entries(review):
+        lines.append(r"Value \vclaim{" + entry["claim_id"] + "}.")
+        entry["location"].update(file="main.tex", line=len(lines))
+    text = "\n".join(lines)
+    result = render_paper(review, tmp_path / "inline", read_text=lambda _name: text)
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    pg = ctx.new_page()
+    # Act
+    pg.goto(result.paper_html.as_uri())
+    pg.wait_for_selector("html[data-lp-paper-ready]", state="attached")
+    article = pg.locator(".lp-paper-text")
+    reader = article.inner_text()
+    pg.locator(".lp-tex-ref").click()
+    ref_url = pg.url
+    pg.locator(".lp-source-toggle").check()
+    source = article.inner_text()
+    ctx.close()
+    # Assert
+    assert (
+        any(raw in reader for raw in ("\\", "$", "~", "--")),
+        "input → output" in reader,
+        "10 %" in reader,
+        "0.7–0.8" in reader,
+        ref_url.endswith("#lp-label-sec:results"),
+        r"\begin{abstract} \pdfbookmark[1]{Abstract}{abstract}" in source,
+        r"$\rightarrow$" in source and r"10\,\%" in source,
+    ) == (False, True, True, True, True, True, True)

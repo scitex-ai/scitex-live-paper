@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from markupsafe import Markup, escape
 
+from ._latex_inline import render_inline
+
 _HEADING = re.compile(
     r"^(\s*\\(title|author|date|section|subsection|subsubsection|paragraph)\*?\s*\{)"
-    r"(.*)(\}\s*)$"
+    r"((?:[^{}]|\{[^{}]*\})*)(\})(.*)$"
 )
 _LEVELS = {"title": 1, "section": 2, "subsection": 3, "subsubsection": 4, "paragraph": 5}
 _BEGIN = re.compile(r"\\begin\s*\{\s*document\s*\}")
@@ -21,24 +23,33 @@ def _heading_markup(raw: str, html: Markup):
     match = _HEADING.fullmatch(raw)
     if match is None:
         return None
-    prefix, suffix = str(escape(match[1])), str(escape(match[4]))
+    prefix, close = str(escape(match[1])), str(escape(match[4]))
+    tail = str(escape(match[5]))  # e.g. a \label after the heading
     rendered = str(html)
     # Only touch literal line boundaries. Never search/replace inside a
     # generated claim's attributes or unescape manuscript-supplied HTML.
-    if rendered.startswith(prefix) and rendered.endswith(suffix):
-        middle = rendered[len(prefix) : -len(suffix)]
+    if rendered.startswith(prefix) and rendered.endswith(close + tail):
+        middle = rendered[len(prefix) : len(rendered) - len(close + tail)]
         rendered = (
             '<span class="lp-tex-syntax">' + prefix + "</span>" + middle
-            + '<span class="lp-tex-syntax">' + suffix + "</span>"
+            + '<span class="lp-tex-syntax">' + close + "</span>" + tail
         )
     return Markup(rendered), "lp-tex-" + match[2], _LEVELS.get(match[2])
 
 
-def presentation_lines(text: str, highlighted: Sequence[Markup], *, is_latex=True):
+def presentation_lines(
+    text: str,
+    highlighted: Sequence[Markup],
+    *,
+    is_latex=True,
+    labels: Mapping[str, str | None] | None = None,
+):
     """Keep one original line/claim anchor per row, adding presentation hints.
 
     Source mode reveals all original escaped syntax. Reader mode hides TeX
-    setup and presents common headings; unknown body commands remain literal.
+    setup, presents common headings and renders common inline LaTeX
+    (symbols, dashes, emphasis, hidden labels/environments, ``\\ref`` links to
+    *labels*); unknown body commands remain literal.
     No includes, graphics, macros, scripts or external resources are executed.
     A registered claim always stays visible, including one in setup text.
     """
@@ -69,5 +80,6 @@ def presentation_lines(text: str, highlighted: Sequence[Markup], *, is_latex=Tru
             row["figure_note"] = bool(_GRAPHICS.fullmatch(raw))
         if end:
             ended = True
+        row["html"] = Markup(render_inline(str(row["html"]), labels))
         rows.append(row)
     return rows

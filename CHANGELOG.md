@@ -16,6 +16,15 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+- Compare a stated value with its source value after normalising types and the stated
+  precision (476 and "476" match); a supported claim never shows "differs".
+- Show multi-value claims as the manuscript states them (51/51), never as a dict, in the
+  paper text, the evidence panel, the graph page and the claims list.
+- Render common inline LaTeX in the reader view (arrows, %, thin spaces, dashes, emphasis,
+  bold, refs as links; environments, labels and bookmarks hidden); the source toggle still
+  shows the original text.
+- Draw a wide minimal evidence graph left-to-right in the evidence panel instead of a thin strip.
+
 ## [0.5.4] - 2026-11-22
 
 - Show revision-bound PDF highlights, claim graphs, and local previews of recorded files.

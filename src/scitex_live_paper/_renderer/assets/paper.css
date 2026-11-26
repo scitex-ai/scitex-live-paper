@@ -79,6 +79,19 @@
   font-weight: normal; color: inherit;
 }
 .lp-source-toggle:checked ~ .lp-paper-text .lp-tex-syntax { display: inline; }
+/* Inline LaTeX (_latex_inline.py): the rendering shows in the reader, the
+   original text (lp-tex-syntax) in the source view. */
+.lp-source-toggle:checked ~ .lp-paper-text .lp-tex-rendered,
+.lp-source-toggle:checked ~ .lp-paper-text .lp-tex-anchor { display: none; }
+.lp-source-toggle:checked ~ .lp-paper-text :is(em, strong, code, u)[class^="lp-tex-"] {
+  font: inherit; text-decoration: none;
+}
+.lp-paper-text[data-latex] .lp-tex-env-title {
+  display: block; margin: 0 0 0.35em; font-weight: 600; font-size: 1.2em;
+}
+.lp-paper-text[data-latex] .lp-tex-item::before { content: "\A"; white-space: pre; }
+.lp-tex-ref { color: #0969da; }
+.lp-tex-ref-unresolved, .lp-tex-cite { color: #57606a; }
 .lp-source-toggle:checked ~ .lp-paper-text .lp-tex-figure-note { display: none; }
 
 /* Room for the panel beside the text on wide screens. */
@@ -281,9 +294,14 @@ mark.lp-claim-span.lp-claim-flash { animation: lp-claim-flash 1.2s ease-out 1; }
   border-radius: 6px;
   padding: 6px;
   overflow: auto;
+  /* A tall graph scrolls inside the panel instead of pushing the node
+     list far below; a drawn graph never collapses to a strip. */
+  max-height: 70vh;
+  min-height: 120px;
   background: #fff;
 }
-.lp-claim-graph svg { max-width: 100%; height: auto; }
+.lp-claim-graph svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.lp-value-relation { font-weight: 600; }
 .lp-claim-graph g.node { cursor: pointer; }
 .lp-claim-graph g.node:focus { outline: none; }
 .lp-claim-graph g.node:focus-visible rect,

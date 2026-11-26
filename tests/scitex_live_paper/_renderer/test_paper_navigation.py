@@ -97,14 +97,16 @@ def test_embedded_failing_nodes_match_the_packet(ref_site):
     }
 
 
-def test_claims_data_adds_only_the_mermaid_source(ref_site):
+def test_claims_data_adds_only_the_mermaid_source_and_value_display(ref_site):
     # Arrange
     _out, _result, packet = ref_site
+    added = {"mermaid", "stated_display", "value_check"}
     # Act
     data = claims_data(packet)
-    # Assert
+    # Assert: every packet value is passed through unchanged
     assert all(
-        {k: v for k, v in c.items() if k != "mermaid"}.items() <= dict(e).items()
+        {k: v for k, v in c.items() if k not in added}.items() <= dict(e).items()
+        and added <= set(c)
         for c, e in zip(data, iter_entries(packet))
     )
 

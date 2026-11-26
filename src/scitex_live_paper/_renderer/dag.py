@@ -38,6 +38,7 @@ from scitex_live_paper.bundle import Bundle
 from scitex_live_paper.evidence import FAILURE_SYMBOL, failure_label
 
 from ._sdk_header import copy_sdk_header_assets, header_context
+from ._values import value_presentation
 
 __all__ = [
     "MERMAID_VERSION",
@@ -296,6 +297,7 @@ def render_claim_graph(
             + (f" · {summary}" if summary else "")
         ),
         claim=entry,
+        value=value_presentation(entry),
         support_css_url=asset("assets/support.css"),
         paper_url=paper_url,
         dag_source=source,

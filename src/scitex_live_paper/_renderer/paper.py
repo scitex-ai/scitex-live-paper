@@ -37,7 +37,9 @@ from markupsafe import Markup, escape
 from scitex_live_paper.evidence import SYMBOLS, iter_entries
 
 from ._sdk_header import copy_sdk_header_assets, header_context
+from ._latex_inline import collect_labels
 from ._paper_presentation import presentation_lines
+from ._values import display_value, value_presentation
 from .dag import MERMAID_VERSION, graph_to_mermaid
 
 __all__ = ["PaperArtifacts", "claims_data", "highlight_lines", "render_paper"]
@@ -46,6 +48,7 @@ _RENDERER_DIR = Path(__file__).resolve().parent
 _ASSETS_DIR = _RENDERER_DIR / "assets"
 _TEMPLATES_DIR = _RENDERER_DIR / "templates"
 _MERMAID_MAIN = "mermaid/mermaid.min.js"
+_LATEX_SUFFIXES = {".tex", ".ltx"}
 #: Assets the paper page loads, copied verbatim into ``<out>/assets/``.
 _PAPER_ASSETS = (
     "claims.css",
@@ -103,12 +106,10 @@ def highlight_lines(text: str, entries: list[Mapping[str, Any]]) -> list[Markup]
             macro = re.search(
                 r"\\vclaim\s*\{\s*" + re.escape(e["claim_id"]) + r"\s*\}", raw
             )
-            value = e.get("stated_value")
-            if isinstance(value, Mapping) and set(value) == {"value"}:
-                value = value["value"]
+            value = display_value(e.get("stated_value"), e.get("stated_text"))
             if macro is not None and value is not None:
                 at, end = macro.span()
-                display = str(value)
+                display = value
             taken = any(a < end and at < b for a, b, _, _ in pieces)
             if at >= 0 and not taken:
                 pieces.append((at, end, e, display))
@@ -155,11 +156,15 @@ def claims_data(review: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     Each entry is the packet entry (same keys, same values) plus ``mermaid``:
     the exact mermaid source the claim's graph page draws, so the inline graph
-    and the graph page cannot differ (``None`` when the claim has no graph).
+    and the graph page cannot differ (``None`` when the claim has no graph);
+    ``stated_display``: the stated value as the manuscript states it; and
+    ``value_check``: how the source value relates to it (``None`` when the
+    provider reported no source value).
     """
     out = []
     for e in iter_entries(review):
         item = {k: e.get(k) for k in _CLIENT_KEYS}
+        item.update(value_presentation(e))
         graph = e.get("graph")
         item["mermaid"] = (
             graph_to_mermaid(graph, state=e["state"])[0] if graph else None
@@ -202,7 +207,7 @@ def render_paper(
     root = Path(base) if base is not None else None
     by_file = manuscript_text_entries(review)
 
-    sections = []
+    texts = {}
     for rel in sorted(by_file):
         if read_text is not None:
             text = read_text(rel)
@@ -213,13 +218,22 @@ def render_paper(
             if not path.is_file():
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
+        texts[rel] = text
+    # \ref links resolve across every rendered file, not only the current one.
+    labels = collect_labels(
+        t for rel, t in texts.items() if Path(rel).suffix.lower() in _LATEX_SUFFIXES
+    )
+    sections = []
+    for rel, text in texts.items():
         lines = highlight_lines(text, by_file[rel])
-        is_latex = Path(rel).suffix.lower() in {".tex", ".ltx"}
+        is_latex = Path(rel).suffix.lower() in _LATEX_SUFFIXES
         sections.append({
             "file": rel,
             "lines": lines,
             "is_latex": is_latex,
-            "reader_lines": presentation_lines(text, lines, is_latex=is_latex),
+            "reader_lines": presentation_lines(
+                text, lines, is_latex=is_latex, labels=labels
+            ),
         })
     if not sections:
         return None
