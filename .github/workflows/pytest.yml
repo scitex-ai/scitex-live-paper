@@ -81,7 +81,7 @@ jobs:
           LP_REQUIRE_BROWSER: "1"
           LP_SCREENSHOT_DIR: ${{ runner.temp }}/paper-navigation-shots
         run: |
-          python -m pytest -ra tests/scitex_live_paper/_renderer/test_paper_navigation_browser.py tests/scitex_live_paper/_django/handlers/test_evidence_pages_browser.py tests/scitex_live_paper/_django/handlers/test_self_proof_browser.py
+          python -m pytest -ra tests/scitex_live_paper/_renderer/test_paper_navigation_browser.py tests/scitex_live_paper/_django/handlers/test_evidence_pages_browser.py tests/scitex_live_paper/_django/handlers/test_evidence_pages_self_proof_browser.py
 
       - name: Exercise the installed Rich PDF component and synchronized feed
         run: python tests/scitex_live_paper/check_rich_pdf_browser.py
