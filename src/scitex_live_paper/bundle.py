@@ -155,6 +155,14 @@ class Claim:
         # same normalization at ingest.
         if typed.get("status") == "partial":
             typed["status"] = "suspect"
+        # claim_value is display text. A structured value (a multi-value
+        # claim such as {"n": 51, "N": 51}) is shown the way a manuscript
+        # states it ("51/51"), never as a Python or JSON repr.
+        value = typed.get("claim_value")
+        if value is not None and not isinstance(value, str):
+            from scitex_live_paper._renderer._values import display_value
+
+            typed["claim_value"] = display_value(value)
         return cls(**typed, extras=extras)
 
 

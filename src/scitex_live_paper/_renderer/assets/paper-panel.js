@@ -50,10 +50,6 @@
     try { return JSON.stringify(value); } catch (e) { return String(value); }
   }
 
-  function same(a, b) {
-    try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return a === b; }
-  }
-
   function present(v) { return v !== null && v !== undefined; }
 
   function reducedMotion() {
@@ -160,12 +156,19 @@
     var row = function (term, dd) { dl.append(el('dt', { text: term }), dd); };
     var absent = function (text) { return el('dd', {}, [el('span', { class: 'lp-value-absent', text: text })]); };
     var code = function (text) { return el('dd', {}, [el('code', { text: text })]); };
-    row('Stated value', present(c.stated_value) ? code(fmt(c.stated_value)) : absent('not stated'));
+    // stated_display / value_check come from the renderer (_values.py), so
+    // the panel, the graph page and the paper text agree on both.
+    var stated = present(c.stated_display) ? c.stated_display : (present(c.stated_value) ? fmt(c.stated_value) : null);
+    row('Stated value', present(stated) ? code(stated) : absent('not stated'));
     if (src.value_reported) {
-      var differs = present(c.stated_value) && !same(src.value, c.stated_value);
-      row('Source value', el('dd', { class: differs ? 'lp-value-differs' : null }, [
+      var check = c.value_check;
+      var differs = !!check && check.relation === 'differs';
+      row('Source value', el('dd', {
+        class: differs ? 'lp-value-differs' : null,
+        'data-value-relation': check ? check.relation : null,
+      }, [
         el('code', { text: fmt(src.value) }),
-        differs ? el('strong', { text: ' ≠ differs from the stated value' }) : null,
+        check ? el('strong', { class: 'lp-value-relation', text: ' ' + check.symbol + ' ' + check.text }) : null,
       ]));
     } else {
       row('Source value', absent('not reported by the evidence provider'));
@@ -210,6 +213,16 @@
     return m ? Number(m[1]) : -1;
   }
 
+  /** Widest width:height a drawn graph may have and stay readable in the panel. */
+  var MAX_PANEL_ASPECT = 2.5;
+
+  /** width / height of a mermaid SVG string, from its viewBox (0 if unknown). */
+  function aspect(svgText) {
+    var m = /viewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/.exec(svgText || '');
+    if (!m || !Number(m[2])) return 0;
+    return Number(m[1]) / Number(m[2]);
+  }
+
   function drawGraph(ctx, c, holder, select) {
     var mm = window.mermaid;
     if (!mm || typeof mm.render !== 'function') {
@@ -222,14 +235,22 @@
     }
     var seq = ++renderSeq;
     holder.textContent = 'Drawing the evidence graph…';
-    // Same nodes, edges and classes as the graph page; only the direction
-    // turns top-down so the graph stays legible in a narrow panel.
-    var source = c.mermaid.replace(/^graph LR\b/, 'graph TD');
+    // Same nodes, edges and classes as the graph page. Top-down keeps a
+    // chain legible in the narrow panel; a wide fan (one run reading many
+    // files) laid out top-down becomes a thin strip once scaled to the
+    // panel width, so such a graph keeps the page's left-right layout.
+    var topDown = c.mermaid.replace(/^graph LR\b/, 'graph TD');
     Promise.resolve()
-      .then(function () { return mm.render('lp-panel-graph-' + seq, source); })
+      .then(function () { return mm.render('lp-panel-graph-' + seq, topDown); })
+      .then(function (out) {
+        if (aspect(out.svg) <= MAX_PANEL_ASPECT || topDown === c.mermaid) return out;
+        return mm.render('lp-panel-graph-' + seq + '-lr', c.mermaid);
+      })
       .then(function (out) {
         if (seq !== renderSeq || !ctx.isCurrent(c.claim_id)) return;
         holder.innerHTML = out.svg;
+        var svg = holder.querySelector('svg');
+        if (svg) svg.setAttribute('data-lp-aspect', aspect(out.svg).toFixed(2));
         holder.querySelectorAll('g.node').forEach(function (gn) {
           var i = svgNodeIndex(gn);
           var n = c.graph.nodes[i];
