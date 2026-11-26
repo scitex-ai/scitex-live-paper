@@ -1,0 +1,13 @@
+/* The bundle's optional reproduction receipt (self-proof.json), shown as one
+   line under the claim summary in #live-paper-trace-status (viewer.js). */
+.lp-trace-self-proof {
+  display: block;
+  margin-block-start: 2px;
+  color: var(--lp-muted, var(--lp-fg));
+  font-size: .78rem;
+}
+
+.lp-trace-self-proof[data-verdict="FAIL"] {
+  color: var(--color-warning, var(--lp-status-suspect));
+  font-weight: 600;
+}

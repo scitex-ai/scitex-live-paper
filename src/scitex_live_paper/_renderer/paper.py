@@ -34,7 +34,7 @@ from typing import Any, Callable
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
-from scitex_live_paper.evidence import SYMBOLS, iter_entries
+from scitex_live_paper.evidence import SYMBOLS, iter_entries, self_proof_line
 
 from ._sdk_header import copy_sdk_header_assets, header_context
 from ._latex_inline import collect_labels
@@ -255,6 +255,8 @@ def render_paper(
     html = env.get_template("paper.html.j2").render(
         title=title or "Live Paper — Paper",
         review=review,
+        self_proof=review.get("self_proof"),
+        self_proof_line=self_proof_line(review.get("self_proof")),
         symbols=SYMBOLS,
         sections=sections,
         claims_url=claims_url,

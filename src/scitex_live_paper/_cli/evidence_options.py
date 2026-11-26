@@ -111,6 +111,7 @@ def export_review_cmd(
         review_text,
     )
 
+    self_proof = None
     try:
         if bundle_path is None:
             if evidence_report is None:
@@ -118,6 +119,7 @@ def export_review_cmd(
             report = load_report(evidence_report)
         else:
             loaded = bundle_module.load(bundle_path)
+            self_proof = loaded.self_proof
             report = resolve_evidence_report(
                 loaded,
                 report_path=evidence_report,
@@ -132,7 +134,7 @@ def export_review_cmd(
     except (bundle_module.BundleError, EvidenceError) as exc:
         raise click.ClickException(str(exc)) from exc
 
-    packet = build_review_packet(report)
+    packet = build_review_packet(report, self_proof=self_proof)
     text = (
         json.dumps(packet, indent=2, default=str)
         if fmt == "json"

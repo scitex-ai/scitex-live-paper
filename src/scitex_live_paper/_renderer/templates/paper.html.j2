@@ -45,6 +45,7 @@
     <p class="lp-support-legend" aria-label="Legend">
       {% for state, label in review.states.items() %}<span class="lp-support-badge" data-support="{{ state }}">{{ review.symbols[state] }} {{ label }}: {{ review.counts[state] }}</span>{% endfor %}
     </p>
+    {% if self_proof_line %}<p class="lp-self-proof" data-verdict="{{ self_proof.verdict }}" title="commit {{ self_proof.source.commit[:7] }}{% if self_proof.source.ref %} ({{ self_proof.source.ref }}){% endif %}">{{ self_proof_line }}</p>{% endif %}
     {% for s in sections %}
     <section class="lp-paper-section">
     <p class="lp-paper-file"><code>{{ s.file }}</code></p>

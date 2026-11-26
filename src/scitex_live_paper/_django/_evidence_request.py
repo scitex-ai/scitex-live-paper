@@ -11,11 +11,19 @@ try:
 except ImportError as exc:
     raise ImportError("Mounted evidence requires scitex-live-paper[server]") from exc
 
+import scitex_logging as slogging
+
 from scitex_live_paper._renderer.paper import manuscript_text_entries
+from scitex_live_paper._self_proof import SELF_PROOF_FILENAME, parse_self_proof
 from scitex_live_paper.evidence import ContractError, build_review_packet, validate_report
 
 from . import services
 from ._evidence_files import DEFAULT_MAX_REPORT_BYTES, ResourceError, ResourceReader
+
+log = slogging.getLogger(__name__)
+
+#: A receipt is a few hundred bytes; anything near this is not one.
+SELF_PROOF_MAX_BYTES = 1024 * 1024
 
 
 def resource_url(request, endpoint: str, **parameters: str) -> str:
@@ -29,6 +37,23 @@ def resource_url(request, endpoint: str, **parameters: str) -> str:
     path = base.rstrip("/") + "/" + endpoint
     encoded = query.urlencode()
     return path + ("?" + encoded if encoded else "")
+
+
+def read_self_proof(root):
+    """The optional ``self-proof.json`` inside the authorized root, or ``None``.
+
+    Read through the same descriptor-rooted reader as the report. A missing
+    receipt is normal; an unreadable or malformed one is logged and ignored,
+    never a reason to refuse the paper.
+    """
+    try:
+        with ResourceReader(root) as reader:
+            raw = reader.read(SELF_PROOF_FILENAME, limit=SELF_PROOF_MAX_BYTES)
+    except ResourceError as error:
+        if error.status != 404:
+            log.warning("ignoring %s: %s", SELF_PROOF_FILENAME, error)
+        return None
+    return parse_self_proof(raw)
 
 
 def request_evidence(request):
@@ -53,6 +78,7 @@ def request_evidence(request):
         except (UnicodeDecodeError, ValueError):
             raise ResourceError("Invalid evidence report JSON", 400) from None
     report = copy.deepcopy(snapshot)
+    self_proof = read_self_proof(root)
     try:
         validate_report(report)
         for claim in report["claims"]:
@@ -72,7 +98,7 @@ def request_evidence(request):
             claim["claim_id"]: resource_url(request, "graph.html", claim_id=claim["claim_id"])
             for claim in report["claims"]
         }
-        packet = build_review_packet(report, urls)
+        packet = build_review_packet(report, urls, self_proof=self_proof)
     except (ContractError, KeyError, TypeError, ValueError):
         raise ResourceError("Invalid evidence report contract", 400) from None
     return root, packet

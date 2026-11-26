@@ -12,6 +12,11 @@ Reads an accepted manuscript bundle directory laid out as:
                          # (preprint / accepted / published, journal,
                          # DOI, pinned re-verify commit). Absent →
                          # defaults to ``PaperState(stage="preprint")``.
+      self-proof.json    # OPTIONAL reproduction receipt from the paper
+                         # project's ``make self-proof`` (every claim
+                         # re-derived from a fresh clone). Absent or
+                         # malformed → ``Bundle.self_proof is None``
+                         # (see :mod:`scitex_live_paper._self_proof`).
 
 Boundary
 --------
@@ -39,10 +44,12 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from ._self_proof import SELF_PROOF_FILENAME, SelfProof, load_self_proof
+
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from ._types import PaperState, PaperStage
 
-__all__ = ["Bundle", "Claim", "load", "BundleError", "BundleMissingError"]
+__all__ = ["Bundle", "Claim", "SelfProof", "load", "BundleError", "BundleMissingError"]
 
 
 # Keys ``state.yaml`` may carry. Anything else is preserved verbatim
@@ -195,6 +202,9 @@ class Bundle:
         Hosts can override at render/mount time via
         :class:`scitex_live_paper.BundleContext.paper_state`; the value
         here is the bundle's own default.
+    self_proof
+        Optional reproduction receipt from ``self-proof.json``
+        (:class:`SelfProof`). ``None`` when absent or malformed.
     """
 
     root: Path
@@ -205,6 +215,7 @@ class Bundle:
     figz_dir: Path
     schema_version: str | None = None
     paper_state: "PaperState" = field(default_factory=_default_paper_state)
+    self_proof: SelfProof | None = None
 
 
 def _resolve_manuscript(root: Path) -> Path:
@@ -388,4 +399,5 @@ def load(path: str | Path) -> Bundle:
         figz_dir=figz_dir,
         schema_version=schema_version,
         paper_state=paper_state,
+        self_proof=load_self_proof(root / SELF_PROOF_FILENAME),
     )

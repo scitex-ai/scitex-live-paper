@@ -170,14 +170,17 @@ def _review_packet(
         load_report,
     )
 
+    self_proof = None
     try:
         if bundle_path is None:
             if evidence_report is None:
                 raise RuntimeError("give bundle_path or evidence_report")
             report = load_report(evidence_report)
         else:
+            loaded = _load_bundle(bundle_path)
+            self_proof = loaded.self_proof
             report = resolve_evidence_report(
-                _load_bundle(bundle_path),
+                loaded,
                 report_path=evidence_report,
                 provider=evidence_provider,
                 project_root=evidence_root,
@@ -189,7 +192,7 @@ def _review_packet(
                 )
     except EvidenceError as exc:
         raise RuntimeError(str(exc)) from exc
-    return build_review_packet(report)
+    return build_review_packet(report, self_proof=self_proof)
 
 
 def live_paper_evidence_review(

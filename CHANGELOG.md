@@ -16,6 +16,9 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+- Read an optional `self-proof.json` reproduction receipt from a bundle (`Bundle.self_proof`;
+  review packet 1.3.0 `self_proof`) and show it as one line under the claim summary in the PDF
+  reader and the evidence view; a FAIL verdict is shown as a warning with the first failure.
 - Compare a stated value with its source value after normalising types and the stated
   precision (476 and "476" match); a supported claim never shows "differs".
 - Show multi-value claims as the manuscript states them (51/51), never as a dict, in the
