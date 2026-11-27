@@ -93,8 +93,15 @@ def render_evidence_pages(
     *,
     bundle: Bundle | None = None,
     project_label: str | None = None,
+    text_root: str | Path | None = None,
 ) -> EvidencePages:
-    """Build the review packet from *report* and render every evidence page."""
+    """Build the review packet from *report* and render every evidence page.
+
+    Manuscript text is read from *text_root*: the project the report
+    assessed. A 1.3.0 report omits ``project_root`` (a build-host path), so
+    the caller names the root; a 1.2.x report's ``project_root`` is the
+    fallback, then the bundle directory.
+    """
     out = Path(out_dir).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
     urls = {
@@ -104,7 +111,11 @@ def render_evidence_pages(
         report, urls, self_proof=bundle.self_proof if bundle else None
     )
 
-    text_root = packet.get("project_root") or (str(bundle.root) if bundle else None)
+    text_root = (
+        text_root
+        or packet.get("project_root")
+        or (str(bundle.root) if bundle else None)
+    )
     paper = render_paper(packet, out, text_root=text_root, project_label=project_label)
     paper_url = "paper.html" if paper is not None else None
 

@@ -20,7 +20,10 @@ def evidence_options(fn):
         "evidence_root",
         default=None,
         type=click.Path(file_okay=False, dir_okay=True, resolve_path=True),
-        help="Project the evidence provider assesses (default: the bundle directory).",
+        help=(
+            "Project the evidence provider assesses, and where render reads "
+            "the manuscript text (default: the bundle directory)."
+        ),
     )(fn)
     fn = click.option(
         "--evidence-provider",

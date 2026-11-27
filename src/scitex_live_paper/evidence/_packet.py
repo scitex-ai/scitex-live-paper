@@ -37,7 +37,10 @@ PACKET_SCHEMA = "scitex-live-paper.review-packet"
 #: 1.1.0 adds ``failing_nodes`` per entry (from report node ``failure``).
 #: 1.2.0 adds ``source.value`` + ``source.value_reported`` (report 1.2.0).
 #: 1.3.0 adds top-level ``self_proof`` (the bundle's reproduction receipt or null).
-PACKET_SCHEMA_VERSION = "1.3.0"
+#: 1.4.0 adds top-level ``project_name`` and ``external`` on each entry's
+#: ``location`` / ``source`` (report 1.3.0); ``project_root`` is null when the
+#: report omits it, as 1.3.0 providers do.
+PACKET_SCHEMA_VERSION = "1.4.0"
 
 SCOPE = (
     "Registered claims only. Text that is not a registered claim is not "
@@ -84,6 +87,7 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
             "file": loc.get("file"),
             "line": loc.get("line"),
             "label": loc.get("label"),
+            "external": loc.get("external"),
         },
         "claim_type": claim.get("claim_type"),
         "stated_text": claim.get("stated_text"),
@@ -95,6 +99,7 @@ def _entry(claim: Mapping[str, Any], graph_urls: Mapping[str, str]) -> dict[str,
         "needs_inspection": state != SUPPORTED,
         "source": {
             "file": src.get("file"),
+            "external": src.get("external"),
             "locator": src.get("locator"),
             # A source value of null is a value; only an absent key means
             # the provider did not read one.
@@ -141,6 +146,7 @@ def build_review_packet(
         "provider": dict(report["provider"]),
         "evidence_report_version": report["schema_version"],
         "project_root": report.get("project_root"),
+        "project_name": report.get("project_name"),
         "states": {s: LABELS[s] for s in INSPECTION_ORDER},
         "symbols": {s: SYMBOLS[s] for s in INSPECTION_ORDER},
         "counts": counts,

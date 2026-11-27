@@ -353,7 +353,7 @@ def test_latex_reader_source_toggle_preserves_one_claim_and_evidence_panel(
     assert (r"\documentclass" not in reader, r"\section" not in reader, title, reader_marks, verdict, r"\documentclass{article}" in source, r"\section*{Results}" in source, source_marks, r"\documentclass" not in restored, errors) == (True, True, "A readable manuscript", 1, "not_supported", True, True, 1, True, [])
 
 
-def _render_variant(ref_site, tmp_path, edit):
+def _render_variant(ref_site, ref_project, tmp_path, edit):
     """Render the paper page from a copy of the reference packet after *edit*."""
     from copy import deepcopy
 
@@ -362,7 +362,9 @@ def _render_variant(ref_site, tmp_path, edit):
     _out, _result, packet = ref_site
     review = deepcopy(packet)
     edit(review)
-    return render_paper(review, tmp_path / "variant").paper_html.as_uri()
+    return render_paper(
+        review, tmp_path / "variant", text_root=ref_project
+    ).paper_html.as_uri()
 
 
 def _entry(review, claim_id):
@@ -372,7 +374,7 @@ def _entry(review, claim_id):
 
 
 def test_supported_claim_with_a_numeric_string_source_shows_equal(
-    browser, ref_site, tmp_path
+    browser, ref_site, ref_project, tmp_path
 ):
     # Arrange: a two-value claim whose source holds the same numbers as strings
     def edit(review):
@@ -383,7 +385,7 @@ def test_supported_claim_with_a_numeric_string_source_shows_equal(
             value={"correct": "476", "judged": "476"}, value_reported=True
         )
 
-    url = _render_variant(ref_site, tmp_path, edit)
+    url = _render_variant(ref_site, ref_project, tmp_path, edit)
     ctx = browser.new_context(viewport={"width": 1440, "height": 900})
     pg = ctx.new_page()
     # Act
@@ -404,7 +406,9 @@ def test_supported_claim_with_a_numeric_string_source_shows_equal(
     ) == ("equal", True, False, True)
 
 
-def test_wide_minimal_graph_is_not_squashed_in_the_panel(browser, ref_site, tmp_path):
+def test_wide_minimal_graph_is_not_squashed_in_the_panel(
+    browser, ref_site, ref_project, tmp_path
+):
     # Arrange: one run reading 33 files, the shape that drew as a thin strip
     def edit(review):
         entry = _entry(review, "auc")
@@ -430,7 +434,7 @@ def test_wide_minimal_graph_is_not_squashed_in_the_panel(browser, ref_site, tmp_
         ]
         entry["graph"] = {"nodes": nodes, "edges": edges, "summary": "1 run, 34 files"}
 
-    url = _render_variant(ref_site, tmp_path, edit)
+    url = _render_variant(ref_site, ref_project, tmp_path, edit)
     ctx = browser.new_context(viewport={"width": 1440, "height": 900})
     pg = ctx.new_page()
     # Act

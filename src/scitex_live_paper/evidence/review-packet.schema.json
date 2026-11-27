@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://scitex.ai/schemas/scitex-live-paper/review-packet/1.3.0",
+  "$id": "https://scitex.ai/schemas/scitex-live-paper/review-packet/1.4.0",
   "title": "scitex-live-paper review packet",
   "description": "What scitex-live-paper hands a human or AI reviewer (review.json, export-review, MCP live_paper_evidence_review): the evidence report re-ordered for review, needs_inspection first (not_supported, not_checkable, no_evidence_graph; then by file, line, claim_id), then supported (by file, line, claim_id). Only registered claims appear. Versioned by schema_version (semver): a MINOR bump only adds fields; a MAJOR bump changes or removes fields. Self-contained (no external $ref). See docs/evidence-provider-contract.md.",
   "type": "object",
@@ -31,7 +31,8 @@
       }
     },
     "evidence_report_version": {"type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$", "description": "schema_version of the evidence report the packet was built from."},
-    "project_root": {"type": ["string", "null"]},
+    "project_root": {"type": ["string", "null"], "description": "The report's project_root, copied; null when the report omits it (deprecated in report 1.3.0)."},
+    "project_name": {"type": ["string", "null"], "description": "Added in 1.4.0. The report's project_name (a directory or display name, never a path), or null."},
     "states": {"$ref": "#/$defs/per_state_string", "description": "State to plain-language label."},
     "symbols": {"$ref": "#/$defs/per_state_string", "description": "State to the one symbol that reads without colour."},
     "counts": {
@@ -161,7 +162,8 @@
           "properties": {
             "file": {"type": ["string", "null"]},
             "line": {"type": ["integer", "null"], "minimum": 1},
-            "label": {"type": ["string", "null"]}
+            "label": {"type": ["string", "null"]},
+            "external": {"type": ["boolean", "null"], "description": "Added in 1.4.0. The report's location.external (true: the file lies outside the project root), or null when not reported."}
           }
         },
         "claim_type": {"type": ["string", "null"]},
@@ -177,6 +179,7 @@
           "required": ["file", "locator", "value", "value_reported"],
           "properties": {
             "file": {"type": ["string", "null"]},
+            "external": {"type": ["boolean", "null"], "description": "Added in 1.4.0. The report's source.external (true: the file lies outside the project root), or null when not reported."},
             "locator": {"description": "Provider-defined locator, or null."},
             "value": {"description": "Added in 1.2.0. The value the provider read at the locator, any JSON type; null when not reported (see value_reported)."},
             "value_reported": {"type": "boolean", "description": "Added in 1.2.0. Whether the report gave source.value; distinguishes a null value from no value."}
