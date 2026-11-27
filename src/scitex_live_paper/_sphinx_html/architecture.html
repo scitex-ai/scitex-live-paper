@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SciTeX Scientific Paper Architecture &mdash; SciTeX Live Paper 0.5.2 documentation</title>
+  <title>SciTeX Scientific Paper Architecture &mdash; SciTeX Live Paper 0.5.4 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
@@ -15,7 +15,7 @@
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=8e576371"></script>
+      <script src="_static/documentation_options.js?v=e1a677a5"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -585,7 +585,11 @@ window.runMermaid = runMermaid;</script>
 <section id="one-pdf-and-one-feed">
 <h2>One PDF and one feed<a class="headerlink" href="#one-pdf-and-one-feed" title="Link to this heading"></a></h2>
 <p>The main view has a PDF beside a synchronized feed. Selecting a rectangle selects its entry; selecting an anchored entry scrolls to its PDF region. Entries with unresolved locations remain available in the feed.</p>
-<p>Rich PDF owns layout, selection, keyboard interaction, hover containers, and generic action buttons. Injected content renderers and handlers receive region selection, entry selection, hover, and action requests.</p>
+<p>The embedded viewer and app shell use the same reader template. Live Paper places the document
+and its scientific inspector side by side at desktop widths and stacks them at narrow widths.
+The host supplies page chrome, project selection, and authorized bundle access. Claim selection
+joins the inspector and document through Rich PDF’s feed and overlay events.</p>
+<p>Rich PDF owns rendering, selection, keyboard interaction, hover containers, and generic action buttons. Injected content renderers and handlers receive region selection, entry selection, hover, and action requests.</p>
 <p>Live Paper supplies the meaning of scientific entries: stated values, source values, evidence states, graph previews, and available actions. Hover or keyboard focus shows a compact claim graph. A selected card provides access to the full authorized graph and deeper details. Reproduction starts through an explicit action.</p>
 <p>Live Paper renders graphs inside Rich PDF’s containers. The same content works in standalone Live Paper, Scholar, and Writer. Features appear according to available content and capabilities.</p>
 </section>

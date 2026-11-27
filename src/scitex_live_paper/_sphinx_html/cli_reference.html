@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CLI Reference &mdash; SciTeX Live Paper 0.5.2 documentation</title>
+  <title>CLI Reference &mdash; SciTeX Live Paper 0.5.4 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
       <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
@@ -15,7 +15,7 @@
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=8e576371"></script>
+      <script src="_static/documentation_options.js?v=e1a677a5"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
@@ -82,7 +82,7 @@
 <p>The reference below is generated from the installed command group.</p>
 <section id="scitex-live-paper">
 <h2>scitex-live-paper<a class="headerlink" href="#scitex-live-paper" title="Link to this heading"></a></h2>
-<p>scitex-live-paper (v0.5.2) — Emit a static live-paper site from an accepted bundle.</p>
+<p>scitex-live-paper (v0.5.4) — Emit a static live-paper site from an accepted bundle.</p>
 <p>The M1 end-to-end loop: load an accepted manuscript bundle and emit a self-contained static site (viewer + claims + DAG + landing page + vendored assets) that opens straight from <a class="reference external" href="file://">file://</a> — no server required. All claim / DAG semantics come from the bundle and, optionally, an evidence provider (see docs/evidence-provider-contract.md); this CLI never invents or validates fields.</p>
 <p class="rubric">Usage</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>scitex-live-paper<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span><span class="o">[</span>COMMAND<span class="o">]</span><span class="w"> </span><span class="o">[</span>ARGS<span class="o">]</span>...
@@ -310,7 +310,7 @@ $ {prog} skills list –json  Structured JSON.</p>
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-scitex-live-paper-export-review-evidence-root">
 <span class="sig-name descname"><span class="pre">--evidence-root</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;evidence_root&gt;</span></span><a class="headerlink" href="#cmdoption-scitex-live-paper-export-review-evidence-root" title="Link to this definition"></a></dt>
-<dd><p>Project the evidence provider assesses (default: the bundle directory).</p>
+<dd><p>Project the evidence provider assesses, and where render reads the manuscript text (default: the bundle directory).</p>
 </dd></dl>
 
 <dl class="std option">
@@ -613,7 +613,7 @@ $ eval “$({prog} print-shell-completion –shell bash)”  Activate it in the 
 <dl class="std option">
 <dt class="sig sig-object std" id="cmdoption-scitex-live-paper-render-evidence-root">
 <span class="sig-name descname"><span class="pre">--evidence-root</span></span><span class="sig-prename descclassname"> <span class="pre">&lt;evidence_root&gt;</span></span><a class="headerlink" href="#cmdoption-scitex-live-paper-render-evidence-root" title="Link to this definition"></a></dt>
-<dd><p>Project the evidence provider assesses (default: the bundle directory).</p>
+<dd><p>Project the evidence provider assesses, and where render reads the manuscript text (default: the bundle directory).</p>
 </dd></dl>
 
 <p class="rubric">Arguments</p>
