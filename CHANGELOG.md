@@ -16,6 +16,14 @@ may change without a changelog entry.
 
 ## [Unreleased]
 
+- Evidence report contract 1.3.0 (additive): `project_root` is deprecated and providers
+  should omit it; optional `project_name` (a name, never a path) and `external` on
+  `location` / `source`; paths, including those inside `details`, are project-relative,
+  and paths outside the root stay absolute. 1.2.x reports are still accepted.
+- Review packet 1.4.0 carries `project_name` and `location.external` / `source.external`;
+  `project_root` is null when the report omits it.
+- `render --evidence-root` now also roots the manuscript text, so a report without
+  `project_root` still renders `paper.html` (`render_evidence_pages(text_root=...)`).
 - Read an optional `self-proof.json` reproduction receipt from a bundle (`Bundle.self_proof`;
   review packet 1.3.0 `self_proof`) and show it as one line under the claim summary in the PDF
   reader and the evidence view; a FAIL verdict is shown as a warning with the first failure.

@@ -100,7 +100,11 @@ def render_site(
     )
     evidence = (
         render_evidence_pages(
-            report, out_dir, bundle=loaded, project_label=project_label
+            report,
+            out_dir,
+            bundle=loaded,
+            project_label=project_label,
+            text_root=evidence_root,
         )
         if report is not None
         else None

@@ -15,8 +15,8 @@ no graph connects it, so there is nothing to say about it.
 
 | Artifact | id | version | file |
 |---|---|---|---|
-| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.2.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
-| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.3.0` | `src/scitex_live_paper/evidence/review-packet.schema.json` (shipped in the wheel; produced by `export-review`, documented below) |
+| Evidence report (provider to live-paper) | `scitex-live-paper.evidence-report` | `1.3.0` | `src/scitex_live_paper/evidence/evidence-report.schema.json` (shipped in the wheel) |
+| Review packet (live-paper to human or AI reviewer) | `scitex-live-paper.review-packet` | `1.4.0` | `src/scitex_live_paper/evidence/review-packet.schema.json` (shipped in the wheel; produced by `export-review`, documented below) |
 
 Both carry `schema` + `schema_version` (semver). A **minor** bump only adds
 optional fields, so a consumer of `1.x` keeps working. A **major** bump changes
@@ -28,8 +28,9 @@ majors with a clear error.
 | 1.0.0 | states, reasons, sources, minimal graph |
 | 1.1.0 | optional per-node `failure` (where the evidence broke); packet `failing_nodes` |
 | 1.2.0 | optional `source.value` (the value the provider read at the locator); packet `source.value` + `source.value_reported` |
+| 1.3.0 | `project_root` deprecated (providers SHOULD omit it); optional `project_name`; optional `external` on `location` and `source`; paths, including those inside `details`, are project-relative ([Paths](#paths-130)); packet 1.4.0 `project_name` + `location.external` / `source.external` |
 
-Every 1.0.0 and 1.1.0 report is a valid 1.2.0 report. Providers should vendor a version-pinned copy of
+Every 1.0.0, 1.1.0 and 1.2.0 report is a valid 1.3.0 report. Providers should vendor a version-pinned copy of
 the schema and validate their output against it in their own tests, without
 importing live-paper.
 
@@ -52,9 +53,9 @@ so colour is never the only cue. "Needs inspection" means every state except
 ```json
 {
   "schema": "scitex-live-paper.evidence-report",
-  "schema_version": "1.2.0",
+  "schema_version": "1.3.0",
   "provider": {"name": "example-provider", "version": "1.2.3"},
-  "project_root": "/abs/path/to/project",
+  "project_name": "my-project",
   "claims": [
     {
       "claim_id": "n_rows",
@@ -127,6 +128,26 @@ the graph page then show the stated value beside the source value and say in
 words when they differ. Without it the panel says the source value was not
 reported by the provider; the reason line still explains the state.
 
+### Paths (1.3.0)
+
+A report is shown to Live Paper readers, so it must not name where the
+project lives on the build host.
+
+- `project_root` is **deprecated**. Providers SHOULD omit it. A consumer
+  never uses it to find files: the host names the project it assessed
+  (`--evidence-root`, or its own storage), and a 1.2.x report's
+  `project_root` is only a fallback.
+- `project_name` (optional, string or null) is the project's directory or
+  display name, for example the root's basename. It is never a path.
+- Every path-valued field (`location.file`, `source.file`, graph node
+  labels, a process node's `script.file`) and every path inside a
+  `details` string names an in-project file **relative to the project
+  root**, for example `results/results.json`.
+- A path **outside** the root stays absolute, so a shared dataset is
+  named where it really is and never passed off as part of the project.
+  `location.external` and `source.external` (optional booleans) mark it,
+  like the graph node's `external`.
+
 ## Connecting a provider
 
 **1. Python entry point (in-process).** Publish an object in the existing
@@ -160,8 +181,9 @@ provider is not installed beside live-paper.
 ```bash
 # provider by entry-point name, run in the project the claims belong to
 scitex-live-paper render bundle/ --out site/ --evidence-provider my-provider --evidence-root /path/to/project
-# or a report file the provider produced
-scitex-live-paper render bundle/ --out site/ --evidence-report report.json
+# or a report file the provider produced (--evidence-root names where the
+# manuscript text lives; a 1.3.0 report does not carry the host path)
+scitex-live-paper render bundle/ --out site/ --evidence-report report.json --evidence-root /path/to/project
 # machine-readable review packet for an AI reviewer (JSON, or --format text)
 scitex-live-paper export-review --evidence-report report.json --out review.json
 ```
@@ -186,7 +208,7 @@ one review packet, so they cannot disagree. A test enforces this.
 
 ## Review packet (what a reviewer reads)
 
-`scitex-live-paper.review-packet` 1.3.0 is the evidence report re-ordered for
+`scitex-live-paper.review-packet` 1.4.0 is the evidence report re-ordered for
 review: `needs_inspection` (ordered as above) and `supported`. Each entry adds
 `label`, `symbol`, `needs_inspection`, `graph_url` (the claim's page in the
 rendered site), and (1.1.0) `failing_nodes`: one
@@ -197,9 +219,13 @@ in graph order (empty when none is marked). Each entry's `source` carries
 optional reproduction receipt (`self-proof.json`) as
 `{schema, verdict, finished_at, date, source: {commit, ref}, claims: {ok, committed, verified}, failures}`,
 or `null` when the bundle has none (the evidence report itself is unchanged).
+Packet 1.4.0 adds top-level `project_name` (from the report, or `null`) and
+`external` on each entry's `location` and `source` (`true`/`false` from the
+report, `null` when it did not say). `project_root` is `null` when the report
+omits it.
 
 The packet's JSON Schema (draft 2020-12, `$id`
-`https://scitex.ai/schemas/scitex-live-paper/review-packet/1.3.0`) is
+`https://scitex.ai/schemas/scitex-live-paper/review-packet/1.4.0`) is
 self-contained (no external `$ref`), so a consumer can vendor a copy pinned by
 commit and validate packets offline. The test suite validates packets built
 from the reference provider against it.

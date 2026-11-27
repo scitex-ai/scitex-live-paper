@@ -15,7 +15,7 @@ import pytest
 from scitex_live_paper.evidence import ContractError, schema_path, validate_report
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _reference_provider import (  # noqa: E402,F401
+from _reference_provider import (  # noqa: F401
     EXPECTED_FAILURES,
     EXPECTED_STATES,
     ref_project,
@@ -42,6 +42,14 @@ _MUTATIONS = {
     "failure_detail_not_text": lambda r: r["claims"][0]["graph"]["nodes"][
         0
     ].__setitem__("failure", {"kind": "changed", "detail": 3}),
+    "project_name_not_text": lambda r: r.__setitem__("project_name", ["x"]),
+    "project_root_not_text": lambda r: r.__setitem__("project_root", 7),
+    "location_external_not_bool": lambda r: r["claims"][0]["location"].__setitem__(
+        "external", "yes"
+    ),
+    "source_external_not_bool": lambda r: r["claims"][0]["source"].__setitem__(
+        "external", 1
+    ),
 }
 
 
@@ -116,7 +124,7 @@ def test_shipped_json_schema_is_a_valid_schema():
     # Act
     jsonschema.Draft202012Validator.check_schema(_schema())
     # Assert
-    assert _schema()["$id"].endswith("/evidence-report/1.2.0")
+    assert _schema()["$id"].endswith("/evidence-report/1.3.0")
 
 
 def test_shipped_json_schema_accepts_a_conforming_report(ref_report):

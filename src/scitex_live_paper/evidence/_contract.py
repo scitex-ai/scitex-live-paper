@@ -29,8 +29,10 @@ __all__ = [
 
 REPORT_SCHEMA = "scitex-live-paper.evidence-report"
 #: The contract version this release implements. Any ``1.x.y`` report is
-#: accepted (minor bumps only add optional fields).
-REPORT_SCHEMA_VERSION = "1.2.0"
+#: accepted (minor bumps only add optional fields). 1.3.0 deprecates
+#: ``project_root`` (providers omit it) and adds ``project_name`` plus
+#: ``external`` on ``location`` / ``source``.
+REPORT_SCHEMA_VERSION = "1.3.0"
 GRAPH_NODE_KINDS = frozenset({"claim", "process", "input", "output", "other"})
 #: A node's ``failure.kind`` (1.1.0) is a short lowercase token. Any token is
 #: accepted so a later 1.x can name new kinds; unknown ones render verbatim.
@@ -96,6 +98,11 @@ def _check_graph(graph: Any, where: str) -> None:
             )
 
 
+def _check_external(block: Mapping[str, Any], where: str, name: str) -> None:
+    if "external" in block and not isinstance(block["external"], bool):
+        _fail(where, f"{name}.external must be a boolean")
+
+
 def validate_report(report: Any) -> Mapping[str, Any]:
     """Return *report* if it conforms to contract v1; raise :class:`ContractError`."""
     if not isinstance(report, Mapping):
@@ -108,6 +115,10 @@ def validate_report(report: Any) -> Mapping[str, Any]:
     provider = report.get("provider")
     if not isinstance(provider, Mapping) or not provider.get("name"):
         _fail("", "provider.name is required")
+    for key in ("project_root", "project_name"):
+        value = report.get(key)
+        if value is not None and not isinstance(value, str):
+            _fail("", f"{key} must be a string or null")
     claims = report.get("claims")
     if not isinstance(claims, list):
         _fail("", "claims must be a list")
@@ -131,6 +142,10 @@ def validate_report(report: Any) -> Mapping[str, Any]:
             _fail(where, "reason must be a non-empty string")
         if not isinstance(c["location"], Mapping):
             _fail(where, "location must be an object")
+        _check_external(c["location"], where, "location")
+        source = c.get("source")
+        if isinstance(source, Mapping):
+            _check_external(source, where, "source")
         line = c["location"].get("line")
         if line is not None and (not isinstance(line, int) or line < 1):
             _fail(where, "location.line must be a positive integer or null")

@@ -208,9 +208,9 @@ class ReferenceProvider:
             claims.append(entry)
         return {
             "schema": "scitex-live-paper.evidence-report",
-            "schema_version": "1.2.0",
+            "schema_version": "1.3.0",
             "provider": {"name": PROVIDER_NAME, "version": "1.0"},
-            "project_root": str(root),
+            "project_name": root.name,
             "claims": claims,
         }
 
@@ -423,12 +423,19 @@ def ref_report_file(tmp_path: Path, ref_report: dict) -> Path:
 
 
 @pytest.fixture
-def ref_site(tmp_path: Path, ref_bundle: Path, ref_report_file: Path):
+def ref_site(
+    tmp_path: Path, ref_bundle: Path, ref_report_file: Path, ref_project: Path
+):
     """(site dir, RenderResult, review packet) rendered from the report file."""
     from scitex_live_paper._cli.render import render_site
 
     out = tmp_path / "site"
-    result = render_site(ref_bundle, out, evidence_report=ref_report_file)
+    result = render_site(
+        ref_bundle,
+        out,
+        evidence_report=ref_report_file,
+        evidence_root=ref_project,
+    )
     return out, result, json.loads(result.review_json.read_text())
 
 
