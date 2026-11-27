@@ -85,14 +85,26 @@ def highlight_lines(text: str, entries: list[Mapping[str, Any]]) -> list[Markup]
     never substitutes a source value or changes the provider's verdict.
     Untagged text is returned escaped and unmarked.
     """
+    lines = text.splitlines()
+    macro_lines: dict[str, set[int]] = {}
+    for number, raw in enumerate(lines, start=1):
+        active = re.split(r"(?<!\\)%", raw, maxsplit=1)[0]
+        for match in re.finditer(r"(?<!\\)\\vclaim\s*\{\s*([^{}]+?)\s*\}", active):
+            macro_lines.setdefault(match[1], set()).add(number)
+
     by_line: dict[int, list[Mapping[str, Any]]] = {}
     for e in entries:
         line = e["location"].get("line")
         if isinstance(line, int):
+            # TeX editing can shift the recorded line; an explicit ID still
+            # identifies the occurrence when it is unique within this file.
+            locations = macro_lines.get(e["claim_id"], set())
+            if len(locations) == 1:
+                line = next(iter(locations))
             by_line.setdefault(line, []).append(e)
 
     out: list[Markup] = []
-    for n, raw in enumerate(text.splitlines(), start=1):
+    for n, raw in enumerate(lines, start=1):
         claims = by_line.get(n, [])
         if not claims:
             out.append(Markup(escape(raw)))
