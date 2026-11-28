@@ -105,3 +105,21 @@ def test_missing_stated_value_does_not_invent_one_from_source():
     html = str(highlight_lines(r"Value: \vclaim{score.v1}", [claim])[0])
     # Assert
     assert (r"\vclaim{score.v1}" in html, "0.95" not in html) == (True, True)
+
+
+def test_unique_registered_macro_survives_a_shifted_line():
+    # Arrange
+    text = "% old location\n" + r"Measured \vclaim{score.v1}." + "\n" + r"% \vclaim{score.v1}"
+    # Act
+    lines = highlight_lines(text, [entry()])
+    # Assert
+    assert [index for index, line in enumerate(lines) if ">0.91<sup" in line] == [1]
+
+
+def test_repeated_macro_keeps_registered_location():
+    # Arrange
+    text = "\n".join([r"\vclaim{score.v1}", r"\vclaim{score.v1}"])
+    # Act
+    lines = highlight_lines(text, [entry()])
+    # Assert
+    assert [index for index, line in enumerate(lines) if ">0.91<sup" in line] == [0]
